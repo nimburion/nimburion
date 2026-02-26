@@ -42,4 +42,4 @@ jobs:
       coverage-threshold: 50
       with-services: false
     permissions:
-      contents: read;
+      contents: read
