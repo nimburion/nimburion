@@ -431,7 +431,7 @@ type EventBusConfig struct {
 
 // JobsConfig configures jobs runtime backend selection.
 type JobsConfig struct {
-	Backend      string           `mapstructure:"backend"`       // eventbus
+	Backend      string           `mapstructure:"backend"`       // eventbus, redis
 	DefaultQueue string           `mapstructure:"default_queue"` // default
 	Worker       JobsWorkerConfig `mapstructure:"worker"`
 	Retry        JobsRetryConfig  `mapstructure:"retry"`
