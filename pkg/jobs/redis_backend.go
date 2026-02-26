@@ -205,7 +205,9 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 	return nil
 }
 
-// Reserve returns the next available job and a lease token.
+// Reserve claims the next available job from the queue and returns it with a lease.
+// Blocks until a job is available or the context is cancelled. Automatically transfers
+// delayed jobs to the ready queue when their run time arrives.
 func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.Duration) (*Job, *Lease, error) {
 	if err := b.ensureOpen(); err != nil {
 		return nil, nil, err
@@ -312,7 +314,8 @@ func (b *RedisBackend) Ack(ctx context.Context, lease *Lease) error {
 	return err
 }
 
-// Nack schedules the leased job for retry.
+// Nack rejects the job and reschedules it for retry at the specified time.
+// Increments the attempt counter and records the failure reason in job headers.
 func (b *RedisBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.Time, reason error) error {
 	rawLeasePayload, job, err := b.readLeasedJob(ctx, lease)
 	if err != nil {
@@ -341,7 +344,8 @@ func (b *RedisBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.Ti
 	return nil
 }
 
-// Renew extends lease expiration.
+// Renew extends the lease expiration to prevent the job from being reclaimed by another worker.
+// Should be called periodically during long-running job processing.
 func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Duration) error {
 	if err := b.ensureOpen(); err != nil {
 		return err
@@ -364,7 +368,8 @@ func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Du
 	return nil
 }
 
-// MoveToDLQ routes the leased job to dead-letter queue and stores DLQ entry metadata.
+// MoveToDLQ moves the failed job to the dead letter queue with failure metadata.
+// Records the failure reason, timestamp, and original queue for later inspection or replay.
 func (b *RedisBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason error) error {
 	rawLeasePayload, job, err := b.readLeasedJob(ctx, lease)
 	if err != nil {

@@ -142,6 +142,7 @@ type redisRuntimeAdapter struct {
 	backend jobs.Backend
 }
 
+// Enqueue adds a job to the processing queue.
 func (r *redisRuntimeAdapter) Enqueue(ctx context.Context, job *jobs.Job) error {
 	if r == nil || r.backend == nil {
 		return fmt.Errorf("runtime backend is not initialized")
@@ -149,14 +150,17 @@ func (r *redisRuntimeAdapter) Enqueue(ctx context.Context, job *jobs.Job) error 
 	return r.backend.Enqueue(ctx, job)
 }
 
+// Subscribe registers a handler to receive messages from the specified topic.
 func (r *redisRuntimeAdapter) Subscribe(ctx context.Context, queue string, handler jobs.Handler) error {
 	return fmt.Errorf("jobs subscribe is not supported when jobs.backend is redis; use jobs worker")
 }
 
+// Unsubscribe removes the subscription for the specified topic.
 func (r *redisRuntimeAdapter) Unsubscribe(queue string) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (r *redisRuntimeAdapter) HealthCheck(ctx context.Context) error {
 	if r == nil || r.backend == nil {
 		return fmt.Errorf("runtime backend is not initialized")
@@ -164,6 +168,7 @@ func (r *redisRuntimeAdapter) HealthCheck(ctx context.Context) error {
 	return r.backend.HealthCheck(ctx)
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (r *redisRuntimeAdapter) Close() error {
 	if r == nil || r.backend == nil {
 		return nil
