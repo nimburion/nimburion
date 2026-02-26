@@ -1,0 +1,198 @@
+name: Run Tests
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.25.x'
+      coverage-threshold:
+        description: 'Minimum coverage percentage required'
+        required: false
+        type: number
+        default: 50
+      with-services:
+        description: 'Enable Redis and Postgres services'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      coverage:
+        description: 'Total coverage percentage'
+        value: ${{ jobs.coverage.outputs.coverage }}
+
+jobs:
+  test:
+    name: Test - ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: ${{ inputs.with-services && 'redis:7-alpine' || '' }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      postgres:
+        image: ${{ inputs.with-services && 'postgres:16-alpine' || '' }}
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - 'server'
+          - 'store'
+          - 'middleware'
+          - 'eventbus'
+          - 'auth-config'
+          - 'observability-resilience'
+          - 'other'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Run tests for ${{ matrix.group }}
+        shell: bash
+        env:
+          REDIS_URL: ${{ inputs.with-services && 'redis://localhost:6379/0' || '' }}
+          POSTGRES_URL: ${{ inputs.with-services && 'postgres://postgres:postgres@localhost:5432/testdb?sslmode=disable' || '' }}
+        run: |
+          set -euo pipefail
+          
+          case "${{ matrix.group }}" in
+            server)
+              PACKAGES="./pkg/server/..."
+              ;;
+            store)
+              PACKAGES="./pkg/store/... ./pkg/repository/..."
+              ;;
+            middleware)
+              PACKAGES="./pkg/middleware/..."
+              ;;
+            eventbus)
+              PACKAGES="./pkg/eventbus/... ./pkg/jobs/... ./pkg/realtime/..."
+              ;;
+            auth-config)
+              PACKAGES="./pkg/auth/... ./pkg/config/... ./pkg/configschema/..."
+              ;;
+            observability-resilience)
+              PACKAGES="./pkg/observability/... ./pkg/health/... ./pkg/resilience/..."
+              ;;
+            other)
+              PACKAGES="./pkg/cli/... ./pkg/migrate/..."
+              ;;
+          esac
+          
+          TEST_FLAGS="-p $(nproc) -count=1"
+          if [ "${{ inputs.with-services }}" = "true" ]; then
+            TEST_FLAGS="$TEST_FLAGS -covermode=atomic -coverprofile=coverage-${{ matrix.group }}.out"
+          else
+            TEST_FLAGS="$TEST_FLAGS -short"
+          fi
+          
+          go test $PACKAGES $TEST_FLAGS
+
+      - name: Upload coverage artifacts
+        if: inputs.with-services
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.group }}
+          path: coverage-${{ matrix.group }}.out
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage Check
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.check.outputs.coverage }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Download coverage artifacts
+        if: inputs.with-services
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Merge and check coverage
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          
+          if [ "${{ inputs.with-services }}" = "true" ]; then
+            echo "mode: atomic" > coverage.out
+            tail -q -n +2 coverage-*.out >> coverage.out
+          else
+            go test ./... -short -covermode=atomic -coverprofile=coverage.out
+          fi
+          
+          go tool cover -func=coverage.out | tee coverage.txt
+          
+          threshold=${{ inputs.coverage-threshold }}
+          coverage=$(awk '/^total:/ {print $3}' coverage.txt | sed 's/%//')
+          echo "coverage=${coverage}" >> $GITHUB_OUTPUT
+          echo "Coverage: ${coverage}% (threshold: ${threshold}%)"
+          
+          if (( $(echo "$coverage < $threshold" | bc -l) )); then
+            echo "::error::Coverage ${coverage}% is below threshold ${threshold}%"
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.txt
+          if-no-files-found: error
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = fs.readFileSync('coverage.txt', 'utf8');
+            const total = coverage.match(/total:.*?(\d+\.\d+%)/)?.[1] || 'N/A';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Test Coverage\n\n**Total:** ${total}\n\n<details><summary>Details</summary>\n\n\`\`\`\n${coverage}\n\`\`\`\n</details>`
+            });
