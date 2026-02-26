@@ -45,3 +45,29 @@ func TestNormalizeKey(t *testing.T) {
 		t.Fatalf("normalizeKey returned %q", got)
 	}
 }
+
+func TestLocalRegistry_ValidateHeaders(t *testing.T) {
+	reg := &LocalRegistry{}
+	desc := &Descriptor{SchemaID: "test.Message", SchemaHash: "abc123"}
+	
+	err := reg.ValidateHeaders(desc, map[string]string{
+		"schema_id":   "test.Message",
+		"schema_hash": "abc123",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLocalRegistry_ValidateHeadersMismatch(t *testing.T) {
+	reg := &LocalRegistry{}
+	desc := &Descriptor{SchemaID: "test.Message", SchemaHash: "abc123"}
+	
+	err := reg.ValidateHeaders(desc, map[string]string{
+		"schema_id":   "wrong.Message",
+		"schema_hash": "abc123",
+	})
+	if err == nil {
+		t.Fatal("expected error for mismatched schema_id")
+	}
+}
