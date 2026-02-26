@@ -33,22 +33,27 @@ func NewRouter() *GorillaRouter {
 	}
 }
 
+// GET registers a handler for HTTP GET requests at the specified path.
 func (r *GorillaRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodGet, path, handler, middleware)
 }
 
+// POST registers a handler for HTTP POST requests at the specified path.
 func (r *GorillaRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPost, path, handler, middleware)
 }
 
+// PUT registers a handler for HTTP PUT requests at the specified path.
 func (r *GorillaRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPut, path, handler, middleware)
 }
 
+// DELETE registers a handler for HTTP DELETE requests at the specified path.
 func (r *GorillaRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodDelete, path, handler, middleware)
 }
 
+// PATCH registers a handler for HTTP PATCH requests at the specified path.
 func (r *GorillaRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPatch, path, handler, middleware)
 }
@@ -156,30 +161,37 @@ func newContext(w http.ResponseWriter, r *http.Request) *gorillaContext {
 	}
 }
 
+// Request returns the underlying HTTP request being processed.
 func (c *gorillaContext) Request() *http.Request {
 	return c.request
 }
 
+// SetRequest updates the HTTP request associated with this context.
 func (c *gorillaContext) SetRequest(r *http.Request) {
 	c.request = r
 }
 
+// Response returns the response writer for sending HTTP responses.
 func (c *gorillaContext) Response() router.ResponseWriter {
 	return c.response
 }
 
+// SetResponse updates the response writer associated with this context.
 func (c *gorillaContext) SetResponse(w router.ResponseWriter) {
 	c.response = w
 }
 
+// Param retrieves a URL path parameter by name.
 func (c *gorillaContext) Param(name string) string {
 	return mux.Vars(c.request)[name]
 }
 
+// Query retrieves a URL query parameter by name.
 func (c *gorillaContext) Query(name string) string {
 	return c.request.URL.Query().Get(name)
 }
 
+// Bind deserializes the request body into the provided struct based on Content-Type.
 func (c *gorillaContext) Bind(v interface{}) error {
 	if c.request.Body == nil || c.request.Body == http.NoBody {
 		return fmt.Errorf("request body is empty")
@@ -194,12 +206,14 @@ func (c *gorillaContext) Bind(v interface{}) error {
 	return json.NewDecoder(c.request.Body).Decode(v)
 }
 
+// JSON serializes the given value as JSON and writes it to the response with the specified status code.
 func (c *gorillaContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")
 	c.response.WriteHeader(code)
 	return json.NewEncoder(c.response).Encode(v)
 }
 
+// String writes a plain text response with the specified status code.
 func (c *gorillaContext) String(code int, s string) error {
 	c.response.Header().Set("Content-Type", "text/plain")
 	c.response.WriteHeader(code)
@@ -207,12 +221,14 @@ func (c *gorillaContext) String(code int, s string) error {
 	return err
 }
 
+// Get retrieves a value from the context by key.
 func (c *gorillaContext) Get(key string) interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.store[key]
 }
 
+// Set stores a value in the context with the given key.
 func (c *gorillaContext) Set(key string, value interface{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -227,6 +243,7 @@ type gorillaResponseWriter struct {
 	mu      sync.RWMutex
 }
 
+// WriteHeader sends an HTTP response header with the provided status code.
 func (w *gorillaResponseWriter) WriteHeader(code int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -238,6 +255,7 @@ func (w *gorillaResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// Write writes data to the response body. Implements io.Writer interface.
 func (w *gorillaResponseWriter) Write(b []byte) (int, error) {
 	if !w.Written() {
 		w.WriteHeader(http.StatusOK)
@@ -245,6 +263,7 @@ func (w *gorillaResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (w *gorillaResponseWriter) Status() int {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -254,12 +273,14 @@ func (w *gorillaResponseWriter) Status() int {
 	return w.status
 }
 
+// Written returns true if the response headers and body have been written.
 func (w *gorillaResponseWriter) Written() bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.written
 }
 
+// Hijack takes over the underlying connection for custom protocols like WebSocket.
 func (w *gorillaResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
@@ -268,6 +289,7 @@ func (w *gorillaResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
+// Flush sends any buffered data to the client immediately.
 func (w *gorillaResponseWriter) Flush() {
 	flusher, ok := w.ResponseWriter.(http.Flusher)
 	if !ok {

@@ -206,26 +206,32 @@ func newRouteCollector() *routeCollector {
 	return &routeCollector{routes: &routes}
 }
 
+// GET registers a handler for HTTP GET requests at the specified path.
 func (r *routeCollector) GET(path string, handler router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	r.add(http.MethodGet, path, handler)
 }
 
+// POST registers a handler for HTTP POST requests at the specified path.
 func (r *routeCollector) POST(path string, handler router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	r.add(http.MethodPost, path, handler)
 }
 
+// PUT registers a handler for HTTP PUT requests at the specified path.
 func (r *routeCollector) PUT(path string, handler router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	r.add(http.MethodPut, path, handler)
 }
 
+// DELETE registers a handler for HTTP DELETE requests at the specified path.
 func (r *routeCollector) DELETE(path string, handler router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	r.add(http.MethodDelete, path, handler)
 }
 
+// PATCH registers a handler for HTTP PATCH requests at the specified path.
 func (r *routeCollector) PATCH(path string, handler router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	r.add(http.MethodPatch, path, handler)
 }
 
+// Group creates a new router group with the given prefix and optional middleware.
 func (r *routeCollector) Group(prefix string, _ ...router.MiddlewareFunc) router.Router {
 	return &routeCollector{
 		routes: r.routes,
@@ -233,10 +239,13 @@ func (r *routeCollector) Group(prefix string, _ ...router.MiddlewareFunc) router
 	}
 }
 
+// Use adds middleware to the router that will be applied to all subsequent routes.
 func (r *routeCollector) Use(_ ...router.MiddlewareFunc) {}
 
+// ServeHTTP implements the http.Handler interface, dispatching requests to registered handlers.
 func (r *routeCollector) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {}
 
+// Routes returns all registered routes.
 func (r *routeCollector) Routes() []Route {
 	if r == nil || r.routes == nil {
 		return []Route{}

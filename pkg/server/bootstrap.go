@@ -48,6 +48,8 @@ type RunHTTPServersOptions struct {
 	ShutdownHookTimeout time.Duration
 }
 
+// NewDefaultRunHTTPServersOptions creates a new RunHTTPServersOptions with zero values.
+// All fields are initialized to nil or zero, allowing callers to set only required options.
 func NewDefaultRunHTTPServersOptions() *RunHTTPServersOptions {
 	return &RunHTTPServersOptions{
 		Config:                 nil,

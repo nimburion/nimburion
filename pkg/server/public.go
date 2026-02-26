@@ -349,6 +349,8 @@ func (s *PublicAPIServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// Router returns the underlying router instance for registering custom routes and middleware.
+// This allows direct access to the router for advanced configuration beyond the default setup.
 func (s *PublicAPIServer) Router() *router.Router {
 	return &s.router
 }

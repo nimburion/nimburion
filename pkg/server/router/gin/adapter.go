@@ -33,22 +33,27 @@ func NewRouter() *GinRouter {
 	}
 }
 
+// GET registers a handler for HTTP GET requests at the specified path.
 func (r *GinRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodGet, path, handler, middleware)
 }
 
+// POST registers a handler for HTTP POST requests at the specified path.
 func (r *GinRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPost, path, handler, middleware)
 }
 
+// PUT registers a handler for HTTP PUT requests at the specified path.
 func (r *GinRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPut, path, handler, middleware)
 }
 
+// DELETE registers a handler for HTTP DELETE requests at the specified path.
 func (r *GinRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodDelete, path, handler, middleware)
 }
 
+// PATCH registers a handler for HTTP PATCH requests at the specified path.
 func (r *GinRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPatch, path, handler, middleware)
 }
@@ -163,30 +168,37 @@ func newContext(c *ginpkg.Context) *ginContext {
 	return &ginContext{ctx: c, response: &ginResponseWriter{ResponseWriter: c.Writer}}
 }
 
+// Request returns the underlying HTTP request being processed.
 func (c *ginContext) Request() *http.Request {
 	return c.ctx.Request
 }
 
+// SetRequest updates the HTTP request associated with this context.
 func (c *ginContext) SetRequest(r *http.Request) {
 	c.ctx.Request = r
 }
 
+// Response returns the response writer for sending HTTP responses.
 func (c *ginContext) Response() router.ResponseWriter {
 	return c.response
 }
 
+// SetResponse updates the response writer associated with this context.
 func (c *ginContext) SetResponse(w router.ResponseWriter) {
 	c.response = w
 }
 
+// Param retrieves a URL path parameter by name.
 func (c *ginContext) Param(name string) string {
 	return c.ctx.Param(name)
 }
 
+// Query retrieves a URL query parameter by name.
 func (c *ginContext) Query(name string) string {
 	return c.ctx.Query(name)
 }
 
+// Bind deserializes the request body into the provided struct based on Content-Type.
 func (c *ginContext) Bind(v interface{}) error {
 	if c.ctx.Request.Body == nil || c.ctx.Request.Body == http.NoBody {
 		return fmt.Errorf("request body is empty")
@@ -201,12 +213,14 @@ func (c *ginContext) Bind(v interface{}) error {
 	return json.NewDecoder(c.ctx.Request.Body).Decode(v)
 }
 
+// JSON serializes the given value as JSON and writes it to the response with the specified status code.
 func (c *ginContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")
 	c.response.WriteHeader(code)
 	return json.NewEncoder(c.response).Encode(v)
 }
 
+// String writes a plain text response with the specified status code.
 func (c *ginContext) String(code int, s string) error {
 	c.response.Header().Set("Content-Type", "text/plain")
 	c.response.WriteHeader(code)
@@ -214,6 +228,7 @@ func (c *ginContext) String(code int, s string) error {
 	return err
 }
 
+// Get retrieves a value from the context by key.
 func (c *ginContext) Get(key string) interface{} {
 	v, ok := c.ctx.Get(key)
 	if !ok {
@@ -222,6 +237,7 @@ func (c *ginContext) Get(key string) interface{} {
 	return v
 }
 
+// Set stores a value in the context with the given key.
 func (c *ginContext) Set(key string, value interface{}) {
 	c.ctx.Set(key, value)
 }
@@ -234,6 +250,7 @@ type ginResponseWriter struct {
 	written bool
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (w *ginResponseWriter) Status() int {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -243,12 +260,14 @@ func (w *ginResponseWriter) Status() int {
 	return w.status
 }
 
+// Written returns true if the response headers and body have been written.
 func (w *ginResponseWriter) Written() bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.written
 }
 
+// WriteHeader sends an HTTP response header with the provided status code.
 func (w *ginResponseWriter) WriteHeader(code int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -260,6 +279,7 @@ func (w *ginResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// Write writes data to the response body. Implements io.Writer interface.
 func (w *ginResponseWriter) Write(b []byte) (int, error) {
 	if !w.Written() {
 		w.WriteHeader(http.StatusOK)
@@ -267,6 +287,7 @@ func (w *ginResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+// Flush sends any buffered data to the client immediately.
 func (w *ginResponseWriter) Flush() {
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()

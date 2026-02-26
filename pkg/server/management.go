@@ -185,6 +185,7 @@ func (s *ManagementServer) Shutdown(ctx context.Context) error {
 	return s.Server.Shutdown(ctx)
 }
 
+// Router returns the underlying router instance for registering custom routes and middleware.
 func (s *ManagementServer) Router() router.Router {
 	return s.router
 }
