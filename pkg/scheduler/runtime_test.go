@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -196,6 +197,8 @@ func TestRuntime_TriggerRejectsUnknownTask(t *testing.T) {
 	}
 	if err := runtime.Trigger(context.Background(), "missing"); err == nil {
 		t.Fatal("expected trigger error for unknown task")
+	} else if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
@@ -229,5 +232,34 @@ func TestRuntime_DispatchRenewsLeaseForLongDispatch(t *testing.T) {
 	}
 	if releases == 0 {
 		t.Fatal("expected lock release after dispatch")
+	}
+}
+
+func TestRuntime_StartTwiceReturnsTypedConflict(t *testing.T) {
+	jobRuntime := &fakeJobsRuntime{}
+	lockProvider := &fakeLockProvider{acquireResult: true}
+
+	runtime, err := NewRuntime(jobRuntime, lockProvider, &schedulerTestLogger{}, Config{})
+	if err != nil {
+		t.Fatalf("new scheduler runtime: %v", err)
+	}
+	if err := runtime.Register(Task{
+		Name:     "billing-close-day",
+		Schedule: "@every 20ms",
+		Queue:    "billing",
+		JobName:  "billing.close_day",
+		Payload:  []byte(`{"source":"scheduler"}`),
+	}); err != nil {
+		t.Fatalf("register task: %v", err)
+	}
+
+	runtime.mu.Lock()
+	runtime.running = true
+	runtime.mu.Unlock()
+
+	if err := runtime.Start(context.Background()); err == nil {
+		t.Fatal("expected second start error")
+	} else if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected ErrConflict, got %v", err)
 	}
 }

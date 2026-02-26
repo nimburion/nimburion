@@ -56,13 +56,13 @@ type Runtime struct {
 // NewRuntime creates a distributed scheduler runtime.
 func NewRuntime(jobsRuntime jobs.Runtime, lockProvider LockProvider, log logger.Logger, cfg Config) (*Runtime, error) {
 	if jobsRuntime == nil {
-		return nil, errors.New("jobs runtime is required")
+		return nil, schedulerError(ErrInvalidArgument, "jobs runtime is required")
 	}
 	if lockProvider == nil {
-		return nil, errors.New("lock provider is required")
+		return nil, schedulerError(ErrInvalidArgument, "lock provider is required")
 	}
 	if log == nil {
-		return nil, errors.New("logger is required")
+		return nil, schedulerError(ErrInvalidArgument, "logger is required")
 	}
 
 	cfg.normalize()
@@ -85,7 +85,7 @@ func (r *Runtime) Register(task Task) error {
 	defer r.mu.Unlock()
 
 	if _, exists := r.tasks[task.Name]; exists {
-		return fmt.Errorf("task %q is already registered", task.Name)
+		return schedulerError(ErrConflict, fmt.Sprintf("task %q is already registered", task.Name))
 	}
 	r.tasks[task.Name] = task
 	return nil
@@ -94,21 +94,21 @@ func (r *Runtime) Register(task Task) error {
 // Trigger dispatches one registered task immediately.
 func (r *Runtime) Trigger(ctx context.Context, taskName string) error {
 	if r == nil {
-		return errors.New("scheduler runtime is not initialized")
+		return schedulerError(ErrNotInitialized, "scheduler runtime is not initialized")
 	}
 	if ctx == nil {
-		return errors.New("context is required")
+		return schedulerError(ErrInvalidArgument, "context is required")
 	}
 	name := strings.TrimSpace(taskName)
 	if name == "" {
-		return errors.New("task name is required")
+		return schedulerError(ErrInvalidArgument, "task name is required")
 	}
 
 	r.mu.Lock()
 	task, ok := r.tasks[name]
 	r.mu.Unlock()
 	if !ok {
-		return fmt.Errorf("task %q is not registered", name)
+		return schedulerError(ErrNotFound, fmt.Sprintf("task %q is not registered", name))
 	}
 
 	return r.dispatchTask(ctx, task, time.Now().UTC())
@@ -117,16 +117,16 @@ func (r *Runtime) Trigger(ctx context.Context, taskName string) error {
 // Start runs all registered tasks until context cancellation.
 func (r *Runtime) Start(ctx context.Context) error {
 	if r == nil {
-		return errors.New("scheduler runtime is not initialized")
+		return schedulerError(ErrNotInitialized, "scheduler runtime is not initialized")
 	}
 	if ctx == nil {
-		return errors.New("context is required")
+		return schedulerError(ErrInvalidArgument, "context is required")
 	}
 
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
-		return errors.New("scheduler already running")
+		return schedulerError(ErrConflict, "scheduler already running")
 	}
 	runningCtx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
@@ -139,7 +139,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	r.mu.Unlock()
 
 	if len(tasks) == 0 {
-		return errors.New("no scheduler tasks registered")
+		return schedulerError(ErrValidation, "no scheduler tasks registered")
 	}
 
 	for _, task := range tasks {
@@ -241,7 +241,7 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	lease, acquired, err := r.lock.Acquire(ctx, lockKey, lockTTL)
 	if err != nil {
 		recordSchedulerDispatch(task.Name, "lock_error")
-		return fmt.Errorf("acquire lock failed: %w", err)
+		return errors.Join(schedulerError(ErrRetryable, "acquire lock failed"), err)
 	}
 	if !acquired {
 		recordSchedulerDispatch(task.Name, "lock_miss")
@@ -358,7 +358,7 @@ func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *LockLease, ttl t
 			case <-ticker.C:
 				if err := r.lock.Renew(renewCtx, lease, ttl); err != nil {
 					recordSchedulerLockRenew(taskNameFromLockKey(lease.Key), "error")
-					done <- fmt.Errorf("renew lock failed: %w", err)
+					done <- errors.Join(schedulerError(ErrRetryable, "renew lock failed"), err)
 					close(done)
 					return
 				}

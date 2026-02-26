@@ -131,16 +131,16 @@ type RedisBackend struct {
 // NewRedisBackend creates a Redis-backed jobs backend.
 func NewRedisBackend(cfg RedisBackendConfig, log logger.Logger) (*RedisBackend, error) {
 	if log == nil {
-		return nil, errors.New("logger is required")
+		return nil, jobsError(ErrInvalidArgument, "logger is required")
 	}
 	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, errors.New("redis url is required")
+		return nil, jobsError(ErrInvalidArgument, "redis url is required")
 	}
 	cfg.normalize()
 
 	opts, err := redis.ParseURL(cfg.URL)
 	if err != nil {
-		return nil, fmt.Errorf("parse redis url failed: %w", err)
+		return nil, errors.Join(jobsError(ErrValidation, "parse redis url failed"), err)
 	}
 	client := redis.NewClient(opts)
 
@@ -148,7 +148,7 @@ func NewRedisBackend(cfg RedisBackendConfig, log logger.Logger) (*RedisBackend, 
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("ping redis failed: %w", err)
+		return nil, errors.Join(jobsError(ErrRetryable, "ping redis failed"), err)
 	}
 
 	return &RedisBackend{
@@ -164,10 +164,10 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 		return err
 	}
 	if ctx == nil {
-		return errors.New("context is required")
+		return jobsError(ErrInvalidArgument, "context is required")
 	}
 	if job == nil {
-		return errors.New("job is required")
+		return jobsError(ErrInvalidArgument, "job is required")
 	}
 	jobCopy := cloneJob(job)
 	if err := jobCopy.Validate(); err != nil {
@@ -182,7 +182,7 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 
 	encoded, err := json.Marshal(redisJobEnvelope{Job: jobCopy})
 	if err != nil {
-		return fmt.Errorf("marshal job envelope failed: %w", err)
+		return errors.Join(jobsError(ErrValidation, "marshal job envelope failed"), err)
 	}
 
 	opCtx, cancel := b.operationContext(ctx)
@@ -211,11 +211,11 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		return nil, nil, err
 	}
 	if ctx == nil {
-		return nil, nil, errors.New("context is required")
+		return nil, nil, jobsError(ErrInvalidArgument, "context is required")
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return nil, nil, errors.New("queue is required")
+		return nil, nil, jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if leaseFor <= 0 {
 		leaseFor = DefaultLeaseTTL
@@ -301,7 +301,7 @@ func (b *RedisBackend) Ack(ctx context.Context, lease *Lease) error {
 		return err
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return errors.New("lease token is required")
+		return jobsError(ErrInvalidArgument, "lease token is required")
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
@@ -332,7 +332,7 @@ func (b *RedisBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.Ti
 	}
 	encodedJob, err := json.Marshal(redisJobEnvelope{Job: job})
 	if err != nil {
-		return fmt.Errorf("marshal retry job failed: %w", err)
+		return errors.Join(jobsError(ErrValidation, "marshal retry job failed"), err)
 	}
 	if err := b.transitionLeaseToQueue(ctx, lease, rawLeasePayload, string(encodedJob), strings.TrimSpace(job.Queue), job.RunAt); err != nil {
 		return err
@@ -347,7 +347,7 @@ func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Du
 		return err
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return errors.New("lease token is required")
+		return jobsError(ErrInvalidArgument, "lease token is required")
 	}
 	if leaseFor <= 0 {
 		leaseFor = DefaultLeaseTTL
@@ -359,7 +359,7 @@ func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Du
 		return err
 	}
 	if !expireSet {
-		return errors.New("lease not found")
+		return jobsError(ErrNotFound, "lease not found")
 	}
 	return nil
 }
@@ -386,7 +386,7 @@ func (b *RedisBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason error
 
 	encodedJob, err := json.Marshal(redisJobEnvelope{Job: job})
 	if err != nil {
-		return fmt.Errorf("marshal dlq job failed: %w", err)
+		return errors.Join(jobsError(ErrValidation, "marshal dlq job failed"), err)
 	}
 	if err := b.transitionLeaseToQueue(ctx, lease, rawLeasePayload, string(encodedJob), strings.TrimSpace(job.Queue), time.Now().UTC()); err != nil {
 		return err
@@ -411,7 +411,7 @@ func (b *RedisBackend) ListDLQ(ctx context.Context, queue string, limit int) ([]
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return nil, errors.New("queue is required")
+		return nil, jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if limit <= 0 {
 		limit = 50
@@ -458,7 +458,7 @@ func (b *RedisBackend) ReplayDLQ(ctx context.Context, queue string, ids []string
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return 0, errors.New("queue is required")
+		return 0, jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if len(ids) == 0 {
 		return 0, nil
@@ -541,12 +541,12 @@ func (b *RedisBackend) Close() error {
 
 func (b *RedisBackend) ensureOpen() error {
 	if b == nil || b.client == nil {
-		return errors.New("redis backend is not initialized")
+		return jobsError(ErrNotInitialized, "redis backend is not initialized")
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	if b.closed {
-		return errors.New("redis backend is closed")
+		return jobsError(ErrClosed, "redis backend is closed")
 	}
 	return nil
 }
@@ -563,7 +563,7 @@ func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string,
 		return "", nil, err
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return "", nil, errors.New("lease token is required")
+		return "", nil, jobsError(ErrInvalidArgument, "lease token is required")
 	}
 	token := strings.TrimSpace(lease.Token)
 
@@ -572,17 +572,17 @@ func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string,
 	cancel()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return "", nil, errors.New("lease not found")
+			return "", nil, jobsError(ErrNotFound, "lease not found")
 		}
 		return "", nil, err
 	}
 
 	var envelope redisJobEnvelope
 	if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
-		return "", nil, fmt.Errorf("decode lease payload failed: %w", err)
+		return "", nil, errors.Join(jobsError(ErrValidation, "decode lease payload failed"), err)
 	}
 	if envelope.Job == nil {
-		return "", nil, errors.New("lease payload does not contain a job")
+		return "", nil, jobsError(ErrValidation, "lease payload does not contain a job")
 	}
 	if strings.TrimSpace(envelope.Job.Queue) == "" && lease != nil {
 		envelope.Job.Queue = strings.TrimSpace(lease.Queue)
@@ -606,17 +606,17 @@ func (b *RedisBackend) transitionLeaseToQueue(
 		return err
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return errors.New("lease token is required")
+		return jobsError(ErrInvalidArgument, "lease token is required")
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return errors.New("queue is required")
+		return jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if strings.TrimSpace(nextEncodedPayload) == "" {
-		return errors.New("next payload is required")
+		return jobsError(ErrInvalidArgument, "next payload is required")
 	}
 	if strings.TrimSpace(expectedLeasePayload) == "" {
-		return errors.New("expected lease payload is required")
+		return jobsError(ErrInvalidArgument, "expected lease payload is required")
 	}
 
 	runAtUTC := runAt.UTC()
@@ -647,21 +647,21 @@ func (b *RedisBackend) transitionLeaseToQueue(
 	case 1:
 		return nil
 	case 0:
-		return errors.New("lease not found")
+		return jobsError(ErrNotFound, "lease not found")
 	case -1:
-		return errors.New("lease payload changed while transitioning")
+		return jobsError(ErrConflict, "lease payload changed while transitioning")
 	default:
-		return fmt.Errorf("invalid lease transition result: %d", transitionResult)
+		return jobsError(ErrValidation, fmt.Sprintf("invalid lease transition result: %d", transitionResult))
 	}
 }
 
 func (b *RedisBackend) saveDLQEntry(ctx context.Context, entry *DLQEntry) error {
 	if entry == nil {
-		return errors.New("dlq entry is required")
+		return jobsError(ErrInvalidArgument, "dlq entry is required")
 	}
 	queue := strings.TrimSpace(entry.OriginalQueue)
 	if queue == "" {
-		return errors.New("dlq original queue is required")
+		return jobsError(ErrInvalidArgument, "dlq original queue is required")
 	}
 	if strings.TrimSpace(entry.ID) == "" {
 		entry.ID = randomToken()

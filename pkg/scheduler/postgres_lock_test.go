@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -91,5 +92,66 @@ func TestPostgresLockProvider_RejectsInvalidTableName(t *testing.T) {
 	}, &schedulerTestLogger{})
 	if err == nil {
 		t.Fatal("expected invalid table name error")
+	}
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+}
+
+func TestPostgresLockProvider_RenewRejectsMissingLeaseWithTypedConflict(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock new: %v", err)
+	}
+	defer db.Close()
+
+	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
+		Table:            "nimburion_scheduler_locks",
+		OperationTimeout: time.Second,
+	}, &schedulerTestLogger{})
+	if err != nil {
+		t.Fatalf("new provider: %v", err)
+	}
+
+	lease := &LockLease{Key: "task-1", Token: "token-1"}
+	mock.ExpectExec("UPDATE nimburion_scheduler_locks SET expires_at=\\$3, updated_at=NOW\\(\\) WHERE lock_key=\\$1 AND token=\\$2 AND expires_at > NOW\\(\\)").
+		WithArgs("task-1", "token-1", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = provider.Renew(context.Background(), lease, time.Second)
+	if err == nil {
+		t.Fatal("expected renew rejection error")
+	}
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected ErrConflict, got %v", err)
+	}
+}
+
+func TestPostgresLockProvider_ReleaseRejectsMissingLeaseWithTypedConflict(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock new: %v", err)
+	}
+	defer db.Close()
+
+	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
+		Table:            "nimburion_scheduler_locks",
+		OperationTimeout: time.Second,
+	}, &schedulerTestLogger{})
+	if err != nil {
+		t.Fatalf("new provider: %v", err)
+	}
+
+	lease := &LockLease{Key: "task-1", Token: "token-1"}
+	mock.ExpectExec("DELETE FROM nimburion_scheduler_locks WHERE lock_key=\\$1 AND token=\\$2").
+		WithArgs("task-1", "token-1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = provider.Release(context.Background(), lease)
+	if err == nil {
+		t.Fatal("expected release rejection error")
+	}
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected ErrConflict, got %v", err)
 	}
 }

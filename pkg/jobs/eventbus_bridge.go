@@ -29,7 +29,7 @@ type EventBusBridge struct {
 // NewEventBusBridge creates a jobs runtime backed by eventbus.
 func NewEventBusBridge(bus eventbus.EventBus) (*EventBusBridge, error) {
 	if bus == nil {
-		return nil, errors.New("eventbus adapter is required")
+		return nil, jobsError(ErrInvalidArgument, "eventbus adapter is required")
 	}
 	return &EventBusBridge{bus: bus}, nil
 }
@@ -37,10 +37,10 @@ func NewEventBusBridge(bus eventbus.EventBus) (*EventBusBridge, error) {
 // Enqueue publishes a job to its queue through eventbus.
 func (b *EventBusBridge) Enqueue(ctx context.Context, job *Job) error {
 	if b == nil || b.bus == nil {
-		return errors.New("eventbus bridge is not initialized")
+		return jobsError(ErrNotInitialized, "eventbus bridge is not initialized")
 	}
 	if job == nil {
-		return errors.New("job is required")
+		return jobsError(ErrInvalidArgument, "job is required")
 	}
 
 	msg, err := job.ToEventBusMessage()
@@ -49,7 +49,7 @@ func (b *EventBusBridge) Enqueue(ctx context.Context, job *Job) error {
 	}
 
 	if err := b.bus.Publish(ctx, strings.TrimSpace(job.Queue), msg); err != nil {
-		return err
+		return errors.Join(jobsError(ErrRetryable, "publish job failed"), err)
 	}
 	recordJobEnqueued("eventbus", job)
 	return nil
@@ -58,14 +58,14 @@ func (b *EventBusBridge) Enqueue(ctx context.Context, job *Job) error {
 // Subscribe consumes jobs from the given queue and maps transport message to job contract.
 func (b *EventBusBridge) Subscribe(ctx context.Context, queue string, handler Handler) error {
 	if b == nil || b.bus == nil {
-		return errors.New("eventbus bridge is not initialized")
+		return jobsError(ErrNotInitialized, "eventbus bridge is not initialized")
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return errors.New("queue is required")
+		return jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if handler == nil {
-		return errors.New("handler is required")
+		return jobsError(ErrInvalidArgument, "handler is required")
 	}
 
 	return b.bus.Subscribe(ctx, queue, func(handlerCtx context.Context, msg *eventbus.Message) error {
@@ -80,11 +80,11 @@ func (b *EventBusBridge) Subscribe(ctx context.Context, queue string, handler Ha
 // Unsubscribe removes a queue subscription.
 func (b *EventBusBridge) Unsubscribe(queue string) error {
 	if b == nil || b.bus == nil {
-		return errors.New("eventbus bridge is not initialized")
+		return jobsError(ErrNotInitialized, "eventbus bridge is not initialized")
 	}
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return errors.New("queue is required")
+		return jobsError(ErrInvalidArgument, "queue is required")
 	}
 	return b.bus.Unsubscribe(queue)
 }
@@ -92,7 +92,7 @@ func (b *EventBusBridge) Unsubscribe(queue string) error {
 // HealthCheck checks connectivity to the underlying event bus.
 func (b *EventBusBridge) HealthCheck(ctx context.Context) error {
 	if b == nil || b.bus == nil {
-		return errors.New("eventbus bridge is not initialized")
+		return jobsError(ErrNotInitialized, "eventbus bridge is not initialized")
 	}
 	return b.bus.HealthCheck(ctx)
 }
@@ -100,7 +100,7 @@ func (b *EventBusBridge) HealthCheck(ctx context.Context) error {
 // Close closes the underlying event bus.
 func (b *EventBusBridge) Close() error {
 	if b == nil || b.bus == nil {
-		return errors.New("eventbus bridge is not initialized")
+		return jobsError(ErrNotInitialized, "eventbus bridge is not initialized")
 	}
 	return b.bus.Close()
 }

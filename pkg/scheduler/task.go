@@ -39,24 +39,24 @@ func (t *Task) normalize() {
 // Validate verifies required fields and schedule syntax.
 func (t *Task) Validate() error {
 	if t == nil {
-		return errors.New("task is nil")
+		return schedulerError(ErrValidation, "task is nil")
 	}
 	t.normalize()
 
 	if strings.TrimSpace(t.Name) == "" {
-		return errors.New("task name is required")
+		return schedulerError(ErrValidation, "task name is required")
 	}
 	if strings.TrimSpace(t.Schedule) == "" {
-		return errors.New("task schedule is required")
+		return schedulerError(ErrValidation, "task schedule is required")
 	}
 	if strings.TrimSpace(t.Queue) == "" {
-		return errors.New("task queue is required")
+		return schedulerError(ErrValidation, "task queue is required")
 	}
 	if strings.TrimSpace(t.JobName) == "" {
-		return errors.New("task job_name is required")
+		return schedulerError(ErrValidation, "task job_name is required")
 	}
 	if t.MisfirePolicy != MisfirePolicySkip && t.MisfirePolicy != MisfirePolicyFireOnce {
-		return fmt.Errorf("invalid task misfire policy %q", t.MisfirePolicy)
+		return schedulerError(ErrValidation, fmt.Sprintf("invalid task misfire policy %q", t.MisfirePolicy))
 	}
 	if _, err := t.nextRun(time.Now().UTC()); err != nil {
 		return err
@@ -70,7 +70,7 @@ func (t *Task) location() (*time.Location, error) {
 	}
 	loc, err := time.LoadLocation(strings.TrimSpace(t.Timezone))
 	if err != nil {
-		return nil, fmt.Errorf("invalid task timezone: %w", err)
+		return nil, errors.Join(schedulerError(ErrValidation, "invalid task timezone"), err)
 	}
 	return loc, nil
 }
@@ -88,17 +88,17 @@ func nextRunForSchedule(schedule string, now time.Time, loc *time.Location) (tim
 		durationRaw := strings.TrimSpace(strings.TrimPrefix(schedule, "@every "))
 		interval, err := time.ParseDuration(durationRaw)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("invalid @every duration: %w", err)
+			return time.Time{}, errors.Join(schedulerError(ErrValidation, "invalid @every duration"), err)
 		}
 		if interval <= 0 {
-			return time.Time{}, errors.New("@every duration must be > 0")
+			return time.Time{}, schedulerError(ErrValidation, "@every duration must be > 0")
 		}
 		return now.Add(interval).UTC(), nil
 	}
 
 	fields := strings.Fields(schedule)
 	if len(fields) != 5 {
-		return time.Time{}, fmt.Errorf("unsupported schedule format %q", schedule)
+		return time.Time{}, schedulerError(ErrValidation, fmt.Sprintf("unsupported schedule format %q", schedule))
 	}
 
 	cronExpr, err := parseCronExpression(fields)
@@ -115,7 +115,7 @@ func nextRunForSchedule(schedule string, now time.Time, loc *time.Location) (tim
 		candidate = candidate.Add(time.Minute)
 	}
 
-	return time.Time{}, fmt.Errorf("unable to find next run for schedule %q", schedule)
+	return time.Time{}, schedulerError(ErrValidation, fmt.Sprintf("unable to find next run for schedule %q", schedule))
 }
 
 type cronFieldMatcher struct {
@@ -171,23 +171,23 @@ func (e cronExpression) matches(candidate time.Time) bool {
 func parseCronExpression(fields []string) (*cronExpression, error) {
 	minute, err := parseCronField(fields[0], 0, 59, false)
 	if err != nil {
-		return nil, fmt.Errorf("invalid minute field %q: %w", fields[0], err)
+		return nil, errors.Join(schedulerError(ErrValidation, fmt.Sprintf("invalid minute field %q", fields[0])), err)
 	}
 	hour, err := parseCronField(fields[1], 0, 23, false)
 	if err != nil {
-		return nil, fmt.Errorf("invalid hour field %q: %w", fields[1], err)
+		return nil, errors.Join(schedulerError(ErrValidation, fmt.Sprintf("invalid hour field %q", fields[1])), err)
 	}
 	dayOfMonth, err := parseCronField(fields[2], 1, 31, false)
 	if err != nil {
-		return nil, fmt.Errorf("invalid day-of-month field %q: %w", fields[2], err)
+		return nil, errors.Join(schedulerError(ErrValidation, fmt.Sprintf("invalid day-of-month field %q", fields[2])), err)
 	}
 	month, err := parseCronField(fields[3], 1, 12, false)
 	if err != nil {
-		return nil, fmt.Errorf("invalid month field %q: %w", fields[3], err)
+		return nil, errors.Join(schedulerError(ErrValidation, fmt.Sprintf("invalid month field %q", fields[3])), err)
 	}
 	dayOfWeek, err := parseCronField(fields[4], 0, 7, true)
 	if err != nil {
-		return nil, fmt.Errorf("invalid day-of-week field %q: %w", fields[4], err)
+		return nil, errors.Join(schedulerError(ErrValidation, fmt.Sprintf("invalid day-of-week field %q", fields[4])), err)
 	}
 
 	return &cronExpression{
@@ -202,7 +202,7 @@ func parseCronExpression(fields []string) (*cronExpression, error) {
 func parseCronField(raw string, minValue, maxValue int, normalizeSunday bool) (cronFieldMatcher, error) {
 	field := strings.TrimSpace(raw)
 	if field == "" {
-		return cronFieldMatcher{}, errors.New("empty field")
+		return cronFieldMatcher{}, schedulerError(ErrValidation, "empty field")
 	}
 	if field == "*" {
 		return cronFieldMatcher{any: true}, nil
@@ -213,14 +213,14 @@ func parseCronField(raw string, minValue, maxValue int, normalizeSunday bool) (c
 	for _, segment := range segments {
 		segment = strings.TrimSpace(segment)
 		if segment == "" {
-			return cronFieldMatcher{}, errors.New("empty segment")
+			return cronFieldMatcher{}, schedulerError(ErrValidation, "empty segment")
 		}
 		if err := appendCronSegmentValues(values, segment, minValue, maxValue, normalizeSunday); err != nil {
 			return cronFieldMatcher{}, err
 		}
 	}
 	if len(values) == 0 {
-		return cronFieldMatcher{}, errors.New("no values parsed")
+		return cronFieldMatcher{}, schedulerError(ErrValidation, "no values parsed")
 	}
 	return cronFieldMatcher{
 		any:    false,
@@ -234,13 +234,13 @@ func appendCronSegmentValues(values map[int]struct{}, segment string, minValue, 
 	if strings.Contains(segment, "/") {
 		stepParts := strings.SplitN(segment, "/", 2)
 		if len(stepParts) != 2 {
-			return fmt.Errorf("invalid step segment %q", segment)
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid step segment %q", segment))
 		}
 		base = strings.TrimSpace(stepParts[0])
 		stepRaw := strings.TrimSpace(stepParts[1])
 		parsedStep, err := strconv.Atoi(stepRaw)
 		if err != nil || parsedStep <= 0 {
-			return fmt.Errorf("invalid step value %q", stepRaw)
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid step value %q", stepRaw))
 		}
 		step = parsedStep
 	}
@@ -258,22 +258,22 @@ func appendCronSegmentValues(values map[int]struct{}, segment string, minValue, 
 	case strings.Contains(base, "-"):
 		rangeParts := strings.SplitN(base, "-", 2)
 		if len(rangeParts) != 2 {
-			return fmt.Errorf("invalid range segment %q", segment)
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid range segment %q", segment))
 		}
 		rangeStart, err := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
 		if err != nil {
-			return fmt.Errorf("invalid range start %q", rangeParts[0])
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid range start %q", rangeParts[0]))
 		}
 		rangeEnd, err := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
 		if err != nil {
-			return fmt.Errorf("invalid range end %q", rangeParts[1])
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid range end %q", rangeParts[1]))
 		}
 		start = normalizeCronValue(rangeStart, normalizeSunday)
 		end = normalizeCronValue(rangeEnd, normalizeSunday)
 	default:
 		singleValue, err := strconv.Atoi(base)
 		if err != nil {
-			return fmt.Errorf("invalid value %q", base)
+			return schedulerError(ErrValidation, fmt.Sprintf("invalid value %q", base))
 		}
 		start = normalizeCronValue(singleValue, normalizeSunday)
 		end = start
@@ -283,13 +283,13 @@ func appendCronSegmentValues(values map[int]struct{}, segment string, minValue, 
 	}
 
 	if start < minValue || start > maxValue {
-		return fmt.Errorf("value %d out of range [%d,%d]", start, minValue, maxValue)
+		return schedulerError(ErrValidation, fmt.Sprintf("value %d out of range [%d,%d]", start, minValue, maxValue))
 	}
 	if end < minValue || end > maxValue {
-		return fmt.Errorf("value %d out of range [%d,%d]", end, minValue, maxValue)
+		return schedulerError(ErrValidation, fmt.Sprintf("value %d out of range [%d,%d]", end, minValue, maxValue))
 	}
 	if end < start {
-		return fmt.Errorf("invalid range %d-%d", start, end)
+		return schedulerError(ErrValidation, fmt.Sprintf("invalid range %d-%d", start, end))
 	}
 
 	for value := start; value <= end; value += step {

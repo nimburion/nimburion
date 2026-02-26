@@ -384,3 +384,15 @@ func TestWorker_RenewsLeaseDuringLongProcessing(t *testing.T) {
 		t.Fatal("expected at least one lease renewal during long processing")
 	}
 }
+
+func TestNewWorker_ReturnsTypedInvalidArgument(t *testing.T) {
+	_, err := NewWorker(nil, &workerTestLogger{}, WorkerConfig{
+		Queues: []string{"payments"},
+	})
+	if err == nil {
+		t.Fatal("expected worker creation error")
+	}
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("expected ErrInvalidArgument, got %v", err)
+	}
+}

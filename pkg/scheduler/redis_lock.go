@@ -60,16 +60,16 @@ type RedisLockProvider struct {
 // NewRedisLockProvider creates a Redis-based lock provider.
 func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*RedisLockProvider, error) {
 	if log == nil {
-		return nil, errors.New("logger is required")
+		return nil, schedulerError(ErrInvalidArgument, "logger is required")
 	}
 	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, errors.New("redis url is required")
+		return nil, schedulerError(ErrInvalidArgument, "redis url is required")
 	}
 	cfg.normalize()
 
 	opts, err := redis.ParseURL(cfg.URL)
 	if err != nil {
-		return nil, fmt.Errorf("parse redis url failed: %w", err)
+		return nil, errors.Join(schedulerError(ErrValidation, "parse redis url failed"), err)
 	}
 	client := redis.NewClient(opts)
 
@@ -77,7 +77,7 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("ping redis failed: %w", err)
+		return nil, errors.Join(schedulerError(ErrRetryable, "ping redis failed"), err)
 	}
 
 	return &RedisLockProvider{
@@ -90,14 +90,14 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 // Acquire attempts to acquire a lock key with TTL.
 func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Duration) (*LockLease, bool, error) {
 	if p == nil || p.client == nil {
-		return nil, false, errors.New("redis lock provider is not initialized")
+		return nil, false, schedulerError(ErrNotInitialized, "redis lock provider is not initialized")
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return nil, false, errors.New("lock key is required")
+		return nil, false, schedulerError(ErrInvalidArgument, "lock key is required")
 	}
 	if ttl <= 0 {
-		return nil, false, errors.New("ttl must be > 0")
+		return nil, false, schedulerError(ErrInvalidArgument, "ttl must be > 0")
 	}
 
 	token := randomRedisToken()
@@ -107,7 +107,7 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 	defer cancel()
 	acquired, err := p.client.SetNX(opCtx, fullKey, token, ttl).Result()
 	if err != nil {
-		return nil, false, err
+		return nil, false, errors.Join(schedulerError(ErrRetryable, "acquire lock failed"), err)
 	}
 	if !acquired {
 		return nil, false, nil
@@ -123,28 +123,28 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 // Renew extends lock expiry when token still matches.
 func (p *RedisLockProvider) Renew(ctx context.Context, lease *LockLease, ttl time.Duration) error {
 	if p == nil || p.client == nil {
-		return errors.New("redis lock provider is not initialized")
+		return schedulerError(ErrNotInitialized, "redis lock provider is not initialized")
 	}
 	if lease == nil {
-		return errors.New("lease is required")
+		return schedulerError(ErrInvalidArgument, "lease is required")
 	}
 	if ttl <= 0 {
-		return errors.New("ttl must be > 0")
+		return schedulerError(ErrInvalidArgument, "ttl must be > 0")
 	}
 	key := strings.TrimSpace(lease.Key)
 	token := strings.TrimSpace(lease.Token)
 	if key == "" || token == "" {
-		return errors.New("lease key and token are required")
+		return schedulerError(ErrInvalidArgument, "lease key and token are required")
 	}
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
 	result, err := renewScript.Run(opCtx, p.client, []string{p.fullKey(key)}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
-		return err
+		return errors.Join(schedulerError(ErrRetryable, "renew lock failed"), err)
 	}
 	if result == 0 {
-		return errors.New("lock renew rejected")
+		return schedulerError(ErrConflict, "lock renew rejected")
 	}
 
 	lease.ExpireAt = time.Now().UTC().Add(ttl)
@@ -154,26 +154,26 @@ func (p *RedisLockProvider) Renew(ctx context.Context, lease *LockLease, ttl tim
 // Release unlocks the key if the lease token matches.
 func (p *RedisLockProvider) Release(ctx context.Context, lease *LockLease) error {
 	if p == nil || p.client == nil {
-		return errors.New("redis lock provider is not initialized")
+		return schedulerError(ErrNotInitialized, "redis lock provider is not initialized")
 	}
 	if lease == nil {
-		return errors.New("lease is required")
+		return schedulerError(ErrInvalidArgument, "lease is required")
 	}
 
 	key := strings.TrimSpace(lease.Key)
 	token := strings.TrimSpace(lease.Token)
 	if key == "" || token == "" {
-		return errors.New("lease key and token are required")
+		return schedulerError(ErrInvalidArgument, "lease key and token are required")
 	}
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
 	result, err := releaseScript.Run(opCtx, p.client, []string{p.fullKey(key)}, token).Int64()
 	if err != nil {
-		return err
+		return errors.Join(schedulerError(ErrRetryable, "release lock failed"), err)
 	}
 	if result == 0 {
-		return errors.New("lock release rejected")
+		return schedulerError(ErrConflict, "lock release rejected")
 	}
 	return nil
 }
@@ -181,11 +181,14 @@ func (p *RedisLockProvider) Release(ctx context.Context, lease *LockLease) error
 // HealthCheck verifies Redis connectivity.
 func (p *RedisLockProvider) HealthCheck(ctx context.Context) error {
 	if p == nil || p.client == nil {
-		return errors.New("redis lock provider is not initialized")
+		return schedulerError(ErrNotInitialized, "redis lock provider is not initialized")
 	}
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	return p.client.Ping(opCtx).Err()
+	if err := p.client.Ping(opCtx).Err(); err != nil {
+		return errors.Join(schedulerError(ErrRetryable, "redis healthcheck failed"), err)
+	}
+	return nil
 }
 
 // Close closes Redis client connections.

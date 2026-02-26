@@ -48,28 +48,28 @@ type Job struct {
 // Validate checks the required fields used by runtime behavior.
 func (j *Job) Validate() error {
 	if j == nil {
-		return errors.New("job is nil")
+		return jobsError(ErrValidation, "job is nil")
 	}
 	if strings.TrimSpace(j.ID) == "" {
-		return errors.New("job id is required")
+		return jobsError(ErrValidation, "job id is required")
 	}
 	if strings.TrimSpace(j.Name) == "" {
-		return errors.New("job name is required")
+		return jobsError(ErrValidation, "job name is required")
 	}
 	if strings.TrimSpace(j.Queue) == "" {
-		return errors.New("job queue is required")
+		return jobsError(ErrValidation, "job queue is required")
 	}
 	if len(j.Payload) == 0 {
-		return errors.New("job payload is required")
+		return jobsError(ErrValidation, "job payload is required")
 	}
 	if j.Attempt < 0 {
-		return errors.New("job attempt must be >= 0")
+		return jobsError(ErrValidation, "job attempt must be >= 0")
 	}
 	if j.MaxAttempts < 0 {
-		return errors.New("job max attempts must be >= 0")
+		return jobsError(ErrValidation, "job max attempts must be >= 0")
 	}
 	if j.MaxAttempts > 0 && j.Attempt > j.MaxAttempts {
-		return errors.New("job attempt cannot exceed max attempts")
+		return jobsError(ErrValidation, "job attempt cannot exceed max attempts")
 	}
 	return nil
 }
@@ -143,13 +143,13 @@ func JobFromEventBusMessage(msg *eventbus.Message) (*Job, error) {
 // JobFromEventBusMessageWithQueue decodes a job and applies a fallback queue when missing.
 func JobFromEventBusMessageWithQueue(msg *eventbus.Message, fallbackQueue string) (*Job, error) {
 	if msg == nil {
-		return nil, errors.New("message is nil")
+		return nil, jobsError(ErrValidation, "message is nil")
 	}
 	if strings.TrimSpace(msg.ID) == "" {
-		return nil, errors.New("message id is required")
+		return nil, jobsError(ErrValidation, "message id is required")
 	}
 	if len(msg.Value) == 0 {
-		return nil, errors.New("message payload is empty")
+		return nil, jobsError(ErrValidation, "message payload is empty")
 	}
 
 	headers := cloneHeaders(msg.Headers)
@@ -176,7 +176,7 @@ func JobFromEventBusMessageWithQueue(msg *eventbus.Message, fallbackQueue string
 	if runAtHeader := strings.TrimSpace(headers[HeaderJobRunAt]); runAtHeader != "" {
 		runAt, err := time.Parse(time.RFC3339Nano, runAtHeader)
 		if err != nil {
-			return nil, fmt.Errorf("invalid %s header: %w", HeaderJobRunAt, err)
+			return nil, errors.Join(jobsError(ErrValidation, fmt.Sprintf("invalid %s header", HeaderJobRunAt)), err)
 		}
 		job.RunAt = runAt.UTC()
 	}
@@ -193,14 +193,14 @@ func JobFromEventBusMessageWithQueue(msg *eventbus.Message, fallbackQueue string
 	if attemptHeader := strings.TrimSpace(headers[HeaderJobAttempt]); attemptHeader != "" {
 		attempt, err := strconv.Atoi(attemptHeader)
 		if err != nil {
-			return nil, fmt.Errorf("invalid %s header: %w", HeaderJobAttempt, err)
+			return nil, errors.Join(jobsError(ErrValidation, fmt.Sprintf("invalid %s header", HeaderJobAttempt)), err)
 		}
 		job.Attempt = attempt
 	}
 	if maxAttemptsHeader := strings.TrimSpace(headers[HeaderJobMaxAttempts]); maxAttemptsHeader != "" {
 		maxAttempts, err := strconv.Atoi(maxAttemptsHeader)
 		if err != nil {
-			return nil, fmt.Errorf("invalid %s header: %w", HeaderJobMaxAttempts, err)
+			return nil, errors.Join(jobsError(ErrValidation, fmt.Sprintf("invalid %s header", HeaderJobMaxAttempts)), err)
 		}
 		job.MaxAttempts = maxAttempts
 	}
@@ -233,7 +233,7 @@ func JobPartitionKey(tenantID, jobName, jobID string) string {
 func MarshalPayloadJSON(payload any) ([]byte, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshal job payload failed: %w", err)
+		return nil, errors.Join(jobsError(ErrValidation, "marshal job payload failed"), err)
 	}
 	return data, nil
 }

@@ -78,10 +78,10 @@ type RuntimeBackend struct {
 // NewRuntimeBackend creates a lease-aware backend over an existing jobs runtime.
 func NewRuntimeBackend(runtime Runtime, log logger.Logger, cfg RuntimeBackendConfig) (*RuntimeBackend, error) {
 	if runtime == nil {
-		return nil, errors.New("runtime is required")
+		return nil, jobsError(ErrInvalidArgument, "runtime is required")
 	}
 	if log == nil {
-		return nil, errors.New("logger is required")
+		return nil, jobsError(ErrInvalidArgument, "logger is required")
 	}
 	cfg.normalize()
 
@@ -97,7 +97,7 @@ func NewRuntimeBackend(runtime Runtime, log logger.Logger, cfg RuntimeBackendCon
 // Enqueue delegates enqueue to the underlying runtime.
 func (b *RuntimeBackend) Enqueue(ctx context.Context, job *Job) error {
 	if b == nil || b.runtime == nil {
-		return errors.New("runtime backend is not initialized")
+		return jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}
 	return b.runtime.Enqueue(ctx, job)
 }
@@ -105,15 +105,15 @@ func (b *RuntimeBackend) Enqueue(ctx context.Context, job *Job) error {
 // Reserve waits for a job from a queue and returns a lease for processing.
 func (b *RuntimeBackend) Reserve(ctx context.Context, queue string, leaseFor time.Duration) (*Job, *Lease, error) {
 	if b == nil || b.runtime == nil {
-		return nil, nil, errors.New("runtime backend is not initialized")
+		return nil, nil, jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}
 	if ctx == nil {
-		return nil, nil, errors.New("context is required")
+		return nil, nil, jobsError(ErrInvalidArgument, "context is required")
 	}
 
 	queue = strings.TrimSpace(queue)
 	if queue == "" {
-		return nil, nil, errors.New("queue is required")
+		return nil, nil, jobsError(ErrInvalidArgument, "queue is required")
 	}
 	if leaseFor <= 0 {
 		leaseFor = DefaultLeaseTTL
@@ -131,7 +131,7 @@ func (b *RuntimeBackend) Reserve(ctx context.Context, queue string, leaseFor tim
 	case delivery = <-sub.deliveries:
 	}
 	if delivery == nil || delivery.job == nil {
-		return nil, nil, errors.New("received empty delivery")
+		return nil, nil, jobsError(ErrRetryable, "received empty delivery")
 	}
 
 	token := randomToken()
@@ -155,8 +155,8 @@ func (b *RuntimeBackend) Reserve(ctx context.Context, queue string, leaseFor tim
 	if b.closed {
 		b.mu.Unlock()
 		state.timer.Stop()
-		delivery.complete(errors.New("runtime backend is closed"))
-		return nil, nil, errors.New("runtime backend is closed")
+		delivery.complete(jobsError(ErrClosed, "runtime backend is closed"))
+		return nil, nil, jobsError(ErrClosed, "runtime backend is closed")
 	}
 	b.leases[token] = state
 	b.mu.Unlock()
@@ -210,7 +210,7 @@ func (b *RuntimeBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.
 
 	if err := b.runtime.Enqueue(ctx, retryJob); err != nil {
 		state.delivery.complete(err)
-		return fmt.Errorf("enqueue retry job failed: %w", err)
+		return errors.Join(jobsError(ErrRetryable, "enqueue retry job failed"), err)
 	}
 
 	state.delivery.complete(nil)
@@ -220,10 +220,10 @@ func (b *RuntimeBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.
 // Renew extends the lease expiry for an in-flight job.
 func (b *RuntimeBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Duration) error {
 	if b == nil {
-		return errors.New("runtime backend is not initialized")
+		return jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return errors.New("lease token is required")
+		return jobsError(ErrInvalidArgument, "lease token is required")
 	}
 	if leaseFor <= 0 {
 		leaseFor = DefaultLeaseTTL
@@ -234,7 +234,7 @@ func (b *RuntimeBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.
 
 	state, ok := b.leases[strings.TrimSpace(lease.Token)]
 	if !ok {
-		return errors.New("lease not found")
+		return jobsError(ErrNotFound, "lease not found")
 	}
 	if state.timer != nil {
 		state.timer.Stop()
@@ -272,7 +272,7 @@ func (b *RuntimeBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason err
 
 	if err := b.runtime.Enqueue(ctx, dlqJob); err != nil {
 		state.delivery.complete(err)
-		return fmt.Errorf("enqueue dlq job failed: %w", err)
+		return errors.Join(jobsError(ErrRetryable, "enqueue dlq job failed"), err)
 	}
 
 	state.delivery.complete(nil)
@@ -282,7 +282,7 @@ func (b *RuntimeBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason err
 // HealthCheck verifies backend connectivity through underlying runtime.
 func (b *RuntimeBackend) HealthCheck(ctx context.Context) error {
 	if b == nil || b.runtime == nil {
-		return errors.New("runtime backend is not initialized")
+		return jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}
 	return b.runtime.HealthCheck(ctx)
 }
@@ -317,7 +317,7 @@ func (b *RuntimeBackend) Close() error {
 		if state.timer != nil {
 			state.timer.Stop()
 		}
-		state.delivery.complete(errors.New("runtime backend closed"))
+		state.delivery.complete(jobsError(ErrClosed, "runtime backend closed"))
 	}
 
 	var errs []error
@@ -327,12 +327,12 @@ func (b *RuntimeBackend) Close() error {
 		}
 		sub.cancel()
 		if err := b.runtime.Unsubscribe(sub.queue); err != nil {
-			errs = append(errs, fmt.Errorf("unsubscribe %q: %w", sub.queue, err))
+			errs = append(errs, errors.Join(jobsError(ErrRetryable, fmt.Sprintf("unsubscribe %q failed", sub.queue)), err))
 		}
 	}
 	if b.config.CloseRuntime {
 		if err := b.runtime.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("close runtime: %w", err))
+			errs = append(errs, errors.Join(jobsError(ErrRetryable, "close runtime failed"), err))
 		}
 	}
 
@@ -343,7 +343,7 @@ func (b *RuntimeBackend) ensureSubscription(queue string) (*runtimeSubscription,
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
-		return nil, errors.New("runtime backend is closed")
+		return nil, jobsError(ErrClosed, "runtime backend is closed")
 	}
 	if existing, ok := b.subscriptions[queue]; ok {
 		b.mu.Unlock()
@@ -386,7 +386,7 @@ func (b *RuntimeBackend) ensureSubscription(queue string) (*runtimeSubscription,
 		b.mu.Lock()
 		delete(b.subscriptions, queue)
 		b.mu.Unlock()
-		return nil, fmt.Errorf("subscribe queue %q failed: %w", queue, err)
+		return nil, errors.Join(jobsError(ErrRetryable, fmt.Sprintf("subscribe queue %q failed", queue)), err)
 	}
 
 	return sub, nil
@@ -394,14 +394,14 @@ func (b *RuntimeBackend) ensureSubscription(queue string) (*runtimeSubscription,
 
 func (b *RuntimeBackend) popLease(lease *Lease) (*runtimeLeaseState, error) {
 	if b == nil {
-		return nil, errors.New("runtime backend is not initialized")
+		return nil, jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}
 	if lease == nil {
-		return nil, errors.New("lease is required")
+		return nil, jobsError(ErrInvalidArgument, "lease is required")
 	}
 	token := strings.TrimSpace(lease.Token)
 	if token == "" {
-		return nil, errors.New("lease token is required")
+		return nil, jobsError(ErrInvalidArgument, "lease token is required")
 	}
 
 	b.mu.Lock()
@@ -409,7 +409,7 @@ func (b *RuntimeBackend) popLease(lease *Lease) (*runtimeLeaseState, error) {
 
 	state, ok := b.leases[token]
 	if !ok {
-		return nil, errors.New("lease not found")
+		return nil, jobsError(ErrNotFound, "lease not found")
 	}
 	delete(b.leases, token)
 	if state.timer != nil {
@@ -428,7 +428,7 @@ func (b *RuntimeBackend) expireLease(token string) {
 	delete(b.leases, token)
 	b.mu.Unlock()
 
-	state.delivery.complete(errors.New("lease expired"))
+	state.delivery.complete(jobsError(ErrConflict, "lease expired"))
 	b.log.Warn("jobs lease expired", "token", token, "job_id", state.lease.JobID, "queue", state.lease.Queue)
 }
 

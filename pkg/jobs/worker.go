@@ -115,14 +115,14 @@ type RuntimeWorker struct {
 // NewWorker creates a worker from backend + configuration.
 func NewWorker(backend Backend, log logger.Logger, cfg WorkerConfig) (*RuntimeWorker, error) {
 	if backend == nil {
-		return nil, errors.New("backend is required")
+		return nil, jobsError(ErrInvalidArgument, "backend is required")
 	}
 	if log == nil {
-		return nil, errors.New("logger is required")
+		return nil, jobsError(ErrInvalidArgument, "logger is required")
 	}
 	cfg.normalize()
 	if len(cfg.Queues) == 0 {
-		return nil, errors.New("at least one queue is required")
+		return nil, jobsError(ErrValidation, "at least one queue is required")
 	}
 
 	queues := make([]string, 0, len(cfg.Queues))
@@ -133,7 +133,7 @@ func NewWorker(backend Backend, log logger.Logger, cfg WorkerConfig) (*RuntimeWo
 		}
 	}
 	if len(queues) == 0 {
-		return nil, errors.New("at least one non-empty queue is required")
+		return nil, jobsError(ErrValidation, "at least one non-empty queue is required")
 	}
 	cfg.Queues = queues
 
@@ -148,14 +148,14 @@ func NewWorker(backend Backend, log logger.Logger, cfg WorkerConfig) (*RuntimeWo
 // Register binds a handler to a logical job name.
 func (w *RuntimeWorker) Register(jobName string, handler Handler) error {
 	if w == nil {
-		return errors.New("worker is not initialized")
+		return jobsError(ErrNotInitialized, "worker is not initialized")
 	}
 	jobName = strings.TrimSpace(jobName)
 	if jobName == "" {
-		return errors.New("job name is required")
+		return jobsError(ErrInvalidArgument, "job name is required")
 	}
 	if handler == nil {
-		return errors.New("handler is required")
+		return jobsError(ErrInvalidArgument, "handler is required")
 	}
 
 	w.mu.Lock()
@@ -167,16 +167,16 @@ func (w *RuntimeWorker) Register(jobName string, handler Handler) error {
 // Start launches worker loops and blocks until context cancellation.
 func (w *RuntimeWorker) Start(ctx context.Context) error {
 	if w == nil {
-		return errors.New("worker is not initialized")
+		return jobsError(ErrNotInitialized, "worker is not initialized")
 	}
 	if ctx == nil {
-		return errors.New("context is required")
+		return jobsError(ErrInvalidArgument, "context is required")
 	}
 
 	w.lifecycleMu.Lock()
 	if w.running {
 		w.lifecycleMu.Unlock()
-		return errors.New("worker already running")
+		return jobsError(ErrConflict, "worker already running")
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
@@ -292,7 +292,7 @@ func (w *RuntimeWorker) process(ctx context.Context, job *Job, lease *Lease) err
 
 	handler, found := w.lookupHandler(job.Name)
 	if !found {
-		missingHandlerErr := fmt.Errorf("handler not registered for job %q", job.Name)
+		missingHandlerErr := jobsError(ErrNotFound, fmt.Sprintf("handler not registered for job %q", job.Name))
 		tracing.RecordError(span, missingHandlerErr)
 		return w.handleFailure(traceCtx, job, lease, missingHandlerErr)
 	}
@@ -316,7 +316,7 @@ func (w *RuntimeWorker) process(ctx context.Context, job *Job, lease *Lease) err
 
 	if err := w.backend.Ack(traceCtx, lease); err != nil {
 		tracing.RecordError(span, err)
-		return fmt.Errorf("ack failed: %w", err)
+		return errors.Join(jobsError(ErrRetryable, "ack failed"), err)
 	}
 	recordJobProcessed(job.Queue, job.Name, "success")
 	tracing.RecordSuccess(span)
@@ -349,7 +349,7 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 		backoff := exponentialBackoff(nextAttempt, w.config.Retry.InitialBackoff, w.config.Retry.MaxBackoff)
 		nextRun := time.Now().UTC().Add(backoff)
 		if err := w.backend.Nack(ctx, lease, nextRun, failure); err != nil {
-			return fmt.Errorf("nack failed: %w", err)
+			return errors.Join(jobsError(ErrRetryable, "nack failed"), err)
 		}
 		recordJobRetry(job.Queue, job.Name)
 		recordJobProcessed(job.Queue, job.Name, "retry")
@@ -358,7 +358,7 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 
 	if w.config.DLQ.Enabled {
 		if err := w.backend.MoveToDLQ(ctx, lease, failure); err != nil {
-			return fmt.Errorf("dlq move failed: %w", err)
+			return errors.Join(jobsError(ErrRetryable, "dlq move failed"), err)
 		}
 		recordJobDLQ(job.Queue, job.Name)
 		recordJobProcessed(job.Queue, job.Name, "dlq")
@@ -366,10 +366,13 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 	}
 
 	if err := w.backend.Ack(ctx, lease); err != nil {
-		return fmt.Errorf("ack failed while dropping job: %w", err)
+		return errors.Join(jobsError(ErrRetryable, "ack failed while dropping job"), err)
 	}
 	recordJobProcessed(job.Queue, job.Name, "dropped")
-	return fmt.Errorf("job dropped after %d attempts: %w", maxAttempts, failure)
+	return errors.Join(
+		jobsError(ErrConflict, fmt.Sprintf("job dropped after %d attempts", maxAttempts)),
+		failure,
+	)
 }
 
 func (w *RuntimeWorker) lookupHandler(jobName string) (Handler, bool) {
@@ -432,7 +435,7 @@ func (w *RuntimeWorker) startLeaseRenewal(ctx context.Context, lease *Lease) (fu
 				return
 			case <-ticker.C:
 				if err := w.backend.Renew(renewCtx, lease, w.config.LeaseTTL); err != nil {
-					done <- fmt.Errorf("renew lease failed: %w", err)
+					done <- errors.Join(jobsError(ErrRetryable, "renew lease failed"), err)
 					close(done)
 					return
 				}

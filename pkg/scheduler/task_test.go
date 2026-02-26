@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -82,5 +83,8 @@ func TestNextRunForSchedule_InvalidCronField(t *testing.T) {
 	_, err := nextRunForSchedule("61 * * * *", time.Now().UTC(), time.UTC)
 	if err == nil {
 		t.Fatal("expected invalid cron field error")
+	}
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
 	}
 }

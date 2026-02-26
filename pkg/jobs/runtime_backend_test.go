@@ -321,3 +321,35 @@ func TestRuntimeBackend_CloseReleasesPendingLeases(t *testing.T) {
 		t.Fatal("expected callback to be released on close")
 	}
 }
+
+func TestRuntimeBackend_RenewMissingLeaseReturnsTypedNotFound(t *testing.T) {
+	runtime := newFakeRuntime()
+	backend, err := NewRuntimeBackend(runtime, &backendTestLogger{}, RuntimeBackendConfig{})
+	if err != nil {
+		t.Fatalf("new backend: %v", err)
+	}
+
+	err = backend.Renew(context.Background(), &Lease{Token: "missing"}, time.Second)
+	if err == nil {
+		t.Fatal("expected renew error")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRuntimeBackend_AckNilLeaseReturnsTypedValidationError(t *testing.T) {
+	runtime := newFakeRuntime()
+	backend, err := NewRuntimeBackend(runtime, &backendTestLogger{}, RuntimeBackendConfig{})
+	if err != nil {
+		t.Fatalf("new backend: %v", err)
+	}
+
+	err = backend.Ack(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected ack error")
+	}
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("expected ErrInvalidArgument, got %v", err)
+	}
+}
