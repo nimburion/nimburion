@@ -31,7 +31,7 @@ Use `pkg/server` + `pkg/config` to bootstrap public/management servers and run w
 - `pkg/config`, `pkg/configschema`: config loading and schema helpers
 - `pkg/middleware`, `pkg/auth`: transport security and request pipeline
 - `pkg/store`, `pkg/repository`: data access and adapters
-- `pkg/eventbus`, `pkg/realtime`: async and realtime messaging
+- `pkg/eventbus`, `pkg/jobs`, `pkg/realtime`: async messaging, jobs runtime, and realtime channels
 - `pkg/observability`, `pkg/health`, `pkg/resilience`: runtime operations
 - `pkg/cli`, `pkg/migrate`, `pkg/openapi` (via `pkg/server/openapi`): tooling
 
