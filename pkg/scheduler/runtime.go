@@ -17,6 +17,8 @@ import (
 const (
 	DefaultDispatchTimeout = 10 * time.Second
 	DefaultLockTTL         = 30 * time.Second
+	minRenewInterval       = 100 * time.Millisecond
+	misfireGraceWindow     = 500 * time.Millisecond
 )
 
 // Config controls scheduler runtime behavior.
@@ -85,6 +87,29 @@ func (r *Runtime) Register(task Task) error {
 	}
 	r.tasks[task.Name] = task
 	return nil
+}
+
+// Trigger dispatches one registered task immediately.
+func (r *Runtime) Trigger(ctx context.Context, taskName string) error {
+	if r == nil {
+		return errors.New("scheduler runtime is not initialized")
+	}
+	if ctx == nil {
+		return errors.New("context is required")
+	}
+	name := strings.TrimSpace(taskName)
+	if name == "" {
+		return errors.New("task name is required")
+	}
+
+	r.mu.Lock()
+	task, ok := r.tasks[name]
+	r.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("task %q is not registered", name)
+	}
+
+	return r.dispatchTask(ctx, task, time.Now().UTC())
 }
 
 // Start runs all registered tasks until context cancellation.
@@ -164,8 +189,8 @@ func (r *Runtime) Stop(ctx context.Context) error {
 func (r *Runtime) runTaskLoop(ctx context.Context, task Task) {
 	defer r.wg.Done()
 
-	now := time.Now().UTC()
 	for {
+		now := time.Now().UTC()
 		nextRun, err := task.nextRun(now)
 		if err != nil {
 			r.log.Error("scheduler task has invalid schedule", "task", task.Name, "error", err)
@@ -185,11 +210,19 @@ func (r *Runtime) runTaskLoop(ctx context.Context, task Task) {
 		case <-timer.C:
 		}
 
-		if err := r.dispatchTask(ctx, task, nextRun); err != nil {
-			r.log.Error("scheduler dispatch failed", "task", task.Name, "error", err)
+		dispatchAt := nextRun
+		actualNow := time.Now().UTC()
+		if actualNow.After(nextRun.Add(misfireGraceWindow)) && task.MisfirePolicy == MisfirePolicySkip {
+			r.log.Warn("scheduler skipped misfired run", "task", task.Name, "scheduled_at", nextRun.Format(time.RFC3339Nano), "actual_at", actualNow.Format(time.RFC3339Nano))
+			continue
+		}
+		if actualNow.After(nextRun) && task.MisfirePolicy == MisfirePolicyFireOnce {
+			dispatchAt = actualNow
 		}
 
-		now = nextRun.Add(time.Second)
+		if err := r.dispatchTask(ctx, task, dispatchAt); err != nil {
+			r.log.Error("scheduler dispatch failed", "task", task.Name, "error", err)
+		}
 	}
 }
 
@@ -217,6 +250,7 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 
 	dispatchCtx, cancel := context.WithTimeout(ctx, r.config.DispatchTimeout)
 	defer cancel()
+	stopRenew, renewDone := r.startLeaseRenewal(dispatchCtx, lease, lockTTL)
 
 	job := &jobs.Job{
 		ID:             randomSchedulerID(),
@@ -230,6 +264,9 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 		Attempt:        0,
 		CreatedAt:      time.Now().UTC(),
 	}
+	if len(job.Payload) == 0 {
+		job.Payload = []byte("{}")
+	}
 	if job.Headers == nil {
 		job.Headers = map[string]string{}
 	}
@@ -240,11 +277,53 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	}
 
 	enqueueErr := r.jobs.Enqueue(dispatchCtx, job)
+	stopRenew()
+	renewErr := <-renewDone
 	releaseLockErr := releaseErr()
-	if enqueueErr != nil || releaseLockErr != nil {
-		return errors.Join(enqueueErr, releaseLockErr)
+	if renewErr != nil {
+		r.log.Warn("scheduler lock renew failed", "task", task.Name, "error", renewErr)
 	}
-	return nil
+	return errors.Join(enqueueErr, renewErr, releaseLockErr)
+}
+
+func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *LockLease, ttl time.Duration) (func(), <-chan error) {
+	done := make(chan error, 1)
+	if lease == nil || ttl <= 0 {
+		done <- nil
+		close(done)
+		return func() {}, done
+	}
+
+	renewCtx, cancel := context.WithCancel(ctx)
+	interval := ttl / 2
+	if interval <= 0 {
+		interval = ttl
+	}
+	if interval < minRenewInterval {
+		interval = minRenewInterval
+	}
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-renewCtx.Done():
+				done <- nil
+				close(done)
+				return
+			case <-ticker.C:
+				if err := r.lock.Renew(renewCtx, lease, ttl); err != nil {
+					done <- fmt.Errorf("renew lock failed: %w", err)
+					close(done)
+					return
+				}
+			}
+		}
+	}()
+
+	return cancel, done
 }
 
 func randomSchedulerID() string {

@@ -53,9 +53,6 @@ func (t *Task) Validate() error {
 	if strings.TrimSpace(t.JobName) == "" {
 		return errors.New("task job_name is required")
 	}
-	if t.Payload == nil {
-		return errors.New("task payload is required")
-	}
 	if t.MisfirePolicy != MisfirePolicySkip && t.MisfirePolicy != MisfirePolicyFireOnce {
 		return fmt.Errorf("invalid task misfire policy %q", t.MisfirePolicy)
 	}
