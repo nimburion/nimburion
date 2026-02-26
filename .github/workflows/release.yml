@@ -15,6 +15,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          skip-cache: false
+        continue-on-error: true
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -136,7 +157,7 @@ jobs:
 
   coverage:
     name: Merge Coverage
-    needs: [test, security]
+    needs: [test, security, lint]
     runs-on: ubuntu-latest
     
     steps:
