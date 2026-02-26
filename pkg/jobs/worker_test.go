@@ -42,6 +42,7 @@ type fakeBackend struct {
 	acks       []*Lease
 	nacks      []fakeNack
 	dlqLeases  []*Lease
+	renewCalls int
 	closeCalls int
 }
 
@@ -83,7 +84,12 @@ func (b *fakeBackend) Nack(_ context.Context, lease *Lease, nextRunAt time.Time,
 	return nil
 }
 
-func (b *fakeBackend) Renew(context.Context, *Lease, time.Duration) error { return nil }
+func (b *fakeBackend) Renew(context.Context, *Lease, time.Duration) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.renewCalls++
+	return nil
+}
 
 func (b *fakeBackend) MoveToDLQ(_ context.Context, lease *Lease, _ error) error {
 	b.mu.Lock()
@@ -116,6 +122,12 @@ func (b *fakeBackend) snapshot() (acks int, nacks int, dlqs int, closeCalls int)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return len(b.acks), len(b.nacks), len(b.dlqLeases), b.closeCalls
+}
+
+func (b *fakeBackend) renewCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.renewCalls
 }
 
 func TestWorker_AckOnSuccess(t *testing.T) {
@@ -316,5 +328,59 @@ func TestWorker_Concurrency(t *testing.T) {
 
 	if atomic.LoadInt32(&maxConcurrent) < 2 {
 		t.Fatalf("expected concurrent processing >=2, got %d", atomic.LoadInt32(&maxConcurrent))
+	}
+}
+
+func TestWorker_RenewsLeaseDuringLongProcessing(t *testing.T) {
+	backend := newFakeBackend(4)
+	worker, err := NewWorker(backend, &workerTestLogger{}, WorkerConfig{
+		Queues:      []string{"payments"},
+		Concurrency: 1,
+		LeaseTTL:    80 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("new worker: %v", err)
+	}
+
+	processed := make(chan struct{}, 1)
+	if err := worker.Register("invoice.generate", func(context.Context, *Job) error {
+		time.Sleep(220 * time.Millisecond)
+		processed <- struct{}{}
+		return nil
+	}); err != nil {
+		t.Fatalf("register handler: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- worker.Start(ctx)
+	}()
+
+	backend.push(&Job{
+		ID:      "job-renew",
+		Name:    "invoice.generate",
+		Queue:   "payments",
+		Payload: []byte(`{}`),
+	})
+
+	select {
+	case <-processed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected job to be processed")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("worker start returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop")
+	}
+
+	if backend.renewCount() == 0 {
+		t.Fatal("expected at least one lease renewal during long processing")
 	}
 }

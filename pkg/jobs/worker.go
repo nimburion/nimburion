@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	"github.com/nimburion/nimburion/pkg/observability/tracing"
 	"github.com/nimburion/nimburion/pkg/resilience"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -21,6 +23,8 @@ const (
 	DefaultWorkerInitialBackoff = time.Second
 	DefaultWorkerMaxBackoff     = 60 * time.Second
 	DefaultWorkerAttemptTimeout = 30 * time.Second
+
+	minWorkerLeaseRenewInterval = 100 * time.Millisecond
 )
 
 // RetryPolicy controls retry behavior for failed jobs.
@@ -261,26 +265,61 @@ func (w *RuntimeWorker) runQueueLoop(ctx context.Context, queue string) {
 			continue
 		}
 
+		incrementJobInFlight(queue)
 		if err := w.process(ctx, job, lease); err != nil {
 			w.log.Warn("jobs processing failed", "queue", queue, "job_id", job.ID, "job_name", job.Name, "error", err)
+			recordJobProcessed(queue, job.Name, "error")
 		}
+		decrementJobInFlight(queue)
 	}
 }
 
 func (w *RuntimeWorker) process(ctx context.Context, job *Job, lease *Lease) error {
+	traceCtx, span := tracing.StartMessagingSpan(
+		ctx,
+		tracing.SpanOperationMsgProcess,
+		tracing.WithMessagingSystem("jobs"),
+		tracing.WithMessagingDestination(job.Queue),
+		tracing.WithMessagingMessageID(job.ID),
+		tracing.WithMessagingPayloadSize(len(job.Payload)),
+	)
+	span.SetAttributes(
+		attribute.String("jobs.job_name", strings.TrimSpace(job.Name)),
+		attribute.Int("jobs.attempt", job.Attempt),
+		attribute.Int("jobs.max_attempts", job.MaxAttempts),
+	)
+	defer span.End()
+
 	handler, found := w.lookupHandler(job.Name)
 	if !found {
-		return w.handleFailure(ctx, job, lease, fmt.Errorf("handler not registered for job %q", job.Name))
+		missingHandlerErr := fmt.Errorf("handler not registered for job %q", job.Name)
+		tracing.RecordError(span, missingHandlerErr)
+		return w.handleFailure(traceCtx, job, lease, missingHandlerErr)
 	}
 
-	execErr := w.executeHandler(ctx, job, handler)
+	stopRenew, renewDone := w.startLeaseRenewal(traceCtx, lease)
+	execErr := w.executeHandler(traceCtx, job, handler)
+	stopRenew()
+	renewErr := <-renewDone
+	if renewErr != nil {
+		if execErr != nil {
+			execErr = errors.Join(execErr, renewErr)
+		} else {
+			execErr = renewErr
+		}
+	}
+
 	if execErr != nil {
-		return w.handleFailure(ctx, job, lease, execErr)
+		tracing.RecordError(span, execErr)
+		return w.handleFailure(traceCtx, job, lease, execErr)
 	}
 
-	if err := w.backend.Ack(ctx, lease); err != nil {
+	if err := w.backend.Ack(traceCtx, lease); err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("ack failed: %w", err)
 	}
+	recordJobProcessed(job.Queue, job.Name, "success")
+	tracing.RecordSuccess(span)
 	return nil
 }
 
@@ -312,6 +351,8 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 		if err := w.backend.Nack(ctx, lease, nextRun, failure); err != nil {
 			return fmt.Errorf("nack failed: %w", err)
 		}
+		recordJobRetry(job.Queue, job.Name)
+		recordJobProcessed(job.Queue, job.Name, "retry")
 		return nil
 	}
 
@@ -319,12 +360,15 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 		if err := w.backend.MoveToDLQ(ctx, lease, failure); err != nil {
 			return fmt.Errorf("dlq move failed: %w", err)
 		}
+		recordJobDLQ(job.Queue, job.Name)
+		recordJobProcessed(job.Queue, job.Name, "dlq")
 		return nil
 	}
 
 	if err := w.backend.Ack(ctx, lease); err != nil {
 		return fmt.Errorf("ack failed while dropping job: %w", err)
 	}
+	recordJobProcessed(job.Queue, job.Name, "dropped")
 	return fmt.Errorf("job dropped after %d attempts: %w", maxAttempts, failure)
 }
 
@@ -357,4 +401,44 @@ func exponentialBackoff(attempt int, initial, max time.Duration) time.Duration {
 		return max
 	}
 	return backoff
+}
+
+func (w *RuntimeWorker) startLeaseRenewal(ctx context.Context, lease *Lease) (func(), <-chan error) {
+	done := make(chan error, 1)
+	if lease == nil {
+		done <- nil
+		close(done)
+		return func() {}, done
+	}
+
+	renewCtx, cancel := context.WithCancel(ctx)
+	interval := w.config.LeaseTTL / 2
+	if interval <= 0 {
+		interval = w.config.LeaseTTL
+	}
+	if interval < minWorkerLeaseRenewInterval {
+		interval = minWorkerLeaseRenewInterval
+	}
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-renewCtx.Done():
+				done <- nil
+				close(done)
+				return
+			case <-ticker.C:
+				if err := w.backend.Renew(renewCtx, lease, w.config.LeaseTTL); err != nil {
+					done <- fmt.Errorf("renew lease failed: %w", err)
+					close(done)
+					return
+				}
+			}
+		}
+	}()
+
+	return cancel, done
 }

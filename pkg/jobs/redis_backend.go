@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +18,63 @@ const (
 	defaultRedisOperationTimeout = 5 * time.Second
 	defaultRedisPollInterval     = 100 * time.Millisecond
 	defaultRedisTransferBatch    = 100
+)
+
+var (
+	redisReserveScript = redis.NewScript(`
+local delayed = KEYS[1]
+local ready = KEYS[2]
+local leasePrefix = ARGV[1]
+local nowMs = tonumber(ARGV[2])
+local transferBatch = tonumber(ARGV[3])
+local leaseMs = tonumber(ARGV[4])
+local token = ARGV[5]
+
+local due = redis.call("ZRANGEBYSCORE", delayed, "-inf", nowMs, "LIMIT", 0, transferBatch)
+for _, payload in ipairs(due) do
+  redis.call("RPUSH", ready, payload)
+  redis.call("ZREM", delayed, payload)
+end
+
+local payload = redis.call("LPOP", ready)
+if not payload then
+  return nil
+end
+
+redis.call("SET", leasePrefix .. token, payload, "PX", leaseMs)
+return payload
+`)
+
+	redisGetAndDeleteScript = redis.NewScript(`
+local value = redis.call("GET", KEYS[1])
+if not value then
+  return nil
+end
+redis.call("DEL", KEYS[1])
+return value
+`)
+
+	redisTransitionLeaseScript = redis.NewScript(`
+local current = redis.call("GET", KEYS[1])
+if not current then
+  return 0
+end
+if current ~= ARGV[1] then
+  return -1
+end
+
+redis.call("DEL", KEYS[1])
+
+local encoded = ARGV[2]
+local runAtMs = tonumber(ARGV[3])
+local nowMs = tonumber(ARGV[4])
+if runAtMs <= nowMs then
+  redis.call("RPUSH", KEYS[2], encoded)
+else
+  redis.call("ZADD", KEYS[3], runAtMs, encoded)
+end
+return 1
+`)
 )
 
 // RedisBackendConfig configures Redis-backed jobs backend.
@@ -51,12 +107,6 @@ func (c *RedisBackendConfig) normalize() {
 
 type redisJobEnvelope struct {
 	Job *Job `json:"job"`
-}
-
-type redisLeaseRecord struct {
-	Token string `json:"token"`
-	Queue string `json:"queue"`
-	Job   *Job   `json:"job"`
 }
 
 type redisDLQRecord struct {
@@ -139,13 +189,20 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 	defer cancel()
 
 	now := time.Now().UTC()
+	var enqueueErr error
 	if !jobCopy.RunAt.After(now) {
-		return b.client.RPush(opCtx, b.readyKey(jobCopy.Queue), string(encoded)).Err()
+		enqueueErr = b.client.RPush(opCtx, b.readyKey(jobCopy.Queue), string(encoded)).Err()
+	} else {
+		enqueueErr = b.client.ZAdd(opCtx, b.delayedKey(jobCopy.Queue), redis.Z{
+			Score:  float64(jobCopy.RunAt.UnixMilli()),
+			Member: string(encoded),
+		}).Err()
 	}
-	return b.client.ZAdd(opCtx, b.delayedKey(jobCopy.Queue), redis.Z{
-		Score:  float64(jobCopy.RunAt.UnixMilli()),
-		Member: string(encoded),
-	}).Err()
+	if enqueueErr != nil {
+		return enqueueErr
+	}
+	recordJobEnqueued("redis", jobCopy)
+	return nil
 }
 
 // Reserve returns the next available job and a lease token.
@@ -163,23 +220,43 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 	if leaseFor <= 0 {
 		leaseFor = DefaultLeaseTTL
 	}
+	leaseMilliseconds := leaseFor.Milliseconds()
+	if leaseMilliseconds <= 0 {
+		leaseMilliseconds = 1
+	}
 
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
 
-		if err := b.moveDueToReady(ctx, queue, time.Now().UTC()); err != nil {
-			return nil, nil, err
-		}
-
+		token := randomToken()
+		now := time.Now().UTC()
 		opCtx, cancel := b.operationContext(ctx)
-		raw, popErr := b.client.LPop(opCtx, b.readyKey(queue)).Result()
+		result, reserveErr := redisReserveScript.Run(
+			opCtx,
+			b.client,
+			[]string{b.delayedKey(queue), b.readyKey(queue)},
+			b.leaseKeyPrefix(),
+			now.UnixMilli(),
+			b.config.TransferBatch,
+			leaseMilliseconds,
+			token,
+		).Result()
 		cancel()
-		if popErr != nil && !errors.Is(popErr, redis.Nil) {
-			return nil, nil, popErr
+		if reserveErr != nil && !errors.Is(reserveErr, redis.Nil) {
+			return nil, nil, reserveErr
 		}
-		if errors.Is(popErr, redis.Nil) {
+		if errors.Is(reserveErr, redis.Nil) {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(b.config.PollInterval):
+				continue
+			}
+		}
+		raw, ok := result.(string)
+		if !ok || strings.TrimSpace(raw) == "" {
 			select {
 			case <-ctx.Done():
 				return nil, nil, ctx.Err()
@@ -191,9 +268,11 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		var envelope redisJobEnvelope
 		if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
 			b.log.Warn("discarding malformed queued job payload", "queue", queue, "error", err)
+			_ = b.Ack(ctx, &Lease{Token: token})
 			continue
 		}
 		if envelope.Job == nil {
+			_ = b.Ack(ctx, &Lease{Token: token})
 			continue
 		}
 		if strings.TrimSpace(envelope.Job.Queue) == "" {
@@ -201,32 +280,16 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		}
 		if err := envelope.Job.Validate(); err != nil {
 			b.log.Warn("discarding invalid queued job", "queue", queue, "error", err)
+			_ = b.Ack(ctx, &Lease{Token: token})
 			continue
 		}
 
 		lease := &Lease{
 			JobID:    strings.TrimSpace(envelope.Job.ID),
-			Token:    randomToken(),
+			Token:    token,
 			Queue:    queue,
-			ExpireAt: time.Now().UTC().Add(leaseFor),
+			ExpireAt: now.Add(leaseFor),
 			Attempt:  envelope.Job.Attempt,
-		}
-		record := redisLeaseRecord{
-			Token: lease.Token,
-			Queue: queue,
-			Job:   cloneJob(envelope.Job),
-		}
-		encodedRecord, err := json.Marshal(record)
-		if err != nil {
-			return nil, nil, fmt.Errorf("marshal lease record failed: %w", err)
-		}
-
-		opCtx, cancel = b.operationContext(ctx)
-		setErr := b.client.Set(opCtx, b.leaseKey(lease.Token), string(encodedRecord), leaseFor).Err()
-		cancel()
-		if setErr != nil {
-			_ = b.Enqueue(ctx, envelope.Job)
-			return nil, nil, fmt.Errorf("persist lease failed: %w", setErr)
 		}
 		return cloneJob(envelope.Job), cloneLease(lease), nil
 	}
@@ -242,17 +305,19 @@ func (b *RedisBackend) Ack(ctx context.Context, lease *Lease) error {
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
-	return b.client.Del(opCtx, b.leaseKey(strings.TrimSpace(lease.Token))).Err()
+	_, err := redisGetAndDeleteScript.Run(opCtx, b.client, []string{b.leaseKey(strings.TrimSpace(lease.Token))}).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil
+	}
+	return err
 }
 
 // Nack schedules the leased job for retry.
 func (b *RedisBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.Time, reason error) error {
-	record, err := b.popLeaseRecord(ctx, lease)
+	rawLeasePayload, job, err := b.readLeasedJob(ctx, lease)
 	if err != nil {
 		return err
 	}
-
-	job := cloneJob(record.Job)
 	job.Attempt++
 	if job.Headers == nil {
 		job.Headers = map[string]string{}
@@ -265,7 +330,15 @@ func (b *RedisBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.Ti
 	if job.RunAt.IsZero() {
 		job.RunAt = time.Now().UTC()
 	}
-	return b.Enqueue(ctx, job)
+	encodedJob, err := json.Marshal(redisJobEnvelope{Job: job})
+	if err != nil {
+		return fmt.Errorf("marshal retry job failed: %w", err)
+	}
+	if err := b.transitionLeaseToQueue(ctx, lease, rawLeasePayload, string(encodedJob), strings.TrimSpace(job.Queue), job.RunAt); err != nil {
+		return err
+	}
+	recordJobEnqueued("redis", job)
+	return nil
 }
 
 // Renew extends lease expiration.
@@ -281,17 +354,26 @@ func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Du
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
-	return b.client.Expire(opCtx, b.leaseKey(strings.TrimSpace(lease.Token)), leaseFor).Err()
+	expireSet, err := b.client.PExpire(opCtx, b.leaseKey(strings.TrimSpace(lease.Token)), leaseFor).Result()
+	if err != nil {
+		return err
+	}
+	if !expireSet {
+		return errors.New("lease not found")
+	}
+	return nil
 }
 
 // MoveToDLQ routes the leased job to dead-letter queue and stores DLQ entry metadata.
 func (b *RedisBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason error) error {
-	record, err := b.popLeaseRecord(ctx, lease)
+	rawLeasePayload, job, err := b.readLeasedJob(ctx, lease)
 	if err != nil {
 		return err
 	}
-	job := cloneJob(record.Job)
-	originalQueue := strings.TrimSpace(record.Queue)
+	originalQueue := strings.TrimSpace(job.Queue)
+	if originalQueue == "" && lease != nil {
+		originalQueue = strings.TrimSpace(lease.Queue)
+	}
 	job.Queue = originalQueue + b.config.DLQSuffix
 	if job.Headers == nil {
 		job.Headers = map[string]string{}
@@ -302,9 +384,14 @@ func (b *RedisBackend) MoveToDLQ(ctx context.Context, lease *Lease, reason error
 		job.Headers[HeaderJobFailureReason] = reason.Error()
 	}
 
-	if err := b.Enqueue(ctx, job); err != nil {
+	encodedJob, err := json.Marshal(redisJobEnvelope{Job: job})
+	if err != nil {
+		return fmt.Errorf("marshal dlq job failed: %w", err)
+	}
+	if err := b.transitionLeaseToQueue(ctx, lease, rawLeasePayload, string(encodedJob), strings.TrimSpace(job.Queue), time.Now().UTC()); err != nil {
 		return err
 	}
+	recordJobEnqueued("redis", job)
 
 	entry := &DLQEntry{
 		ID:            randomToken(),
@@ -471,39 +558,12 @@ func (b *RedisBackend) operationContext(ctx context.Context) (context.Context, c
 	return context.WithTimeout(ctx, b.config.OperationTimeout)
 }
 
-func (b *RedisBackend) moveDueToReady(ctx context.Context, queue string, now time.Time) error {
-	opCtx, cancel := b.operationContext(ctx)
-	defer cancel()
-
-	due, err := b.client.ZRangeByScore(opCtx, b.delayedKey(queue), &redis.ZRangeBy{
-		Min:    "-inf",
-		Max:    strconv.FormatInt(now.UnixMilli(), 10),
-		Offset: 0,
-		Count:  int64(b.config.TransferBatch),
-	}).Result()
-	if err != nil {
-		return err
-	}
-	if len(due) == 0 {
-		return nil
-	}
-
-	_, err = b.client.TxPipelined(opCtx, func(pipe redis.Pipeliner) error {
-		for _, encoded := range due {
-			pipe.RPush(opCtx, b.readyKey(queue), encoded)
-			pipe.ZRem(opCtx, b.delayedKey(queue), encoded)
-		}
-		return nil
-	})
-	return err
-}
-
-func (b *RedisBackend) popLeaseRecord(ctx context.Context, lease *Lease) (*redisLeaseRecord, error) {
+func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string, *Job, error) {
 	if err := b.ensureOpen(); err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if lease == nil || strings.TrimSpace(lease.Token) == "" {
-		return nil, errors.New("lease token is required")
+		return "", nil, errors.New("lease token is required")
 	}
 	token := strings.TrimSpace(lease.Token)
 
@@ -512,26 +572,87 @@ func (b *RedisBackend) popLeaseRecord(ctx context.Context, lease *Lease) (*redis
 	cancel()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return nil, errors.New("lease not found")
+			return "", nil, errors.New("lease not found")
 		}
-		return nil, err
+		return "", nil, err
 	}
 
-	var record redisLeaseRecord
-	if err := json.Unmarshal([]byte(raw), &record); err != nil {
-		return nil, fmt.Errorf("decode lease record failed: %w", err)
+	var envelope redisJobEnvelope
+	if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
+		return "", nil, fmt.Errorf("decode lease payload failed: %w", err)
 	}
-	if strings.TrimSpace(record.Token) == "" {
-		record.Token = token
+	if envelope.Job == nil {
+		return "", nil, errors.New("lease payload does not contain a job")
+	}
+	if strings.TrimSpace(envelope.Job.Queue) == "" && lease != nil {
+		envelope.Job.Queue = strings.TrimSpace(lease.Queue)
+	}
+	if err := envelope.Job.Validate(); err != nil {
+		return "", nil, err
 	}
 
-	opCtx, cancel = b.operationContext(ctx)
-	delErr := b.client.Del(opCtx, b.leaseKey(token)).Err()
+	return raw, cloneJob(envelope.Job), nil
+}
+
+func (b *RedisBackend) transitionLeaseToQueue(
+	ctx context.Context,
+	lease *Lease,
+	expectedLeasePayload string,
+	nextEncodedPayload string,
+	queue string,
+	runAt time.Time,
+) error {
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if lease == nil || strings.TrimSpace(lease.Token) == "" {
+		return errors.New("lease token is required")
+	}
+	queue = strings.TrimSpace(queue)
+	if queue == "" {
+		return errors.New("queue is required")
+	}
+	if strings.TrimSpace(nextEncodedPayload) == "" {
+		return errors.New("next payload is required")
+	}
+	if strings.TrimSpace(expectedLeasePayload) == "" {
+		return errors.New("expected lease payload is required")
+	}
+
+	runAtUTC := runAt.UTC()
+	if runAtUTC.IsZero() {
+		runAtUTC = time.Now().UTC()
+	}
+	now := time.Now().UTC()
+
+	opCtx, cancel := b.operationContext(ctx)
+	transitionResult, err := redisTransitionLeaseScript.Run(
+		opCtx,
+		b.client,
+		[]string{
+			b.leaseKey(strings.TrimSpace(lease.Token)),
+			b.readyKey(queue),
+			b.delayedKey(queue),
+		},
+		expectedLeasePayload,
+		nextEncodedPayload,
+		runAtUTC.UnixMilli(),
+		now.UnixMilli(),
+	).Int()
 	cancel()
-	if delErr != nil {
-		return nil, delErr
+	if err != nil {
+		return err
 	}
-	return &record, nil
+	switch transitionResult {
+	case 1:
+		return nil
+	case 0:
+		return errors.New("lease not found")
+	case -1:
+		return errors.New("lease payload changed while transitioning")
+	default:
+		return fmt.Errorf("invalid lease transition result: %d", transitionResult)
+	}
 }
 
 func (b *RedisBackend) saveDLQEntry(ctx context.Context, entry *DLQEntry) error {
@@ -584,6 +705,10 @@ func (b *RedisBackend) delayedKey(queue string) string {
 
 func (b *RedisBackend) leaseKey(token string) string {
 	return b.prefix() + ":lease:" + strings.TrimSpace(token)
+}
+
+func (b *RedisBackend) leaseKeyPrefix() string {
+	return b.prefix() + ":lease:"
 }
 
 func (b *RedisBackend) dlqIndexKey(queue string) string {

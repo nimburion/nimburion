@@ -48,7 +48,11 @@ func (b *EventBusBridge) Enqueue(ctx context.Context, job *Job) error {
 		return err
 	}
 
-	return b.bus.Publish(ctx, strings.TrimSpace(job.Queue), msg)
+	if err := b.bus.Publish(ctx, strings.TrimSpace(job.Queue), msg); err != nil {
+		return err
+	}
+	recordJobEnqueued("eventbus", job)
+	return nil
 }
 
 // Subscribe consumes jobs from the given queue and maps transport message to job contract.
