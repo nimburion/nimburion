@@ -131,7 +131,7 @@ jobs:
           go test $PACKAGES -p $(nproc) -count=1 -covermode=atomic -coverprofile=coverage-${{ matrix.group }}.out
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-${{ matrix.group }}
           path: coverage-${{ matrix.group }}.out
@@ -176,7 +176,7 @@ jobs:
           echo "- Total: ${total_coverage}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload merged coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: |
