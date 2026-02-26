@@ -71,3 +71,75 @@ func TestRunPropagatesOperationError(t *testing.T) {
 		t.Fatalf("expected boom error, got %v", err)
 	}
 }
+
+func TestRunParsedDown(t *testing.T) {
+	ops := defaultOperations()
+	err := RunParsed("down", 2, defaultOptions(), ops)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunParsedDownZeroSteps(t *testing.T) {
+	err := RunParsed("down", 0, defaultOptions(), defaultOperations())
+	if err == nil || err.Error() != "steps must be greater than zero" {
+		t.Fatalf("expected steps error, got %v", err)
+	}
+}
+
+func TestRunParsedStatus(t *testing.T) {
+	err := RunParsed("status", 1, defaultOptions(), defaultOperations())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateOptionsMissingLogger(t *testing.T) {
+	opts := defaultOptions()
+	opts.Logger = nil
+	err := validateOptions(opts)
+	if err == nil {
+		t.Fatal("expected logger error")
+	}
+}
+
+func TestValidateOptionsMissingServiceName(t *testing.T) {
+	opts := defaultOptions()
+	opts.ServiceName = ""
+	err := validateOptions(opts)
+	if err == nil {
+		t.Fatal("expected service name error")
+	}
+}
+
+func TestValidateOptionsMissingPath(t *testing.T) {
+	opts := defaultOptions()
+	opts.Path = ""
+	err := validateOptions(opts)
+	if err == nil {
+		t.Fatal("expected path error")
+	}
+}
+
+func TestValidateOperationsIncomplete(t *testing.T) {
+	ops := defaultOperations()
+	ops.Up = nil
+	err := validateOperations(ops)
+	if err == nil {
+		t.Fatal("expected operations error")
+	}
+}
+
+func TestRun(t *testing.T) {
+	err := Run([]string{"up"}, defaultOptions(), defaultOperations())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunInvalidArgs(t *testing.T) {
+	err := Run([]string{"down", "invalid"}, defaultOptions(), defaultOperations())
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+}
