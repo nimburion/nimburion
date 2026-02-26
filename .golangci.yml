@@ -23,6 +23,19 @@ linters:
     - rowserrcheck
     - exportloopref
     - unconvert
+  
+  settings:
+    errcheck:
+      check-blank: true
+    govet:
+      enable-all: true
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+    gosec:
+      excludes:
+        - G404
 
 issues:
   max-issues-per-linter: 0
