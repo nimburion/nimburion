@@ -6,7 +6,6 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -19,7 +18,6 @@ linters:
     - noctx
     - sqlclosecheck
     - rowserrcheck
-    - exportloopref
     - unconvert
   
   settings:
