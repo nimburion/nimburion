@@ -1,0 +1,15 @@
+# Default owners for everything
+* @nimburion/maintainers
+
+# CI/CD workflows
+/.github/ @nimburion/devops
+
+# Security-sensitive packages
+/pkg/auth/ @nimburion/security
+/pkg/middleware/authz/ @nimburion/security
+/pkg/middleware/csrf/ @nimburion/security
+/pkg/middleware/httpsignature/ @nimburion/security
+
+# Infrastructure adapters
+/pkg/store/ @nimburion/platform
+/pkg/eventbus/ @nimburion/platform
