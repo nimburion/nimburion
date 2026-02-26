@@ -56,3 +56,41 @@ func TestNewObjectStorageAdapter_S3ValidationError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestNewStorageAdapter_Disabled(t *testing.T) {
+	adapter, err := NewStorageAdapter(config.DatabaseConfig{Type: ""}, &mockLogger{})
+	if err == nil {
+		t.Fatal("expected error for empty type")
+	}
+	if adapter != nil {
+		t.Fatal("expected nil adapter")
+	}
+}
+
+func TestNewStorageAdapter_UnsupportedType(t *testing.T) {
+	_, err := NewStorageAdapter(config.DatabaseConfig{
+		Type: "unknown",
+	}, &mockLogger{})
+	if err == nil {
+		t.Fatal("expected unsupported type error")
+	}
+}
+
+func TestNewSearchAdapter_Disabled(t *testing.T) {
+	adapter, err := NewSearchAdapter(config.SearchConfig{Type: ""}, &mockLogger{})
+	if err == nil {
+		t.Fatal("expected error for empty type")
+	}
+	if adapter != nil {
+		t.Fatal("expected nil adapter")
+	}
+}
+
+func TestNewSearchAdapter_UnsupportedType(t *testing.T) {
+	_, err := NewSearchAdapter(config.SearchConfig{
+		Type: "unknown",
+	}, &mockLogger{})
+	if err == nil {
+		t.Fatal("expected unsupported type error")
+	}
+}

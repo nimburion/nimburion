@@ -94,3 +94,39 @@ func TestWithQueryTimeout_PreservesCallerDeadline(t *testing.T) {
 		t.Fatalf("expected caller deadline to be preserved, got %v want %v", gotDeadline, parentDeadline)
 	}
 }
+
+func TestWithQueryTimeout_ZeroTimeout(t *testing.T) {
+	a := &PostgreSQLAdapter{config: Config{QueryTimeout: 0}}
+	ctx, cancel := a.withQueryTimeout(context.Background())
+	defer cancel()
+
+	if _, ok := ctx.Deadline(); ok {
+		t.Fatal("expected no deadline when query timeout is zero")
+	}
+}
+
+func TestNewPostgreSQLAdapter_InvalidURL(t *testing.T) {
+	log, _ := logger.NewZapLogger(logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+	})
+
+	_, err := NewPostgreSQLAdapter(Config{URL: ""}, log)
+	if err == nil {
+		t.Fatal("expected error for empty URL")
+	}
+}
+
+func TestNewPostgreSQLAdapter_InvalidDriver(t *testing.T) {
+	log, _ := logger.NewZapLogger(logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+	})
+
+	_, err := NewPostgreSQLAdapter(Config{
+		URL: "invalid://localhost",
+	}, log)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
