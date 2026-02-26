@@ -17,10 +17,12 @@ func NewOpenSearchSDKAdapter(cfg Config, log logger.Logger) (*OpenSearchSDKAdapt
 	return nil, fmt.Errorf("opensearch-sdk adapter is not enabled; rebuild with `-tags opensearch_sdk`")
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *OpenSearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	return fmt.Errorf("opensearch-sdk adapter is not enabled; rebuild with `-tags opensearch_sdk`")
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *OpenSearchSDKAdapter) Close() error {
 	return nil
 }

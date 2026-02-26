@@ -62,14 +62,17 @@ func NewMySQLAdapter(cfg Config, log logger.Logger) (*MySQLAdapter, error) {
 	return &MySQLAdapter{db: db, logger: log, config: cfg}, nil
 }
 
+// DB TODO: add description
 func (a *MySQLAdapter) DB() *sql.DB {
 	return a.db
 }
 
+// Ping performs a basic connectivity check to verify the service is reachable.
 func (a *MySQLAdapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *MySQLAdapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -80,6 +83,7 @@ func (a *MySQLAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *MySQLAdapter) Close() error {
 	a.logger.Info("closing MySQL connection")
 	if err := a.db.Close(); err != nil {
@@ -94,6 +98,7 @@ type contextKey string
 
 const txContextKey contextKey = "mysql_tx"
 
+// GetTx TODO: add description
 func GetTx(ctx context.Context) (*sql.Tx, bool) {
 	tx, ok := ctx.Value(txContextKey).(*sql.Tx)
 	return tx, ok
@@ -131,6 +136,7 @@ func (a *MySQLAdapter) WithTransaction(ctx context.Context, fn func(context.Cont
 	return nil
 }
 
+// ExecContext TODO: add description
 func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -140,6 +146,7 @@ func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...in
 	return a.db.ExecContext(queryCtx, query, args...)
 }
 
+// QueryContext TODO: add description
 func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -149,6 +156,7 @@ func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...i
 	return a.db.QueryContext(queryCtx, query, args...)
 }
 
+// QueryRowContext TODO: add description
 func (a *MySQLAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()

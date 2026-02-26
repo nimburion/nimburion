@@ -77,10 +77,12 @@ func NewDynamoDBAdapter(cfg Config, log logger.Logger) (*DynamoDBAdapter, error)
 	return adapter, nil
 }
 
+// Client TODO: add description
 func (a *DynamoDBAdapter) Client() *dynamodb.Client {
 	return a.client
 }
 
+// Ping performs a basic connectivity check to verify the service is reachable.
 func (a *DynamoDBAdapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
@@ -98,6 +100,7 @@ func (a *DynamoDBAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *DynamoDBAdapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -108,6 +111,7 @@ func (a *DynamoDBAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *DynamoDBAdapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -115,30 +119,35 @@ func (a *DynamoDBAdapter) Close() error {
 	return nil
 }
 
+// PutItem TODO: add description
 func (a *DynamoDBAdapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.PutItem(opCtx, input)
 }
 
+// GetItem TODO: add description
 func (a *DynamoDBAdapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.GetItem(opCtx, input)
 }
 
+// UpdateItem TODO: add description
 func (a *DynamoDBAdapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.UpdateItem(opCtx, input)
 }
 
+// DeleteItem TODO: add description
 func (a *DynamoDBAdapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.DeleteItem(opCtx, input)
 }
 
+// Query retrieves a URL query parameter by name.
 func (a *DynamoDBAdapter) Query(ctx context.Context, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
@@ -155,6 +164,7 @@ func (a *DynamoDBAdapter) withOperationTimeout(ctx context.Context) (context.Con
 	return context.WithTimeout(ctx, a.timeout)
 }
 
+// IsThrottlingError TODO: add description
 func IsThrottlingError(err error) bool {
 	if err == nil {
 		return false

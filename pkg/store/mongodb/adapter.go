@@ -70,18 +70,22 @@ func NewMongoDBAdapter(cfg Config, log logger.Logger) (*MongoDBAdapter, error) {
 	}, nil
 }
 
+// Client TODO: add description
 func (a *MongoDBAdapter) Client() *mongo.Client {
 	return a.client
 }
 
+// Database TODO: add description
 func (a *MongoDBAdapter) Database() *mongo.Database {
 	return a.client.Database(a.database)
 }
 
+// Collection TODO: add description
 func (a *MongoDBAdapter) Collection(name string) *mongo.Collection {
 	return a.Database().Collection(name)
 }
 
+// Ping performs a basic connectivity check to verify the service is reachable.
 func (a *MongoDBAdapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
@@ -92,6 +96,7 @@ func (a *MongoDBAdapter) Ping(ctx context.Context) error {
 	return a.client.Ping(ctx, readpref.Primary())
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *MongoDBAdapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -102,6 +107,7 @@ func (a *MongoDBAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *MongoDBAdapter) Close() error {
 	a.mu.Lock()
 	if a.closed {
@@ -128,24 +134,28 @@ func (a *MongoDBAdapter) InsertOne(ctx context.Context, collection string, doc i
 	return a.Collection(collection).InsertOne(opCtx, doc)
 }
 
+// FindOne TODO: add description
 func (a *MongoDBAdapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)
 }
 
+// UpdateOne TODO: add description
 func (a *MongoDBAdapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).UpdateOne(opCtx, filter, update)
 }
 
+// DeleteOne TODO: add description
 func (a *MongoDBAdapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).DeleteOne(opCtx, filter)
 }
 
+// EnsureCollection TODO: add description
 func (a *MongoDBAdapter) EnsureCollection(ctx context.Context, name string) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
