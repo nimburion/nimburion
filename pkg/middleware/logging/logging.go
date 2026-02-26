@@ -377,10 +377,12 @@ func newEventEmitter(log logger.Logger, output Output) *eventEmitter {
 	}
 }
 
+// Info TODO: add description
 func (e *eventEmitter) Info(msg string, args ...any) {
 	e.emit("info", msg, args...)
 }
 
+// Error TODO: add description
 func (e *eventEmitter) Error(msg string, args ...any) {
 	e.emit("error", msg, args...)
 }

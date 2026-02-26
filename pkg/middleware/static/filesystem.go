@@ -33,6 +33,7 @@ type localFileSystem struct {
 	allowIndexes bool
 }
 
+// Exists TODO: add description
 func (l *localFileSystem) Exists(prefix, requestPath string) bool {
 	relative, ok := sanitizeRequestPath(prefix, requestPath)
 	if !ok {
@@ -69,6 +70,7 @@ type embedFileSystem struct {
 	http.FileSystem
 }
 
+// Exists TODO: add description
 func (e *embedFileSystem) Exists(prefix, requestPath string) bool {
 	relative, ok := sanitizeRequestPath(prefix, requestPath)
 	if !ok {

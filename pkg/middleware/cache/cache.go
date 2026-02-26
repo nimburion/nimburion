@@ -732,10 +732,12 @@ func newCaptureResponseWriter(base router.ResponseWriter) *captureResponseWriter
 	return &captureResponseWriter{base: base}
 }
 
+// Header returns the HTTP response headers that can be modified before writing the response.
 func (w *captureResponseWriter) Header() http.Header {
 	return w.base.Header()
 }
 
+// WriteHeader sends an HTTP response header with the provided status code.
 func (w *captureResponseWriter) WriteHeader(code int) {
 	if w.headerWrote {
 		return
@@ -745,6 +747,7 @@ func (w *captureResponseWriter) WriteHeader(code int) {
 	w.base.WriteHeader(code)
 }
 
+// Write writes data to the response body. Implements io.Writer interface.
 func (w *captureResponseWriter) Write(p []byte) (int, error) {
 	if !w.headerWrote {
 		w.WriteHeader(http.StatusOK)
@@ -755,6 +758,7 @@ func (w *captureResponseWriter) Write(p []byte) (int, error) {
 	return w.base.Write(p)
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (w *captureResponseWriter) Status() int {
 	if w.statusCode == 0 {
 		return w.base.Status()
@@ -762,10 +766,12 @@ func (w *captureResponseWriter) Status() int {
 	return w.statusCode
 }
 
+// Written returns true if the response headers and body have been written.
 func (w *captureResponseWriter) Written() bool {
 	return w.base.Written() || w.headerWrote
 }
 
+// Body TODO: add description
 func (w *captureResponseWriter) Body() []byte {
 	w.bodyMu.Lock()
 	defer w.bodyMu.Unlock()
@@ -789,6 +795,7 @@ func newRequestGroup() *requestGroup {
 	}
 }
 
+// InFlight TODO: add description
 func (g *requestGroup) InFlight(key string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -796,6 +803,7 @@ func (g *requestGroup) InFlight(key string) bool {
 	return ok
 }
 
+// Do TODO: add description
 func (g *requestGroup) Do(key string, fn func() (*cacheEntry, error)) (*cacheEntry, error, bool) {
 	g.mu.Lock()
 	if call, ok := g.m[key]; ok {

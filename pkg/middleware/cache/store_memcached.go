@@ -23,24 +23,28 @@ type memcachedAdapterClient struct {
 	timeout time.Duration
 }
 
+// Get retrieves a value from the context by key.
 func (c *memcachedAdapterClient) Get(key string) ([]byte, error) {
 	ctx, cancel := c.opContext()
 	defer cancel()
 	return c.adapter.Get(ctx, key)
 }
 
+// Set stores a value in the context with the given key.
 func (c *memcachedAdapterClient) Set(key string, value []byte, ttl time.Duration) error {
 	ctx, cancel := c.opContext()
 	defer cancel()
 	return c.adapter.Set(ctx, key, value, ttl)
 }
 
+// Delete TODO: add description
 func (c *memcachedAdapterClient) Delete(key string) error {
 	ctx, cancel := c.opContext()
 	defer cancel()
 	return c.adapter.Delete(ctx, key)
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (c *memcachedAdapterClient) Close() error {
 	return c.adapter.Close()
 }
