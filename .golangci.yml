@@ -24,7 +24,7 @@ linters:
     - exportloopref
     - unconvert
 
-linters_settings:
+linters-settings:
   errcheck:
     check-blank: true
   govet:
