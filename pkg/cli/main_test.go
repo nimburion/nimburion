@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/scheduler"
@@ -219,5 +221,54 @@ func TestResolveWorkerQueues(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewServiceCommand_AddsHealthcheckByDefault(t *testing.T) {
+	cmd := NewServiceCommand(ServiceCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+	})
+
+	healthCmd, _, err := cmd.Find([]string{"healthcheck"})
+	if err != nil {
+		t.Fatalf("expected healthcheck command, got error: %v", err)
+	}
+	if healthCmd == nil || healthCmd.Name() != "healthcheck" {
+		t.Fatalf("expected healthcheck command, got %#v", healthCmd)
+	}
+}
+
+func TestShouldCheckJobsRuntimeHealth(t *testing.T) {
+	cfg := config.DefaultConfig()
+	if shouldCheckJobsRuntimeHealth(cfg) {
+		t.Fatal("expected default config to skip jobs runtime health checks")
+	}
+
+	cfg.EventBus.Type = config.EventBusTypeKafka
+	if !shouldCheckJobsRuntimeHealth(cfg) {
+		t.Fatal("expected jobs runtime health checks when eventbus is configured")
+	}
+}
+
+func TestHealthCheckResultError(t *testing.T) {
+	if err := healthCheckResultError(health.CheckResult{
+		Name:   "ok",
+		Status: health.StatusHealthy,
+	}); err != nil {
+		t.Fatalf("expected nil error for healthy status, got %v", err)
+	}
+
+	err := healthCheckResultError(health.CheckResult{
+		Name:    "jobs-runtime",
+		Status:  health.StatusUnhealthy,
+		Message: "backend unavailable",
+	})
+	if err == nil {
+		t.Fatal("expected unhealthy check error")
+	}
+	if !strings.Contains(err.Error(), "jobs-runtime") {
+		t.Fatalf("expected check name in error, got %v", err)
 	}
 }

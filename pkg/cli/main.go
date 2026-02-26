@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	cliopenapi "github.com/nimburion/nimburion/pkg/cli/openapi"
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	jobsfactory "github.com/nimburion/nimburion/pkg/jobs/factory"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -304,21 +305,29 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 		rootCmd.AddCommand(cacheCmd)
 	}
 
-	// healthcheck command (optional)
-	if opts.CheckDependencies != nil {
-		rootCmd.AddCommand(&cobra.Command{
-			Use:   "healthcheck",
-			Short: "Check connectivity to dependencies (database, cache, eventbus, IDP)",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, log, err := loadConfig(cmd.Flags())
-				if err != nil {
-					return err
+	// healthcheck command
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "healthcheck",
+		Short: "Check connectivity to framework and service dependencies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			var errs []error
+			if err := runFrameworkDependencyHealthChecks(cmd.Context(), cfg, log, buildJobsRuntime, buildSchedulerLockProvider); err != nil {
+				errs = append(errs, err)
+			}
+			if opts.CheckDependencies != nil {
+				if err := opts.CheckDependencies(cmd.Context(), cfg, log); err != nil {
+					errs = append(errs, err)
 				}
-				return opts.CheckDependencies(cmd.Context(), cfg, log)
-			},
-		})
-		SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
-	}
+			}
+			return errors.Join(errs...)
+		},
+	})
+	SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 
 	// jobs command
 	jobsCmd := &cobra.Command{
@@ -1044,6 +1053,124 @@ func cloneStringMap(input map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func runFrameworkDependencyHealthChecks(
+	ctx context.Context,
+	cfg *config.Config,
+	log logger.Logger,
+	buildJobsRuntime func(*config.Config, logger.Logger) (jobs.Runtime, error),
+	buildSchedulerLockProvider func(*config.Config, logger.Logger) (scheduler.LockProvider, error),
+) error {
+	if cfg == nil {
+		return errors.New("config is required")
+	}
+
+	var errs []error
+
+	var jobsRuntime jobs.Runtime
+	if shouldCheckJobsRuntimeHealth(cfg) {
+		runtime, err := buildJobsRuntime(cfg, log)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("create jobs runtime for healthcheck: %w", err))
+		} else {
+			jobsRuntime = runtime
+			checker := jobs.NewRuntimeHealthChecker("", jobsRuntime, jobsHealthTimeout(cfg))
+			if checkErr := healthCheckResultError(checker.Check(ctx)); checkErr != nil {
+				errs = append(errs, checkErr)
+			}
+		}
+	}
+	if jobsRuntime != nil {
+		if closeErr := jobsRuntime.Close(); closeErr != nil {
+			errs = append(errs, fmt.Errorf("close jobs runtime after healthcheck: %w", closeErr))
+		}
+	}
+
+	if shouldCheckSchedulerLockHealth(cfg) {
+		lockProvider, err := buildSchedulerLockProvider(cfg, log)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("create scheduler lock provider for healthcheck: %w", err))
+		} else {
+			checker := scheduler.NewLockProviderHealthChecker("", lockProvider, schedulerLockHealthTimeout(cfg))
+			if checkErr := healthCheckResultError(checker.Check(ctx)); checkErr != nil {
+				errs = append(errs, checkErr)
+			}
+			if closeErr := lockProvider.Close(); closeErr != nil {
+				errs = append(errs, fmt.Errorf("close scheduler lock provider after healthcheck: %w", closeErr))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func shouldCheckJobsRuntimeHealth(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.Scheduler.Enabled {
+		return true
+	}
+
+	backend := strings.ToLower(strings.TrimSpace(cfg.Jobs.Backend))
+	switch backend {
+	case config.JobsBackendRedis:
+		return strings.TrimSpace(cfg.Jobs.Redis.URL) != ""
+	case config.JobsBackendEventBus:
+		return strings.TrimSpace(cfg.EventBus.Type) != ""
+	default:
+		return false
+	}
+}
+
+func shouldCheckSchedulerLockHealth(cfg *config.Config) bool {
+	return cfg != nil && cfg.Scheduler.Enabled
+}
+
+func jobsHealthTimeout(cfg *config.Config) time.Duration {
+	if cfg == nil {
+		return 3 * time.Second
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Jobs.Backend), config.JobsBackendRedis) && cfg.Jobs.Redis.OperationTimeout > 0 {
+		return cfg.Jobs.Redis.OperationTimeout
+	}
+	if cfg.EventBus.OperationTimeout > 0 {
+		return cfg.EventBus.OperationTimeout
+	}
+	return 3 * time.Second
+}
+
+func schedulerLockHealthTimeout(cfg *config.Config) time.Duration {
+	if cfg == nil {
+		return 3 * time.Second
+	}
+	lockProvider := strings.ToLower(strings.TrimSpace(cfg.Scheduler.LockProvider))
+	switch lockProvider {
+	case config.SchedulerLockProviderPostgres:
+		if cfg.Scheduler.Postgres.OperationTimeout > 0 {
+			return cfg.Scheduler.Postgres.OperationTimeout
+		}
+	default:
+		if cfg.Scheduler.Redis.OperationTimeout > 0 {
+			return cfg.Scheduler.Redis.OperationTimeout
+		}
+	}
+	return 3 * time.Second
+}
+
+func healthCheckResultError(result health.CheckResult) error {
+	if result.Status == health.StatusHealthy {
+		return nil
+	}
+	msg := strings.TrimSpace(result.Error)
+	if msg == "" {
+		msg = strings.TrimSpace(result.Message)
+	}
+	if msg == "" {
+		msg = "health check failed"
+	}
+	return fmt.Errorf("%s: %s", result.Name, msg)
 }
 
 func schedulerTasksFromConfig(cfg *config.Config) ([]scheduler.Task, error) {
