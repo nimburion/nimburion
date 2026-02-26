@@ -520,10 +520,32 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 #### Jobs Configuration
 
 - `APP_JOBS_BACKEND` - Jobs runtime backend: `eventbus` (default: `eventbus`)
+- `APP_JOBS_DEFAULT_QUEUE` - Default queue name used by jobs worker commands (default: `default`)
+- `APP_JOBS_WORKER_CONCURRENCY` - Worker concurrency per queue (default: `1`)
+- `APP_JOBS_WORKER_LEASE_TTL` - Lease TTL for reserved jobs (default: `30s`)
+- `APP_JOBS_WORKER_RESERVE_TIMEOUT` - Reserve poll timeout (default: `1s`)
+- `APP_JOBS_WORKER_STOP_TIMEOUT` - Graceful worker stop timeout (default: `10s`)
+- `APP_JOBS_RETRY_MAX_ATTEMPTS` - Maximum retry attempts before DLQ/drop (default: `5`)
+- `APP_JOBS_RETRY_INITIAL_BACKOFF` - Retry initial backoff (default: `1s`)
+- `APP_JOBS_RETRY_MAX_BACKOFF` - Retry max backoff (default: `60s`)
+- `APP_JOBS_RETRY_ATTEMPT_TIMEOUT` - Timeout for a single job execution attempt (default: `30s`)
+- `APP_JOBS_DLQ_ENABLED` - Enable dead-letter queue routing (default: `true`)
+- `APP_JOBS_DLQ_QUEUE_SUFFIX` - DLQ queue suffix (default: `.dlq`)
 
 | Config key | Env ufficiale | Alias legacy |
 | --- | --- | --- |
 | `jobs.backend` | `APP_JOBS_BACKEND` | |
+| `jobs.default_queue` | `APP_JOBS_DEFAULT_QUEUE` | |
+| `jobs.worker.concurrency` | `APP_JOBS_WORKER_CONCURRENCY` | |
+| `jobs.worker.lease_ttl` | `APP_JOBS_WORKER_LEASE_TTL` | |
+| `jobs.worker.reserve_timeout` | `APP_JOBS_WORKER_RESERVE_TIMEOUT` | |
+| `jobs.worker.stop_timeout` | `APP_JOBS_WORKER_STOP_TIMEOUT` | |
+| `jobs.retry.max_attempts` | `APP_JOBS_RETRY_MAX_ATTEMPTS` | |
+| `jobs.retry.initial_backoff` | `APP_JOBS_RETRY_INITIAL_BACKOFF` | |
+| `jobs.retry.max_backoff` | `APP_JOBS_RETRY_MAX_BACKOFF` | |
+| `jobs.retry.attempt_timeout` | `APP_JOBS_RETRY_ATTEMPT_TIMEOUT` | |
+| `jobs.dlq.enabled` | `APP_JOBS_DLQ_ENABLED` | |
+| `jobs.dlq.queue_suffix` | `APP_JOBS_DLQ_QUEUE_SUFFIX` | |
 
 #### Observability Configuration
 
