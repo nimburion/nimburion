@@ -59,3 +59,16 @@ func TestBuildSchema_DisablesCoreSectionsViaExtension(t *testing.T) {
 		t.Fatal("expected eventbus section to be disabled")
 	}
 }
+
+func TestBuildSchema_NoExtensions(t *testing.T) {
+	schema, err := BuildSchema()
+	if err != nil {
+		t.Fatalf("build schema: %v", err)
+	}
+	if schema == nil {
+		t.Fatal("expected schema")
+	}
+	if len(schema.Properties) == 0 {
+		t.Fatal("expected properties in schema")
+	}
+}
