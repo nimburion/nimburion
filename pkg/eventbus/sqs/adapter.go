@@ -92,6 +92,7 @@ func NewSQSAdapter(cfg Config, log logger.Logger) (*SQSAdapter, error) {
 	return adapter, nil
 }
 
+// Publish sends a message to the specified topic.
 func (a *SQSAdapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -118,6 +119,8 @@ func (a *SQSAdapter) Publish(ctx context.Context, topic string, message *eventbu
 	return nil
 }
 
+// PublishBatch sends multiple messages to the topic in batches of up to 10 messages per SQS API call.
+// This is more efficient than calling Publish multiple times for bulk operations.
 func (a *SQSAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -156,6 +159,8 @@ func (a *SQSAdapter) PublishBatch(ctx context.Context, topic string, messages []
 	return nil
 }
 
+// Subscribe starts polling the SQS queue in a background goroutine and invokes the handler for each message.
+// Messages are automatically deleted from the queue after successful processing.
 func (a *SQSAdapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -211,6 +216,7 @@ func (a *SQSAdapter) pollLoop(ctx context.Context, queueURL string, handler even
 	}
 }
 
+// Unsubscribe removes the subscription for the specified topic.
 func (a *SQSAdapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -223,6 +229,7 @@ func (a *SQSAdapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *SQSAdapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -245,6 +252,7 @@ func (a *SQSAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *SQSAdapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -89,6 +89,7 @@ func NewRabbitMQAdapter(cfg Config, log logger.Logger) (*RabbitMQAdapter, error)
 	return a, nil
 }
 
+// Publish sends a message to the specified topic.
 func (a *RabbitMQAdapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -123,6 +124,7 @@ func (a *RabbitMQAdapter) Publish(ctx context.Context, topic string, message *ev
 	return nil
 }
 
+// PublishBatch TODO: add description
 func (a *RabbitMQAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	for _, msg := range messages {
 		if err := a.Publish(ctx, topic, msg); err != nil {
@@ -132,6 +134,8 @@ func (a *RabbitMQAdapter) PublishBatch(ctx context.Context, topic string, messag
 	return nil
 }
 
+// Subscribe creates a queue, binds it to the topic, and processes messages in a background goroutine.
+// The handler is invoked for each message. Messages are auto-acked on success or nacked on error.
 func (a *RabbitMQAdapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -212,6 +216,7 @@ func (a *RabbitMQAdapter) consumeLoop(ctx context.Context, topic string, deliver
 	}
 }
 
+// Unsubscribe removes the subscription for the specified topic.
 func (a *RabbitMQAdapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -228,6 +233,7 @@ func (a *RabbitMQAdapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *RabbitMQAdapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -257,6 +263,7 @@ func (a *RabbitMQAdapter) HealthCheck(ctx context.Context) error {
 	}
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *RabbitMQAdapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
