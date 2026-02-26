@@ -351,3 +351,28 @@ func TestMailjetProvider_Send(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 }
+
+func TestProviderClose(t *testing.T) {
+	providers := []struct {
+		name string
+		p    Provider
+	}{
+		{"mailchimp", &MailchimpProvider{}},
+		{"mailgun", &MailgunProvider{}},
+		{"mailersend", &MailerSendProvider{}},
+		{"postmark", &PostmarkProvider{}},
+		{"mailtrap", &MailtrapProvider{}},
+		{"smtp2go", &SMTP2GOProvider{}},
+		{"sendpulse", &SendPulseProvider{}},
+		{"brevo", &BrevoProvider{}},
+		{"mailjet", &MailjetProvider{}},
+	}
+
+	for _, tt := range providers {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.p.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+	}
+}
