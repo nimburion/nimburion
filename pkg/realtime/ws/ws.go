@@ -26,6 +26,7 @@ const (
 	websocketMagicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 )
 
+// Config configures WebSocket upgrade behavior including origin validation, topic parsing, and keepalive.
 type Config struct {
 	// Legacy origin allow-list. When OriginPolicy is not set:
 	// - empty list means allow all origins (legacy behavior)
@@ -44,6 +45,7 @@ type Config struct {
 	RequireAuth bool
 }
 
+// DefaultConfig returns a Config with sensible defaults for WebSocket connections.
 func DefaultConfig() Config {
 	return Config{
 		AllowedOrigins:    []string{},
@@ -57,6 +59,7 @@ func DefaultConfig() Config {
 	}
 }
 
+// Conn represents an upgraded WebSocket connection with frame-level read/write operations.
 type Conn struct {
 	conn         net.Conn
 	rw           *bufio.ReadWriter
@@ -65,6 +68,8 @@ type Conn struct {
 	writeMu      sync.Mutex
 }
 
+// Upgrade upgrades an HTTP connection to WebSocket protocol and returns the connection with parsed topics.
+// Validates origin, WebSocket headers, and extracts topics from query parameters.
 func Upgrade(w http.ResponseWriter, r *http.Request, cfg Config) (*Conn, []string, error) {
 	cfg = normalizeConfig(cfg)
 
@@ -108,10 +113,12 @@ func Upgrade(w http.ResponseWriter, r *http.Request, cfg Config) (*Conn, []strin
 	}, topics, nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
+// WriteJSON TODO: add description
 func (c *Conn) WriteJSON(payload interface{}) error {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -120,6 +127,7 @@ func (c *Conn) WriteJSON(payload interface{}) error {
 	return c.WriteFrame(OpText, raw)
 }
 
+// WriteFrame TODO: add description
 func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -156,6 +164,7 @@ func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 	return c.rw.Flush()
 }
 
+// ReadFrame TODO: add description
 func (c *Conn) ReadFrame() (byte, []byte, error) {
 	var header [2]byte
 	if _, err := io.ReadFull(c.rw, header[:]); err != nil {
@@ -212,6 +221,7 @@ func (c *Conn) ReadFrame() (byte, []byte, error) {
 	return opcode, payload, nil
 }
 
+// ParseTopics TODO: add description
 func ParseTopics(raw string, maxCount, maxLen int) ([]string, error) {
 	values := parseList(raw)
 	if len(values) == 0 {
