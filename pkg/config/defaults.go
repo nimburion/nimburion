@@ -300,7 +300,24 @@ func DefaultConfig() *Config {
 			MaxMessages:      10,
 		},
 		Jobs: JobsConfig{
-			Backend: JobsBackendEventBus,
+			Backend:      JobsBackendEventBus,
+			DefaultQueue: "default",
+			Worker: JobsWorkerConfig{
+				Concurrency:    1,
+				LeaseTTL:       30 * time.Second,
+				ReserveTimeout: 1 * time.Second,
+				StopTimeout:    10 * time.Second,
+			},
+			Retry: JobsRetryConfig{
+				MaxAttempts:    5,
+				InitialBackoff: 1 * time.Second,
+				MaxBackoff:     60 * time.Second,
+				AttemptTimeout: 30 * time.Second,
+			},
+			DLQ: JobsDLQConfig{
+				Enabled:     true,
+				QueueSuffix: ".dlq",
+			},
 		},
 		Validation: ValidationConfig{
 			Kafka: KafkaValidationConfig{

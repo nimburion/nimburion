@@ -424,7 +424,33 @@ type EventBusConfig struct {
 
 // JobsConfig configures jobs runtime backend selection.
 type JobsConfig struct {
-	Backend string `mapstructure:"backend"` // eventbus
+	Backend      string           `mapstructure:"backend"`       // eventbus
+	DefaultQueue string           `mapstructure:"default_queue"` // default
+	Worker       JobsWorkerConfig `mapstructure:"worker"`
+	Retry        JobsRetryConfig  `mapstructure:"retry"`
+	DLQ          JobsDLQConfig    `mapstructure:"dlq"`
+}
+
+// JobsWorkerConfig configures jobs worker lifecycle.
+type JobsWorkerConfig struct {
+	Concurrency    int           `mapstructure:"concurrency"`
+	LeaseTTL       time.Duration `mapstructure:"lease_ttl"`
+	ReserveTimeout time.Duration `mapstructure:"reserve_timeout"`
+	StopTimeout    time.Duration `mapstructure:"stop_timeout"`
+}
+
+// JobsRetryConfig configures retry strategy for failed jobs.
+type JobsRetryConfig struct {
+	MaxAttempts    int           `mapstructure:"max_attempts"`
+	InitialBackoff time.Duration `mapstructure:"initial_backoff"`
+	MaxBackoff     time.Duration `mapstructure:"max_backoff"`
+	AttemptTimeout time.Duration `mapstructure:"attempt_timeout"`
+}
+
+// JobsDLQConfig configures dead-letter queue behavior.
+type JobsDLQConfig struct {
+	Enabled     bool   `mapstructure:"enabled"`
+	QueueSuffix string `mapstructure:"queue_suffix"`
 }
 
 // ValidationConfig configures strong schema validation for Kafka.

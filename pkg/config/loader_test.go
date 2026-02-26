@@ -271,6 +271,17 @@ func TestViperLoader_LoadJobsFromEnv(t *testing.T) {
 	defer clearAppEnv()
 
 	os.Setenv("APP_JOBS_BACKEND", "eventbus")
+	os.Setenv("APP_JOBS_DEFAULT_QUEUE", "critical")
+	os.Setenv("APP_JOBS_WORKER_CONCURRENCY", "4")
+	os.Setenv("APP_JOBS_WORKER_LEASE_TTL", "45s")
+	os.Setenv("APP_JOBS_WORKER_RESERVE_TIMEOUT", "2s")
+	os.Setenv("APP_JOBS_WORKER_STOP_TIMEOUT", "12s")
+	os.Setenv("APP_JOBS_RETRY_MAX_ATTEMPTS", "9")
+	os.Setenv("APP_JOBS_RETRY_INITIAL_BACKOFF", "500ms")
+	os.Setenv("APP_JOBS_RETRY_MAX_BACKOFF", "30s")
+	os.Setenv("APP_JOBS_RETRY_ATTEMPT_TIMEOUT", "20s")
+	os.Setenv("APP_JOBS_DLQ_ENABLED", "true")
+	os.Setenv("APP_JOBS_DLQ_QUEUE_SUFFIX", ".dead")
 
 	cfg, err := NewViperLoader("", "APP").Load()
 	if err != nil {
@@ -278,6 +289,24 @@ func TestViperLoader_LoadJobsFromEnv(t *testing.T) {
 	}
 	if cfg.Jobs.Backend != "eventbus" {
 		t.Fatalf("expected jobs.backend=eventbus, got %q", cfg.Jobs.Backend)
+	}
+	if cfg.Jobs.DefaultQueue != "critical" {
+		t.Fatalf("expected jobs.default_queue=critical, got %q", cfg.Jobs.DefaultQueue)
+	}
+	if cfg.Jobs.Worker.Concurrency != 4 {
+		t.Fatalf("expected jobs.worker.concurrency=4, got %d", cfg.Jobs.Worker.Concurrency)
+	}
+	if cfg.Jobs.Worker.LeaseTTL != 45*time.Second {
+		t.Fatalf("expected jobs.worker.lease_ttl=45s, got %v", cfg.Jobs.Worker.LeaseTTL)
+	}
+	if cfg.Jobs.Retry.MaxAttempts != 9 {
+		t.Fatalf("expected jobs.retry.max_attempts=9, got %d", cfg.Jobs.Retry.MaxAttempts)
+	}
+	if cfg.Jobs.Retry.InitialBackoff != 500*time.Millisecond {
+		t.Fatalf("expected jobs.retry.initial_backoff=500ms, got %v", cfg.Jobs.Retry.InitialBackoff)
+	}
+	if cfg.Jobs.DLQ.QueueSuffix != ".dead" {
+		t.Fatalf("expected jobs.dlq.queue_suffix=.dead, got %q", cfg.Jobs.DLQ.QueueSuffix)
 	}
 }
 
@@ -293,6 +322,21 @@ func TestViperLoader_InvalidJobsBackend(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid jobs.backend") {
 		t.Fatalf("expected jobs.backend validation error, got %v", err)
+	}
+}
+
+func TestViperLoader_InvalidJobsWorkerConfig(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_JOBS_WORKER_CONCURRENCY", "0")
+
+	_, err := NewViperLoader("", "APP").Load()
+	if err == nil {
+		t.Fatal("expected validation error for jobs.worker.concurrency")
+	}
+	if !strings.Contains(err.Error(), "jobs.worker.concurrency must be greater than zero") {
+		t.Fatalf("expected jobs.worker.concurrency validation error, got %v", err)
 	}
 }
 

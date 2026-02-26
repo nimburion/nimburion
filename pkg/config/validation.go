@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -74,6 +75,36 @@ func (c *Config) Validate() error {
 		if backend != JobsBackendEventBus {
 			return fmt.Errorf("jobs.backend is invalid: %s", c.Jobs.Backend)
 		}
+	}
+	if c.Jobs.Worker.Concurrency < 0 {
+		return errors.New("jobs.worker.concurrency must be greater than zero")
+	}
+	if c.Jobs.Worker.LeaseTTL < 0 {
+		return errors.New("jobs.worker.lease_ttl must be greater than zero")
+	}
+	if c.Jobs.Worker.ReserveTimeout < 0 {
+		return errors.New("jobs.worker.reserve_timeout must be greater than zero")
+	}
+	if c.Jobs.Worker.StopTimeout < 0 {
+		return errors.New("jobs.worker.stop_timeout must be greater than zero")
+	}
+	if c.Jobs.Retry.MaxAttempts < 0 {
+		return errors.New("jobs.retry.max_attempts must be greater than zero")
+	}
+	if c.Jobs.Retry.InitialBackoff < 0 {
+		return errors.New("jobs.retry.initial_backoff must be greater than zero")
+	}
+	if c.Jobs.Retry.MaxBackoff < 0 {
+		return errors.New("jobs.retry.max_backoff must be greater than zero")
+	}
+	if c.Jobs.Retry.MaxBackoff > 0 && c.Jobs.Retry.InitialBackoff > 0 && c.Jobs.Retry.MaxBackoff < c.Jobs.Retry.InitialBackoff {
+		return errors.New("jobs.retry.max_backoff must be greater than or equal to jobs.retry.initial_backoff")
+	}
+	if c.Jobs.Retry.AttemptTimeout < 0 {
+		return errors.New("jobs.retry.attempt_timeout must be greater than zero")
+	}
+	if c.Jobs.DLQ.Enabled && strings.TrimSpace(c.Jobs.DLQ.QueueSuffix) == "" {
+		return errors.New("jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true")
 	}
 
 	return nil

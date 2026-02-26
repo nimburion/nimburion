@@ -364,6 +364,17 @@ func (l *ViperLoader) bindEnvVars(v *viper.Viper) {
 
 	// Jobs
 	v.BindEnv("jobs.backend", l.prefixedEnv("JOBS_BACKEND"))
+	v.BindEnv("jobs.default_queue", l.prefixedEnv("JOBS_DEFAULT_QUEUE"))
+	v.BindEnv("jobs.worker.concurrency", l.prefixedEnv("JOBS_WORKER_CONCURRENCY"))
+	v.BindEnv("jobs.worker.lease_ttl", l.prefixedEnv("JOBS_WORKER_LEASE_TTL"))
+	v.BindEnv("jobs.worker.reserve_timeout", l.prefixedEnv("JOBS_WORKER_RESERVE_TIMEOUT"))
+	v.BindEnv("jobs.worker.stop_timeout", l.prefixedEnv("JOBS_WORKER_STOP_TIMEOUT"))
+	v.BindEnv("jobs.retry.max_attempts", l.prefixedEnv("JOBS_RETRY_MAX_ATTEMPTS"))
+	v.BindEnv("jobs.retry.initial_backoff", l.prefixedEnv("JOBS_RETRY_INITIAL_BACKOFF"))
+	v.BindEnv("jobs.retry.max_backoff", l.prefixedEnv("JOBS_RETRY_MAX_BACKOFF"))
+	v.BindEnv("jobs.retry.attempt_timeout", l.prefixedEnv("JOBS_RETRY_ATTEMPT_TIMEOUT"))
+	v.BindEnv("jobs.dlq.enabled", l.prefixedEnv("JOBS_DLQ_ENABLED"))
+	v.BindEnv("jobs.dlq.queue_suffix", l.prefixedEnv("JOBS_DLQ_QUEUE_SUFFIX"))
 
 	// Validation
 	v.BindEnv("validation.kafka.enabled", l.prefixedEnv("VALIDATION_KAFKA_ENABLED"))
@@ -678,6 +689,17 @@ func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
 
 	// Jobs defaults
 	v.SetDefault("jobs.backend", cfg.Jobs.Backend)
+	v.SetDefault("jobs.default_queue", cfg.Jobs.DefaultQueue)
+	v.SetDefault("jobs.worker.concurrency", cfg.Jobs.Worker.Concurrency)
+	v.SetDefault("jobs.worker.lease_ttl", cfg.Jobs.Worker.LeaseTTL)
+	v.SetDefault("jobs.worker.reserve_timeout", cfg.Jobs.Worker.ReserveTimeout)
+	v.SetDefault("jobs.worker.stop_timeout", cfg.Jobs.Worker.StopTimeout)
+	v.SetDefault("jobs.retry.max_attempts", cfg.Jobs.Retry.MaxAttempts)
+	v.SetDefault("jobs.retry.initial_backoff", cfg.Jobs.Retry.InitialBackoff)
+	v.SetDefault("jobs.retry.max_backoff", cfg.Jobs.Retry.MaxBackoff)
+	v.SetDefault("jobs.retry.attempt_timeout", cfg.Jobs.Retry.AttemptTimeout)
+	v.SetDefault("jobs.dlq.enabled", cfg.Jobs.DLQ.Enabled)
+	v.SetDefault("jobs.dlq.queue_suffix", cfg.Jobs.DLQ.QueueSuffix)
 
 	// Validation defaults
 	v.SetDefault("validation.kafka.enabled", cfg.Validation.Kafka.Enabled)
@@ -1275,6 +1297,36 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 	validJobsBackends := []string{JobsBackendEventBus}
 	if !contains(validJobsBackends, jobsBackend) {
 		errs = append(errs, fmt.Errorf("invalid jobs.backend: %s (must be one of: %v)", cfg.Jobs.Backend, validJobsBackends))
+	}
+	if cfg.Jobs.Worker.Concurrency <= 0 {
+		errs = append(errs, errors.New("jobs.worker.concurrency must be greater than zero"))
+	}
+	if cfg.Jobs.Worker.LeaseTTL <= 0 {
+		errs = append(errs, errors.New("jobs.worker.lease_ttl must be greater than zero"))
+	}
+	if cfg.Jobs.Worker.ReserveTimeout <= 0 {
+		errs = append(errs, errors.New("jobs.worker.reserve_timeout must be greater than zero"))
+	}
+	if cfg.Jobs.Worker.StopTimeout <= 0 {
+		errs = append(errs, errors.New("jobs.worker.stop_timeout must be greater than zero"))
+	}
+	if cfg.Jobs.Retry.MaxAttempts <= 0 {
+		errs = append(errs, errors.New("jobs.retry.max_attempts must be greater than zero"))
+	}
+	if cfg.Jobs.Retry.InitialBackoff <= 0 {
+		errs = append(errs, errors.New("jobs.retry.initial_backoff must be greater than zero"))
+	}
+	if cfg.Jobs.Retry.MaxBackoff <= 0 {
+		errs = append(errs, errors.New("jobs.retry.max_backoff must be greater than zero"))
+	}
+	if cfg.Jobs.Retry.MaxBackoff < cfg.Jobs.Retry.InitialBackoff {
+		errs = append(errs, errors.New("jobs.retry.max_backoff must be greater than or equal to jobs.retry.initial_backoff"))
+	}
+	if cfg.Jobs.Retry.AttemptTimeout <= 0 {
+		errs = append(errs, errors.New("jobs.retry.attempt_timeout must be greater than zero"))
+	}
+	if cfg.Jobs.DLQ.Enabled && strings.TrimSpace(cfg.Jobs.DLQ.QueueSuffix) == "" {
+		errs = append(errs, errors.New("jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true"))
 	}
 
 	validValidationModes := []string{"warn", "enforce"}
