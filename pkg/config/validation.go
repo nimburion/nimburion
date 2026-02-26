@@ -69,6 +69,13 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.Jobs.Backend != "" {
+		backend := strings.ToLower(strings.TrimSpace(c.Jobs.Backend))
+		if backend != JobsBackendEventBus {
+			return fmt.Errorf("jobs.backend is invalid: %s", c.Jobs.Backend)
+		}
+	}
+
 	return nil
 }
 

@@ -62,6 +62,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Swagger.Enabled {
 		t.Error("expected Swagger to be disabled by default")
 	}
+	if cfg.Jobs.Backend != JobsBackendEventBus {
+		t.Errorf("expected jobs backend %q, got %q", JobsBackendEventBus, cfg.Jobs.Backend)
+	}
 }
 
 func TestViperLoader_LoadDefaults(t *testing.T) {
@@ -260,6 +263,36 @@ func TestViperLoader_InvalidValidationKafkaDefaultPolicy(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid validation.kafka.default_policy") {
 		t.Fatalf("expected validation.kafka.default_policy validation error, got %v", err)
+	}
+}
+
+func TestViperLoader_LoadJobsFromEnv(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_JOBS_BACKEND", "eventbus")
+
+	cfg, err := NewViperLoader("", "APP").Load()
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if cfg.Jobs.Backend != "eventbus" {
+		t.Fatalf("expected jobs.backend=eventbus, got %q", cfg.Jobs.Backend)
+	}
+}
+
+func TestViperLoader_InvalidJobsBackend(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_JOBS_BACKEND", "invalid")
+
+	_, err := NewViperLoader("", "APP").Load()
+	if err == nil {
+		t.Fatal("expected validation error for invalid jobs.backend")
+	}
+	if !strings.Contains(err.Error(), "invalid jobs.backend") {
+		t.Fatalf("expected jobs.backend validation error, got %v", err)
 	}
 }
 

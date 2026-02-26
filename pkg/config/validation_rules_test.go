@@ -71,8 +71,18 @@ func TestConfigValidate_Rules(t *testing.T) {
 					Region:   "eu-west-1",
 					QueueURL: "https://sqs.eu-west-1.amazonaws.com/123/queue",
 				},
+				Jobs: JobsConfig{
+					Backend: JobsBackendEventBus,
+				},
 			},
 			wantErr: "",
+		},
+		{
+			name: "invalid jobs backend",
+			cfg: Config{
+				Jobs: JobsConfig{Backend: "redis"},
+			},
+			wantErr: "jobs.backend is invalid",
 		},
 	}
 

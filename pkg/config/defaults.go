@@ -299,6 +299,9 @@ func DefaultConfig() *Config {
 			WaitTimeSeconds:  10,
 			MaxMessages:      10,
 		},
+		Jobs: JobsConfig{
+			Backend: JobsBackendEventBus,
+		},
 		Validation: ValidationConfig{
 			Kafka: KafkaValidationConfig{
 				Enabled:        false,

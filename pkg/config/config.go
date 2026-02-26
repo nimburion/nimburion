@@ -15,6 +15,10 @@ const (
 	EventBusTypeSQS      = "sqs"
 )
 
+const (
+	JobsBackendEventBus = "eventbus"
+)
+
 // Config is the root configuration structure for the microservice framework
 type Config struct {
 	RouterType      string `mapstructure:"router_type"`
@@ -35,6 +39,7 @@ type Config struct {
 	ObjectStorage   ObjectStorageConfig `mapstructure:"object_storage"`
 	Search          SearchConfig
 	EventBus        EventBusConfig `mapstructure:"eventbus"`
+	Jobs            JobsConfig     `mapstructure:"jobs"`
 	Validation      ValidationConfig
 	Observability   ObservabilityConfig
 	Swagger         SwaggerConfig
@@ -415,6 +420,11 @@ type EventBusConfig struct {
 	WaitTimeSeconds   int32         `mapstructure:"wait_time_seconds"`
 	MaxMessages       int32         `mapstructure:"max_messages"`
 	VisibilityTimeout int32         `mapstructure:"visibility_timeout"`
+}
+
+// JobsConfig configures jobs runtime backend selection.
+type JobsConfig struct {
+	Backend string `mapstructure:"backend"` // eventbus
 }
 
 // ValidationConfig configures strong schema validation for Kafka.

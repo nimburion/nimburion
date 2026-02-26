@@ -362,6 +362,9 @@ func (l *ViperLoader) bindEnvVars(v *viper.Viper) {
 	v.BindEnv("eventbus.max_messages", l.prefixedEnv("EVENTBUS_MAX_MESSAGES"))
 	v.BindEnv("eventbus.visibility_timeout", l.prefixedEnv("EVENTBUS_VISIBILITY_TIMEOUT"))
 
+	// Jobs
+	v.BindEnv("jobs.backend", l.prefixedEnv("JOBS_BACKEND"))
+
 	// Validation
 	v.BindEnv("validation.kafka.enabled", l.prefixedEnv("VALIDATION_KAFKA_ENABLED"))
 	v.BindEnv("validation.kafka.mode", l.prefixedEnv("VALIDATION_KAFKA_MODE"))
@@ -672,6 +675,9 @@ func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
 	v.SetDefault("eventbus.exchange_type", cfg.EventBus.ExchangeType)
 	v.SetDefault("eventbus.wait_time_seconds", cfg.EventBus.WaitTimeSeconds)
 	v.SetDefault("eventbus.max_messages", cfg.EventBus.MaxMessages)
+
+	// Jobs defaults
+	v.SetDefault("jobs.backend", cfg.Jobs.Backend)
 
 	// Validation defaults
 	v.SetDefault("validation.kafka.enabled", cfg.Validation.Kafka.Enabled)
@@ -1259,6 +1265,16 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 		if !contains(validSerializers, cfg.EventBus.Serializer) {
 			errs = append(errs, fmt.Errorf("invalid eventbus.serializer: %s (must be one of: %v)", cfg.EventBus.Serializer, validSerializers))
 		}
+	}
+
+	// Validate Jobs configuration
+	jobsBackend := strings.ToLower(strings.TrimSpace(cfg.Jobs.Backend))
+	if jobsBackend == "" {
+		jobsBackend = JobsBackendEventBus
+	}
+	validJobsBackends := []string{JobsBackendEventBus}
+	if !contains(validJobsBackends, jobsBackend) {
+		errs = append(errs, fmt.Errorf("invalid jobs.backend: %s (must be one of: %v)", cfg.Jobs.Backend, validJobsBackends))
 	}
 
 	validValidationModes := []string{"warn", "enforce"}

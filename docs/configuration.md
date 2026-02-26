@@ -517,6 +517,14 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 - `APP_EVENTBUS_MAX_MESSAGES` - SQS max receive batch (default: 10)
 - `APP_EVENTBUS_VISIBILITY_TIMEOUT` - SQS visibility timeout (seconds)
 
+#### Jobs Configuration
+
+- `APP_JOBS_BACKEND` - Jobs runtime backend: `eventbus` (default: `eventbus`)
+
+| Config key | Env ufficiale | Alias legacy |
+| --- | --- | --- |
+| `jobs.backend` | `APP_JOBS_BACKEND` | |
+
 #### Observability Configuration
 
 - `APP_SERVICE_NAME` - Service name for the application identity.
