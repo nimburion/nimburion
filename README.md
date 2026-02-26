@@ -21,6 +21,17 @@ go get github.com/nimburion/nimburion
 ```
 Use `pkg/server` + `pkg/config` to bootstrap public/management servers and run with graceful shutdown.
 
+## Testing
+```bash
+# Fast unit tests (no external dependencies)
+make test-fast
+
+# All tests with Docker services
+make test-integration
+```
+
+See [Testing Guide](./docs/testing.md) for details.
+
 ## Configuration
 - Priority: `ENV > config file > defaults`
 - Prefix: `APP_`
