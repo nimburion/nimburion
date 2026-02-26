@@ -2,6 +2,7 @@ package ws
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nimburion/nimburion/pkg/middleware/cors"
 )
@@ -81,5 +82,70 @@ func TestIsAllowedOrigin_OriginPolicyTakesPrecedence(t *testing.T) {
 	}
 	if isAllowedOrigin("https://legacy.example.com", cfg) {
 		t.Fatalf("expected legacy origin to be ignored when origin policy is configured")
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.ReadLimit != 4096 {
+		t.Errorf("expected ReadLimit=4096, got %d", cfg.ReadLimit)
+	}
+	if cfg.WriteTimeout != 10*time.Second {
+		t.Errorf("expected WriteTimeout=10s, got %v", cfg.WriteTimeout)
+	}
+	if cfg.MaxTopicCount != 20 {
+		t.Errorf("expected MaxTopicCount=20, got %d", cfg.MaxTopicCount)
+	}
+	if cfg.MaxTopicLength != 64 {
+		t.Errorf("expected MaxTopicLength=64, got %d", cfg.MaxTopicLength)
+	}
+}
+
+func TestParseList(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []string
+	}{
+		{"", []string{}},
+		{"a,b,c", []string{"a", "b", "c"}},
+		{"a b c", []string{"a", "b", "c"}},
+		{"a, b , c", []string{"a", "b", "c"}},
+		{"  a  b  ", []string{"a", "b"}},
+	}
+
+	for _, tt := range tests {
+		result := parseList(tt.input)
+		if len(result) != len(tt.expected) {
+			t.Errorf("parseList(%q) = %v, want %v", tt.input, result, tt.expected)
+			continue
+		}
+		for i := range result {
+			if result[i] != tt.expected[i] {
+				t.Errorf("parseList(%q)[%d] = %q, want %q", tt.input, i, result[i], tt.expected[i])
+			}
+		}
+	}
+}
+
+func TestIsValidTopic(t *testing.T) {
+	tests := []struct {
+		topic string
+		valid bool
+	}{
+		{"", true}, // Empty string passes character validation
+		{"valid-topic", true},
+		{"valid_topic", true},
+		{"valid.topic", true},
+		{"valid123", true},
+		{"$invalid", false},
+		{"invalid!", false},
+		{"a", true},
+	}
+
+	for _, tt := range tests {
+		result := isValidTopic(tt.topic)
+		if result != tt.valid {
+			t.Errorf("isValidTopic(%q) = %v, want %v", tt.topic, result, tt.valid)
+		}
 	}
 }
