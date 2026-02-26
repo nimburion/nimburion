@@ -16,12 +16,15 @@ type extensionValidator interface {
 	Validate() error
 }
 
+// ConfigProvider manages configuration loading from files, environment variables, and flags.
+// It supports core configuration and optional extension structs with automatic binding.
 type ConfigProvider struct {
 	loader *ViperLoader
 	v      *viper.Viper
 	flags  *pflag.FlagSet
 }
 
+// NewConfigProvider creates a new ConfigProvider instance.
 func NewConfigProvider(configFile, envPrefix string) *ConfigProvider {
 	return &ConfigProvider{
 		loader: NewViperLoader(configFile, envPrefix),
@@ -29,11 +32,15 @@ func NewConfigProvider(configFile, envPrefix string) *ConfigProvider {
 	}
 }
 
+// WithFlags registers pflags that will be bound to configuration fields during Load.
+// Flags take highest precedence in the configuration hierarchy. Returns self for chaining.
 func (p *ConfigProvider) WithFlags(flags *pflag.FlagSet) *ConfigProvider {
 	p.flags = flags
 	return p
 }
 
+// WithServiceNameDefault sets a fallback service name used when service.name is not configured.
+// Returns self for chaining.
 func (p *ConfigProvider) WithServiceNameDefault(serviceName string) *ConfigProvider {
 	if p == nil || p.loader == nil {
 		return p
@@ -50,6 +57,8 @@ func (p *ConfigProvider) ConfigFile() string {
 	return p.loader.configFile
 }
 
+// Load loads configuration from file, environment variables, and flags with precedence order:
+// defaults < config file < env vars < flags. Validates the final configuration.
 func (p *ConfigProvider) Load(core *Config, extensions ...interface{}) error {
 	_, err := p.load(core, false, extensions...)
 	return err
@@ -149,6 +158,9 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	return secrets, nil
 }
 
+// RegisterFlagsFromStruct automatically creates pflags for all struct fields with `flag` tags.
+// Supports string, bool, int, duration, and string slice types. Flag names and defaults
+// are derived from struct tags.
 func RegisterFlagsFromStruct(flags *pflag.FlagSet, target interface{}) error {
 	fields, err := collectConfigFields(target)
 	if err != nil {
