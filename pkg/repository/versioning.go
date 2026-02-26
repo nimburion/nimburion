@@ -15,6 +15,7 @@ type OptimisticLockError struct {
 	Actual   int64
 }
 
+// Error TODO: add description
 func (e *OptimisticLockError) Error() string {
 	return fmt.Sprintf("optimistic lock failed for entity %s: expected version %d, got %d",
 		e.EntityID, e.Expected, e.Actual)

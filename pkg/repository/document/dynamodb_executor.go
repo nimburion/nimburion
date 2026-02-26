@@ -39,6 +39,7 @@ type DynamoDBExecutor struct {
 	adapter *dynamostore.DynamoDBAdapter
 }
 
+// NewDynamoDBExecutor creates a new DynamoDBExecutor instance.
 func NewDynamoDBExecutor(adapter *dynamostore.DynamoDBAdapter) (*DynamoDBExecutor, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("dynamodb adapter is required")
@@ -46,6 +47,7 @@ func NewDynamoDBExecutor(adapter *dynamostore.DynamoDBAdapter) (*DynamoDBExecuto
 	return &DynamoDBExecutor{adapter: adapter}, nil
 }
 
+// PutItem TODO: add description
 func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[string]types.AttributeValue) error {
 	_, err := e.adapter.PutItem(ctx, &awsdynamodb.PutItemInput{
 		TableName: &table,
@@ -54,6 +56,7 @@ func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[s
 	return err
 }
 
+// GetItem TODO: add description
 func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[string]types.AttributeValue, consistentRead bool) (map[string]types.AttributeValue, error) {
 	out, err := e.adapter.GetItem(ctx, &awsdynamodb.GetItemInput{
 		TableName:      &table,
@@ -66,6 +69,7 @@ func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[st
 	return out.Item, nil
 }
 
+// UpdateItem TODO: add description
 func (e *DynamoDBExecutor) UpdateItem(
 	ctx context.Context,
 	table string,
@@ -88,6 +92,7 @@ func (e *DynamoDBExecutor) UpdateItem(
 	return out.Attributes, nil
 }
 
+// DeleteItem TODO: add description
 func (e *DynamoDBExecutor) DeleteItem(ctx context.Context, table string, key map[string]types.AttributeValue) error {
 	_, err := e.adapter.DeleteItem(ctx, &awsdynamodb.DeleteItemInput{
 		TableName: &table,
@@ -96,6 +101,7 @@ func (e *DynamoDBExecutor) DeleteItem(ctx context.Context, table string, key map
 	return err
 }
 
+// Query retrieves a URL query parameter by name.
 func (e *DynamoDBExecutor) Query(
 	ctx context.Context,
 	table string,

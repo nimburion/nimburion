@@ -109,7 +109,8 @@ func (r *GenericCrudRepository[T, ID]) FindByID(ctx context.Context, id ID) (*T,
 	return entity, nil
 }
 
-// FindAll retrieves all entities matching the query options
+// FindAll retrieves entities matching the query options with support for filtering, sorting, and pagination.
+// Filters are combined with AND logic. Returns an empty slice if no entities match.
 func (r *GenericCrudRepository[T, ID]) FindAll(ctx context.Context, opts QueryOptions) ([]T, error) {
 	query := fmt.Sprintf("SELECT * FROM %s", r.tableName)
 	args := []interface{}{}
@@ -189,7 +190,9 @@ func (r *GenericCrudRepository[T, ID]) Count(ctx context.Context, filter Filter)
 	return count, nil
 }
 
-// Update updates an existing entity in the database
+// Update updates an existing entity in the database.
+// Automatically uses optimistic locking if the entity implements the Versioned interface.
+// Returns sql.ErrNoRows if the entity doesn't exist or version mismatch occurs.
 func (r *GenericCrudRepository[T, ID]) Update(ctx context.Context, entity *T) error {
 	if entity == nil {
 		return errors.New("entity cannot be nil")
