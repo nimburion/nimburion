@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -375,6 +376,22 @@ func (l *ViperLoader) bindEnvVars(v *viper.Viper) {
 	v.BindEnv("jobs.retry.attempt_timeout", l.prefixedEnv("JOBS_RETRY_ATTEMPT_TIMEOUT"))
 	v.BindEnv("jobs.dlq.enabled", l.prefixedEnv("JOBS_DLQ_ENABLED"))
 	v.BindEnv("jobs.dlq.queue_suffix", l.prefixedEnv("JOBS_DLQ_QUEUE_SUFFIX"))
+	v.BindEnv("jobs.redis.url", l.prefixedEnv("JOBS_REDIS_URL"))
+	v.BindEnv("jobs.redis.prefix", l.prefixedEnv("JOBS_REDIS_PREFIX"))
+	v.BindEnv("jobs.redis.operation_timeout", l.prefixedEnv("JOBS_REDIS_OPERATION_TIMEOUT"))
+
+	// Scheduler
+	v.BindEnv("scheduler.enabled", l.prefixedEnv("SCHEDULER_ENABLED"))
+	v.BindEnv("scheduler.timezone", l.prefixedEnv("SCHEDULER_TIMEZONE"))
+	v.BindEnv("scheduler.lock_provider", l.prefixedEnv("SCHEDULER_LOCK_PROVIDER"))
+	v.BindEnv("scheduler.lock_ttl", l.prefixedEnv("SCHEDULER_LOCK_TTL"))
+	v.BindEnv("scheduler.dispatch_timeout", l.prefixedEnv("SCHEDULER_DISPATCH_TIMEOUT"))
+	v.BindEnv("scheduler.redis.url", l.prefixedEnv("SCHEDULER_REDIS_URL"))
+	v.BindEnv("scheduler.redis.prefix", l.prefixedEnv("SCHEDULER_REDIS_PREFIX"))
+	v.BindEnv("scheduler.redis.operation_timeout", l.prefixedEnv("SCHEDULER_REDIS_OPERATION_TIMEOUT"))
+	v.BindEnv("scheduler.postgres.url", l.prefixedEnv("SCHEDULER_POSTGRES_URL"))
+	v.BindEnv("scheduler.postgres.table", l.prefixedEnv("SCHEDULER_POSTGRES_TABLE"))
+	v.BindEnv("scheduler.postgres.operation_timeout", l.prefixedEnv("SCHEDULER_POSTGRES_OPERATION_TIMEOUT"))
 
 	// Validation
 	v.BindEnv("validation.kafka.enabled", l.prefixedEnv("VALIDATION_KAFKA_ENABLED"))
@@ -700,6 +717,19 @@ func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
 	v.SetDefault("jobs.retry.attempt_timeout", cfg.Jobs.Retry.AttemptTimeout)
 	v.SetDefault("jobs.dlq.enabled", cfg.Jobs.DLQ.Enabled)
 	v.SetDefault("jobs.dlq.queue_suffix", cfg.Jobs.DLQ.QueueSuffix)
+	v.SetDefault("jobs.redis.prefix", cfg.Jobs.Redis.Prefix)
+	v.SetDefault("jobs.redis.operation_timeout", cfg.Jobs.Redis.OperationTimeout)
+
+	// Scheduler defaults
+	v.SetDefault("scheduler.enabled", cfg.Scheduler.Enabled)
+	v.SetDefault("scheduler.timezone", cfg.Scheduler.Timezone)
+	v.SetDefault("scheduler.lock_provider", cfg.Scheduler.LockProvider)
+	v.SetDefault("scheduler.lock_ttl", cfg.Scheduler.LockTTL)
+	v.SetDefault("scheduler.dispatch_timeout", cfg.Scheduler.DispatchTimeout)
+	v.SetDefault("scheduler.redis.prefix", cfg.Scheduler.Redis.Prefix)
+	v.SetDefault("scheduler.redis.operation_timeout", cfg.Scheduler.Redis.OperationTimeout)
+	v.SetDefault("scheduler.postgres.table", cfg.Scheduler.Postgres.Table)
+	v.SetDefault("scheduler.postgres.operation_timeout", cfg.Scheduler.Postgres.OperationTimeout)
 
 	// Validation defaults
 	v.SetDefault("validation.kafka.enabled", cfg.Validation.Kafka.Enabled)
@@ -1294,7 +1324,7 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 	if jobsBackend == "" {
 		jobsBackend = JobsBackendEventBus
 	}
-	validJobsBackends := []string{JobsBackendEventBus}
+	validJobsBackends := []string{JobsBackendEventBus, JobsBackendRedis}
 	if !contains(validJobsBackends, jobsBackend) {
 		errs = append(errs, fmt.Errorf("invalid jobs.backend: %s (must be one of: %v)", cfg.Jobs.Backend, validJobsBackends))
 	}
@@ -1327,6 +1357,99 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 	}
 	if cfg.Jobs.DLQ.Enabled && strings.TrimSpace(cfg.Jobs.DLQ.QueueSuffix) == "" {
 		errs = append(errs, errors.New("jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true"))
+	}
+	if jobsBackend == JobsBackendRedis {
+		if strings.TrimSpace(cfg.Jobs.Redis.URL) == "" {
+			errs = append(errs, errors.New("jobs.redis.url is required when jobs.backend is redis"))
+		}
+		if strings.TrimSpace(cfg.Jobs.Redis.Prefix) == "" {
+			errs = append(errs, errors.New("jobs.redis.prefix is required when jobs.backend is redis"))
+		}
+		if cfg.Jobs.Redis.OperationTimeout <= 0 {
+			errs = append(errs, errors.New("jobs.redis.operation_timeout must be greater than zero when jobs.backend is redis"))
+		}
+	}
+
+	// Validate Scheduler configuration
+	if cfg.Scheduler.Enabled {
+		lockProvider := strings.ToLower(strings.TrimSpace(cfg.Scheduler.LockProvider))
+		if lockProvider == "" {
+			lockProvider = SchedulerLockProviderRedis
+		}
+		validLockProviders := []string{SchedulerLockProviderRedis, SchedulerLockProviderPostgres}
+		if !contains(validLockProviders, lockProvider) {
+			errs = append(errs, fmt.Errorf("invalid scheduler.lock_provider: %s (must be one of: %v)", cfg.Scheduler.LockProvider, validLockProviders))
+		}
+		if cfg.Scheduler.LockTTL <= 0 {
+			errs = append(errs, errors.New("scheduler.lock_ttl must be greater than zero"))
+		}
+		if cfg.Scheduler.DispatchTimeout <= 0 {
+			errs = append(errs, errors.New("scheduler.dispatch_timeout must be greater than zero"))
+		}
+		timezone := strings.TrimSpace(cfg.Scheduler.Timezone)
+		if timezone == "" {
+			timezone = "UTC"
+		}
+		if _, err := time.LoadLocation(timezone); err != nil {
+			errs = append(errs, fmt.Errorf("invalid scheduler.timezone: %w", err))
+		}
+
+		switch lockProvider {
+		case SchedulerLockProviderRedis:
+			redisURL := strings.TrimSpace(cfg.Scheduler.Redis.URL)
+			if redisURL == "" {
+				redisURL = strings.TrimSpace(cfg.Cache.URL)
+			}
+			if redisURL == "" {
+				errs = append(errs, errors.New("scheduler.redis.url (or cache.url) is required when scheduler.lock_provider is redis"))
+			}
+			if strings.TrimSpace(cfg.Scheduler.Redis.Prefix) == "" {
+				errs = append(errs, errors.New("scheduler.redis.prefix is required when scheduler.lock_provider is redis"))
+			}
+			if cfg.Scheduler.Redis.OperationTimeout <= 0 {
+				errs = append(errs, errors.New("scheduler.redis.operation_timeout must be greater than zero when scheduler.lock_provider is redis"))
+			}
+		case SchedulerLockProviderPostgres:
+			postgresURL := strings.TrimSpace(cfg.Scheduler.Postgres.URL)
+			if postgresURL == "" {
+				postgresURL = strings.TrimSpace(cfg.Database.URL)
+			}
+			if postgresURL == "" {
+				errs = append(errs, errors.New("scheduler.postgres.url (or database.url) is required when scheduler.lock_provider is postgres"))
+			}
+			if strings.TrimSpace(cfg.Scheduler.Postgres.Table) == "" {
+				errs = append(errs, errors.New("scheduler.postgres.table is required when scheduler.lock_provider is postgres"))
+			}
+			if cfg.Scheduler.Postgres.OperationTimeout <= 0 {
+				errs = append(errs, errors.New("scheduler.postgres.operation_timeout must be greater than zero when scheduler.lock_provider is postgres"))
+			}
+		}
+
+		taskNames := map[string]struct{}{}
+		for idx, task := range cfg.Scheduler.Tasks {
+			name := strings.TrimSpace(task.Name)
+			if name == "" {
+				errs = append(errs, fmt.Errorf("scheduler.tasks[%d].name is required", idx))
+				continue
+			}
+			if _, exists := taskNames[name]; exists {
+				errs = append(errs, fmt.Errorf("scheduler.tasks contains duplicate name %q", name))
+			}
+			taskNames[name] = struct{}{}
+			if strings.TrimSpace(task.Cron) == "" {
+				errs = append(errs, fmt.Errorf("scheduler.tasks[%s].cron is required", name))
+			}
+			if strings.TrimSpace(task.Queue) == "" {
+				errs = append(errs, fmt.Errorf("scheduler.tasks[%s].queue is required", name))
+			}
+			if strings.TrimSpace(task.JobName) == "" {
+				errs = append(errs, fmt.Errorf("scheduler.tasks[%s].job_name is required", name))
+			}
+			misfire := strings.ToLower(strings.TrimSpace(task.MisfirePolicy))
+			if misfire != "" && misfire != "skip" && misfire != "fire_once" {
+				errs = append(errs, fmt.Errorf("scheduler.tasks[%s].misfire_policy must be one of: skip, fire_once", name))
+			}
+		}
 	}
 
 	validValidationModes := []string{"warn", "enforce"}

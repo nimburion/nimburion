@@ -318,6 +318,26 @@ func DefaultConfig() *Config {
 				Enabled:     true,
 				QueueSuffix: ".dlq",
 			},
+			Redis: JobsRedisConfig{
+				Prefix:           "nimburion:jobs",
+				OperationTimeout: 5 * time.Second,
+			},
+		},
+		Scheduler: SchedulerConfig{
+			Enabled:         false,
+			Timezone:        "UTC",
+			LockProvider:    SchedulerLockProviderRedis,
+			LockTTL:         45 * time.Second,
+			DispatchTimeout: 10 * time.Second,
+			Redis: SchedulerRedisConfig{
+				Prefix:           "nimburion:scheduler:lock",
+				OperationTimeout: 3 * time.Second,
+			},
+			Postgres: SchedulerPostgresConfig{
+				Table:            "nimburion_scheduler_locks",
+				OperationTimeout: 3 * time.Second,
+			},
+			Tasks: []SchedulerTaskConfig{},
 		},
 		Validation: ValidationConfig{
 			Kafka: KafkaValidationConfig{

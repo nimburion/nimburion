@@ -340,6 +340,89 @@ func TestViperLoader_InvalidJobsWorkerConfig(t *testing.T) {
 	}
 }
 
+func TestViperLoader_LoadJobsRedisFromEnv(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_JOBS_BACKEND", "redis")
+	os.Setenv("APP_JOBS_REDIS_URL", "redis://localhost:6379/1")
+	os.Setenv("APP_JOBS_REDIS_PREFIX", "jobs:test")
+	os.Setenv("APP_JOBS_REDIS_OPERATION_TIMEOUT", "7s")
+
+	cfg, err := NewViperLoader("", "APP").Load()
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if cfg.Jobs.Backend != "redis" {
+		t.Fatalf("expected jobs.backend=redis, got %q", cfg.Jobs.Backend)
+	}
+	if cfg.Jobs.Redis.URL != "redis://localhost:6379/1" {
+		t.Fatalf("expected jobs.redis.url to be loaded from env, got %q", cfg.Jobs.Redis.URL)
+	}
+	if cfg.Jobs.Redis.Prefix != "jobs:test" {
+		t.Fatalf("expected jobs.redis.prefix=jobs:test, got %q", cfg.Jobs.Redis.Prefix)
+	}
+	if cfg.Jobs.Redis.OperationTimeout != 7*time.Second {
+		t.Fatalf("expected jobs.redis.operation_timeout=7s, got %v", cfg.Jobs.Redis.OperationTimeout)
+	}
+}
+
+func TestViperLoader_InvalidJobsRedisConfig(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_JOBS_BACKEND", "redis")
+	os.Setenv("APP_JOBS_REDIS_PREFIX", "jobs:test")
+
+	_, err := NewViperLoader("", "APP").Load()
+	if err == nil {
+		t.Fatal("expected validation error for missing jobs.redis.url")
+	}
+	if !strings.Contains(err.Error(), "jobs.redis.url is required when jobs.backend is redis") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestViperLoader_LoadSchedulerFromEnv(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	os.Setenv("APP_SCHEDULER_ENABLED", "true")
+	os.Setenv("APP_SCHEDULER_TIMEZONE", "Europe/Rome")
+	os.Setenv("APP_SCHEDULER_LOCK_PROVIDER", "postgres")
+	os.Setenv("APP_SCHEDULER_LOCK_TTL", "30s")
+	os.Setenv("APP_SCHEDULER_DISPATCH_TIMEOUT", "9s")
+	os.Setenv("APP_DATABASE_URL", "postgres://localhost:5432/app?sslmode=disable")
+	os.Setenv("APP_SCHEDULER_POSTGRES_TABLE", "scheduler_locks")
+	os.Setenv("APP_SCHEDULER_POSTGRES_OPERATION_TIMEOUT", "4s")
+
+	cfg, err := NewViperLoader("", "APP").Load()
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !cfg.Scheduler.Enabled {
+		t.Fatal("expected scheduler.enabled=true")
+	}
+	if cfg.Scheduler.Timezone != "Europe/Rome" {
+		t.Fatalf("expected scheduler.timezone=Europe/Rome, got %q", cfg.Scheduler.Timezone)
+	}
+	if cfg.Scheduler.LockProvider != "postgres" {
+		t.Fatalf("expected scheduler.lock_provider=postgres, got %q", cfg.Scheduler.LockProvider)
+	}
+	if cfg.Scheduler.LockTTL != 30*time.Second {
+		t.Fatalf("expected scheduler.lock_ttl=30s, got %v", cfg.Scheduler.LockTTL)
+	}
+	if cfg.Scheduler.DispatchTimeout != 9*time.Second {
+		t.Fatalf("expected scheduler.dispatch_timeout=9s, got %v", cfg.Scheduler.DispatchTimeout)
+	}
+	if cfg.Scheduler.Postgres.Table != "scheduler_locks" {
+		t.Fatalf("expected scheduler.postgres.table=scheduler_locks, got %q", cfg.Scheduler.Postgres.Table)
+	}
+	if cfg.Scheduler.Postgres.OperationTimeout != 4*time.Second {
+		t.Fatalf("expected scheduler.postgres.operation_timeout=4s, got %v", cfg.Scheduler.Postgres.OperationTimeout)
+	}
+}
+
 func TestViperLoader_InvalidI18nDefaultLocale(t *testing.T) {
 	clearAppEnv()
 	defer clearAppEnv()

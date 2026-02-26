@@ -531,6 +531,9 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 - `APP_JOBS_RETRY_ATTEMPT_TIMEOUT` - Timeout for a single job execution attempt (default: `30s`)
 - `APP_JOBS_DLQ_ENABLED` - Enable dead-letter queue routing (default: `true`)
 - `APP_JOBS_DLQ_QUEUE_SUFFIX` - DLQ queue suffix (default: `.dlq`)
+- `APP_JOBS_REDIS_URL` - Redis URL when `jobs.backend=redis`
+- `APP_JOBS_REDIS_PREFIX` - Redis key prefix for jobs backend (default: `nimburion:jobs`)
+- `APP_JOBS_REDIS_OPERATION_TIMEOUT` - Redis operation timeout for jobs backend (default: `5s`)
 
 | Config key | Env ufficiale | Alias legacy |
 | --- | --- | --- |
@@ -546,6 +549,37 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 | `jobs.retry.attempt_timeout` | `APP_JOBS_RETRY_ATTEMPT_TIMEOUT` | |
 | `jobs.dlq.enabled` | `APP_JOBS_DLQ_ENABLED` | |
 | `jobs.dlq.queue_suffix` | `APP_JOBS_DLQ_QUEUE_SUFFIX` | |
+| `jobs.redis.url` | `APP_JOBS_REDIS_URL` | |
+| `jobs.redis.prefix` | `APP_JOBS_REDIS_PREFIX` | |
+| `jobs.redis.operation_timeout` | `APP_JOBS_REDIS_OPERATION_TIMEOUT` | |
+
+#### Scheduler Configuration
+
+- `APP_SCHEDULER_ENABLED` - Enable distributed scheduler runtime (default: `false`)
+- `APP_SCHEDULER_TIMEZONE` - Default scheduler timezone (default: `UTC`)
+- `APP_SCHEDULER_LOCK_PROVIDER` - Lock provider: `redis`, `postgres` (default: `redis`)
+- `APP_SCHEDULER_LOCK_TTL` - Default lock TTL for tasks (default: `45s`)
+- `APP_SCHEDULER_DISPATCH_TIMEOUT` - Max dispatch duration per task run (default: `10s`)
+- `APP_SCHEDULER_REDIS_URL` - Redis URL for scheduler locks (fallback: `cache.url`)
+- `APP_SCHEDULER_REDIS_PREFIX` - Redis lock key prefix (default: `nimburion:scheduler:lock`)
+- `APP_SCHEDULER_REDIS_OPERATION_TIMEOUT` - Redis lock operation timeout (default: `3s`)
+- `APP_SCHEDULER_POSTGRES_URL` - Postgres URL for scheduler locks (fallback: `database.url`)
+- `APP_SCHEDULER_POSTGRES_TABLE` - Postgres lock table name (default: `nimburion_scheduler_locks`)
+- `APP_SCHEDULER_POSTGRES_OPERATION_TIMEOUT` - Postgres lock operation timeout (default: `3s`)
+
+| Config key | Env ufficiale | Alias legacy |
+| --- | --- | --- |
+| `scheduler.enabled` | `APP_SCHEDULER_ENABLED` | |
+| `scheduler.timezone` | `APP_SCHEDULER_TIMEZONE` | |
+| `scheduler.lock_provider` | `APP_SCHEDULER_LOCK_PROVIDER` | |
+| `scheduler.lock_ttl` | `APP_SCHEDULER_LOCK_TTL` | |
+| `scheduler.dispatch_timeout` | `APP_SCHEDULER_DISPATCH_TIMEOUT` | |
+| `scheduler.redis.url` | `APP_SCHEDULER_REDIS_URL` | |
+| `scheduler.redis.prefix` | `APP_SCHEDULER_REDIS_PREFIX` | |
+| `scheduler.redis.operation_timeout` | `APP_SCHEDULER_REDIS_OPERATION_TIMEOUT` | |
+| `scheduler.postgres.url` | `APP_SCHEDULER_POSTGRES_URL` | |
+| `scheduler.postgres.table` | `APP_SCHEDULER_POSTGRES_TABLE` | |
+| `scheduler.postgres.operation_timeout` | `APP_SCHEDULER_POSTGRES_OPERATION_TIMEOUT` | |
 
 #### Observability Configuration
 

@@ -17,6 +17,12 @@ const (
 
 const (
 	JobsBackendEventBus = "eventbus"
+	JobsBackendRedis    = "redis"
+)
+
+const (
+	SchedulerLockProviderRedis    = "redis"
+	SchedulerLockProviderPostgres = "postgres"
 )
 
 // Config is the root configuration structure for the microservice framework
@@ -38,8 +44,9 @@ type Config struct {
 	Cache           CacheConfig
 	ObjectStorage   ObjectStorageConfig `mapstructure:"object_storage"`
 	Search          SearchConfig
-	EventBus        EventBusConfig `mapstructure:"eventbus"`
-	Jobs            JobsConfig     `mapstructure:"jobs"`
+	EventBus        EventBusConfig  `mapstructure:"eventbus"`
+	Jobs            JobsConfig      `mapstructure:"jobs"`
+	Scheduler       SchedulerConfig `mapstructure:"scheduler"`
 	Validation      ValidationConfig
 	Observability   ObservabilityConfig
 	Swagger         SwaggerConfig
@@ -429,6 +436,7 @@ type JobsConfig struct {
 	Worker       JobsWorkerConfig `mapstructure:"worker"`
 	Retry        JobsRetryConfig  `mapstructure:"retry"`
 	DLQ          JobsDLQConfig    `mapstructure:"dlq"`
+	Redis        JobsRedisConfig  `mapstructure:"redis"`
 }
 
 // JobsWorkerConfig configures jobs worker lifecycle.
@@ -451,6 +459,54 @@ type JobsRetryConfig struct {
 type JobsDLQConfig struct {
 	Enabled     bool   `mapstructure:"enabled"`
 	QueueSuffix string `mapstructure:"queue_suffix"`
+}
+
+// JobsRedisConfig configures Redis backend for jobs runtime.
+type JobsRedisConfig struct {
+	URL              string        `mapstructure:"url"`
+	Prefix           string        `mapstructure:"prefix"`
+	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
+}
+
+// SchedulerConfig configures distributed scheduler behavior.
+type SchedulerConfig struct {
+	Enabled         bool                    `mapstructure:"enabled"`
+	Timezone        string                  `mapstructure:"timezone"`
+	LockProvider    string                  `mapstructure:"lock_provider"` // redis, postgres
+	LockTTL         time.Duration           `mapstructure:"lock_ttl"`
+	DispatchTimeout time.Duration           `mapstructure:"dispatch_timeout"`
+	Redis           SchedulerRedisConfig    `mapstructure:"redis"`
+	Postgres        SchedulerPostgresConfig `mapstructure:"postgres"`
+	Tasks           []SchedulerTaskConfig   `mapstructure:"tasks"`
+}
+
+// SchedulerRedisConfig configures Redis lock provider.
+type SchedulerRedisConfig struct {
+	URL              string        `mapstructure:"url"`
+	Prefix           string        `mapstructure:"prefix"`
+	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
+}
+
+// SchedulerPostgresConfig configures Postgres lock provider.
+type SchedulerPostgresConfig struct {
+	URL              string        `mapstructure:"url"`
+	Table            string        `mapstructure:"table"`
+	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
+}
+
+// SchedulerTaskConfig describes one scheduler task from configuration.
+type SchedulerTaskConfig struct {
+	Name           string            `mapstructure:"name"`
+	Cron           string            `mapstructure:"cron"`
+	Queue          string            `mapstructure:"queue"`
+	JobName        string            `mapstructure:"job_name"`
+	Payload        string            `mapstructure:"payload"`
+	Headers        map[string]string `mapstructure:"headers"`
+	TenantID       string            `mapstructure:"tenant_id"`
+	IdempotencyKey string            `mapstructure:"idempotency_key"`
+	Timezone       string            `mapstructure:"timezone"`
+	LockTTL        time.Duration     `mapstructure:"lock_ttl"`
+	MisfirePolicy  string            `mapstructure:"misfire_policy"` // skip, fire_once
 }
 
 // ValidationConfig configures strong schema validation for Kafka.

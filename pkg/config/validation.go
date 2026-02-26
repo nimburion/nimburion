@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 )
 
 // Validate checks if the configuration is valid
@@ -72,8 +73,16 @@ func (c *Config) Validate() error {
 
 	if c.Jobs.Backend != "" {
 		backend := strings.ToLower(strings.TrimSpace(c.Jobs.Backend))
-		if backend != JobsBackendEventBus {
+		if backend != JobsBackendEventBus && backend != JobsBackendRedis {
 			return fmt.Errorf("jobs.backend is invalid: %s", c.Jobs.Backend)
+		}
+		if backend == JobsBackendRedis {
+			if strings.TrimSpace(c.Jobs.Redis.URL) == "" {
+				return errors.New("jobs.redis.url is required when jobs.backend is redis")
+			}
+			if strings.TrimSpace(c.Jobs.Redis.Prefix) == "" {
+				return errors.New("jobs.redis.prefix is required when jobs.backend is redis")
+			}
 		}
 	}
 	if c.Jobs.Worker.Concurrency < 0 {
@@ -105,6 +114,88 @@ func (c *Config) Validate() error {
 	}
 	if c.Jobs.DLQ.Enabled && strings.TrimSpace(c.Jobs.DLQ.QueueSuffix) == "" {
 		return errors.New("jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true")
+	}
+	if c.Scheduler.Enabled {
+		lockProvider := strings.ToLower(strings.TrimSpace(c.Scheduler.LockProvider))
+		if lockProvider == "" {
+			lockProvider = SchedulerLockProviderRedis
+		}
+		if lockProvider != SchedulerLockProviderRedis && lockProvider != SchedulerLockProviderPostgres {
+			return fmt.Errorf("scheduler.lock_provider is invalid: %s", c.Scheduler.LockProvider)
+		}
+		if c.Scheduler.LockTTL <= 0 {
+			return errors.New("scheduler.lock_ttl must be greater than zero")
+		}
+		if c.Scheduler.DispatchTimeout <= 0 {
+			return errors.New("scheduler.dispatch_timeout must be greater than zero")
+		}
+		if timezone := strings.TrimSpace(c.Scheduler.Timezone); timezone != "" {
+			if _, err := time.LoadLocation(timezone); err != nil {
+				return fmt.Errorf("scheduler.timezone is invalid: %w", err)
+			}
+		}
+
+		switch lockProvider {
+		case SchedulerLockProviderRedis:
+			redisURL := strings.TrimSpace(c.Scheduler.Redis.URL)
+			if redisURL == "" {
+				redisURL = strings.TrimSpace(c.Cache.URL)
+			}
+			if redisURL == "" {
+				return errors.New("scheduler.redis.url (or cache.url) is required when scheduler.lock_provider is redis")
+			}
+			if strings.TrimSpace(c.Scheduler.Redis.Prefix) == "" {
+				return errors.New("scheduler.redis.prefix is required when scheduler.lock_provider is redis")
+			}
+			if c.Scheduler.Redis.OperationTimeout <= 0 {
+				return errors.New("scheduler.redis.operation_timeout must be greater than zero when scheduler.lock_provider is redis")
+			}
+		case SchedulerLockProviderPostgres:
+			postgresURL := strings.TrimSpace(c.Scheduler.Postgres.URL)
+			if postgresURL == "" {
+				postgresURL = strings.TrimSpace(c.Database.URL)
+			}
+			if postgresURL == "" {
+				return errors.New("scheduler.postgres.url (or database.url) is required when scheduler.lock_provider is postgres")
+			}
+			if strings.TrimSpace(c.Scheduler.Postgres.Table) == "" {
+				return errors.New("scheduler.postgres.table is required when scheduler.lock_provider is postgres")
+			}
+			if c.Scheduler.Postgres.OperationTimeout <= 0 {
+				return errors.New("scheduler.postgres.operation_timeout must be greater than zero when scheduler.lock_provider is postgres")
+			}
+		}
+
+		seenTasks := map[string]struct{}{}
+		for idx, task := range c.Scheduler.Tasks {
+			name := strings.TrimSpace(task.Name)
+			if name == "" {
+				return fmt.Errorf("scheduler.tasks[%d].name is required", idx)
+			}
+			if _, ok := seenTasks[name]; ok {
+				return fmt.Errorf("scheduler.tasks contains duplicate name %q", name)
+			}
+			seenTasks[name] = struct{}{}
+
+			if strings.TrimSpace(task.Cron) == "" {
+				return fmt.Errorf("scheduler.tasks[%s].cron is required", name)
+			}
+			if strings.TrimSpace(task.Queue) == "" {
+				return fmt.Errorf("scheduler.tasks[%s].queue is required", name)
+			}
+			if strings.TrimSpace(task.JobName) == "" {
+				return fmt.Errorf("scheduler.tasks[%s].job_name is required", name)
+			}
+			misfirePolicy := strings.ToLower(strings.TrimSpace(task.MisfirePolicy))
+			if misfirePolicy != "" && misfirePolicy != "skip" && misfirePolicy != "fire_once" {
+				return fmt.Errorf("scheduler.tasks[%s].misfire_policy must be one of: skip, fire_once", name)
+			}
+			if timezone := strings.TrimSpace(task.Timezone); timezone != "" {
+				if _, err := time.LoadLocation(timezone); err != nil {
+					return fmt.Errorf("scheduler.tasks[%s].timezone is invalid: %w", name, err)
+				}
+			}
+		}
 	}
 
 	return nil

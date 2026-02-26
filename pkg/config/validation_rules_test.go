@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigValidate_Rules(t *testing.T) {
@@ -80,9 +81,57 @@ func TestConfigValidate_Rules(t *testing.T) {
 		{
 			name: "invalid jobs backend",
 			cfg: Config{
-				Jobs: JobsConfig{Backend: "redis"},
+				Jobs: JobsConfig{Backend: "invalid"},
 			},
 			wantErr: "jobs.backend is invalid",
+		},
+		{
+			name: "valid redis jobs backend",
+			cfg: Config{
+				Jobs: JobsConfig{
+					Backend: JobsBackendRedis,
+					Redis: JobsRedisConfig{
+						URL:    "redis://localhost:6379",
+						Prefix: "jobs:test",
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "scheduler redis requires connection url",
+			cfg: Config{
+				Scheduler: SchedulerConfig{
+					Enabled:         true,
+					LockProvider:    SchedulerLockProviderRedis,
+					LockTTL:         time.Second,
+					DispatchTimeout: time.Second,
+					Redis: SchedulerRedisConfig{
+						Prefix:           "scheduler:locks",
+						OperationTimeout: time.Second,
+					},
+				},
+			},
+			wantErr: "scheduler.redis.url (or cache.url) is required",
+		},
+		{
+			name: "valid scheduler postgres config",
+			cfg: Config{
+				Database: DatabaseConfig{
+					URL: "postgres://localhost:5432/app?sslmode=disable",
+				},
+				Scheduler: SchedulerConfig{
+					Enabled:         true,
+					LockProvider:    SchedulerLockProviderPostgres,
+					LockTTL:         time.Second,
+					DispatchTimeout: time.Second,
+					Postgres: SchedulerPostgresConfig{
+						Table:            "scheduler_locks",
+						OperationTimeout: time.Second,
+					},
+				},
+			},
+			wantErr: "",
 		},
 	}
 
