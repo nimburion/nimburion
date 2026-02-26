@@ -39,6 +39,7 @@ type Config struct {
 	Format LogFormat
 }
 
+// DefaultConfig TODO: add description
 func DefaultConfig() Config {
 	return Config{
 		Level:  InfoLevel,

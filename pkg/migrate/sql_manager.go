@@ -13,6 +13,7 @@ import (
 
 var migrationNamePattern = regexp.MustCompile(`^(\d+)_([a-zA-Z0-9_\-]+)\.(up|down)\.sql$`)
 
+// Migration represents a database migration with up and down SQL scripts.
 type Migration struct {
 	Version int64
 	Name    string
@@ -20,11 +21,13 @@ type Migration struct {
 	DownSQL string
 }
 
+// SQLManager manages database migrations with support for up/down operations and status tracking.
 type SQLManager struct {
 	db         *sql.DB
 	migrations []Migration
 }
 
+// NewSQLManager creates a new SQLManager instance.
 func NewSQLManager(db *sql.DB, migrationFiles fs.FS, migrationsDir string) (*SQLManager, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database handle is required")
@@ -44,6 +47,7 @@ func NewSQLManager(db *sql.DB, migrationFiles fs.FS, migrationsDir string) (*SQL
 	return &SQLManager{db: db, migrations: migrations}, nil
 }
 
+// Up TODO: add description
 func (m *SQLManager) Up(ctx context.Context) (int, error) {
 	if err := m.ensureMetadataTable(ctx); err != nil {
 		return 0, err
@@ -85,6 +89,7 @@ func (m *SQLManager) Up(ctx context.Context) (int, error) {
 	return appliedCount, nil
 }
 
+// Down TODO: add description
 func (m *SQLManager) Down(ctx context.Context, steps int) (int, error) {
 	if steps <= 0 {
 		steps = 1
@@ -142,6 +147,7 @@ func (m *SQLManager) Down(ctx context.Context, steps int) (int, error) {
 	return reverted, nil
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (m *SQLManager) Status(ctx context.Context) (*Status, error) {
 	if err := m.ensureMetadataTable(ctx); err != nil {
 		return nil, err

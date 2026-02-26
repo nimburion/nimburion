@@ -188,10 +188,12 @@ type namedChecker struct {
 	checkFunc func(ctx context.Context) CheckResult
 }
 
+// Check TODO: add description
 func (c *namedChecker) Check(ctx context.Context) CheckResult {
 	return c.checkFunc(ctx)
 }
 
+// Name TODO: add description
 func (c *namedChecker) Name() string {
 	return c.name
 }

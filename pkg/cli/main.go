@@ -1281,6 +1281,9 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 	}
 }
 
+// LoadConfigAndLogger loads configuration from file/env/flags and creates a logger instance.
+// Applies service name resolution, runs custom validation, and configures async logging if enabled.
+// Returns the loaded config, configured logger, and any error encountered.
 func LoadConfigAndLogger(
 	cfgPath,
 	envPrefix,
