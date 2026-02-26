@@ -35,103 +35,11 @@ jobs:
         continue-on-error: true
 
   test:
-    name: Test - ${{ matrix.group }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ['1.25.x']
-        group:
-          - 'server'
-          - 'store'
-          - 'middleware'
-          - 'eventbus'
-          - 'auth-config'
-          - 'observability-resilience'
-          - 'other'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-
-      - name: Run tests for ${{ matrix.group }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          case "${{ matrix.group }}" in
-            server)
-              PACKAGES="./pkg/server/..."
-              ;;
-            store)
-              PACKAGES="./pkg/store/... ./pkg/repository/..."
-              ;;
-            middleware)
-              PACKAGES="./pkg/middleware/..."
-              ;;
-            eventbus)
-              PACKAGES="./pkg/eventbus/... ./pkg/jobs/... ./pkg/realtime/..."
-              ;;
-            auth-config)
-              PACKAGES="./pkg/auth/... ./pkg/config/... ./pkg/configschema/..."
-              ;;
-            observability-resilience)
-              PACKAGES="./pkg/observability/... ./pkg/health/... ./pkg/resilience/..."
-              ;;
-            other)
-              PACKAGES="./pkg/cli/... ./pkg/migrate/..."
-              ;;
-          esac
-          
-          go test $PACKAGES -p $(nproc) -count=1 -short
-
-  coverage-check:
-    name: Coverage Check
-    needs: test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25.x'
-          cache: true
-
-      - name: Run tests with coverage
-        run: |
-          go test ./... -short -covermode=atomic -coverprofile=coverage.out
-          go tool cover -func=coverage.out | tee coverage.txt
-
-      - name: Check coverage threshold
-        run: |
-          threshold=70
-          coverage=$(awk '/^total:/ {print $3}' coverage.txt | sed 's/%//')
-          echo "Coverage: ${coverage}% (threshold: ${threshold}%)"
-          if (( $(echo "$coverage < $threshold" | bc -l) )); then
-            echo "::warning::Coverage ${coverage}% is below threshold ${threshold}%"
-          fi
-
-      - name: Comment PR with coverage
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const coverage = fs.readFileSync('coverage.txt', 'utf8');
-            const total = coverage.match(/total:.*?(\d+\.\d+%)/)?.[1] || 'N/A';
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Test Coverage\n\n**Total:** ${total}\n\n<details><summary>Details</summary>\n\n\`\`\`\n${coverage}\n\`\`\`\n</details>`
-            });
+    name: Run Tests
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      go-version: '1.25.x'
+      coverage-threshold: 50
+      with-services: false
+    permissions:
+      contents: read;

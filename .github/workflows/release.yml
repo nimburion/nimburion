@@ -21,16 +21,16 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.x'
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v1.62.2
         continue-on-error: true
@@ -61,161 +61,18 @@ jobs:
           govulncheck ./...
 
   test:
-    name: Test - ${{ matrix.group }}
-    runs-on: ubuntu-latest
-    
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ['1.25.x']
-        group:
-          - 'server'
-          - 'store'
-          - 'middleware'
-          - 'eventbus'
-          - 'auth-config'
-          - 'observability-resilience'
-          - 'other'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-
-      - name: Run tests for ${{ matrix.group }}
-        shell: bash
-        env:
-          REDIS_URL: redis://localhost:6379/0
-          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/testdb?sslmode=disable
-        run: |
-          set -euo pipefail
-          
-          case "${{ matrix.group }}" in
-            server)
-              PACKAGES="./pkg/server/..."
-              ;;
-            store)
-              PACKAGES="./pkg/store/... ./pkg/repository/..."
-              ;;
-            middleware)
-              PACKAGES="./pkg/middleware/..."
-              ;;
-            eventbus)
-              PACKAGES="./pkg/eventbus/... ./pkg/jobs/... ./pkg/realtime/..."
-              ;;
-            auth-config)
-              PACKAGES="./pkg/auth/... ./pkg/config/... ./pkg/configschema/..."
-              ;;
-            observability-resilience)
-              PACKAGES="./pkg/observability/... ./pkg/health/... ./pkg/resilience/..."
-              ;;
-            other)
-              PACKAGES="./pkg/cli/... ./pkg/migrate/..."
-              ;;
-          esac
-          
-          go test $PACKAGES -p $(nproc) -count=1 -covermode=atomic -coverprofile=coverage-${{ matrix.group }}.out
-
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.group }}
-          path: coverage-${{ matrix.group }}.out
-          if-no-files-found: error
-
-  coverage:
-    name: Merge Coverage
-    needs: [test, security, lint]
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25.x'
-          cache: true
-
-      - name: Download all coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-
-      - name: Merge coverage reports
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "mode: atomic" > coverage.out
-          tail -q -n +2 coverage-*.out >> coverage.out
-          go tool cover -func=coverage.out | tee coverage.txt
-
-      - name: Publish coverage summary
-        shell: bash
-        run: |
-          set -euo pipefail
-          total_coverage="$(awk '/^total:/ {print $3}' coverage.txt)"
-          echo "## Test Coverage" >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Total: ${total_coverage}" >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Upload merged coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: |
-            coverage.out
-            coverage.txt
-          if-no-files-found: error
-
-      - name: Check coverage threshold
-        shell: bash
-        run: |
-          set -euo pipefail
-          threshold=70
-          coverage=$(awk '/^total:/ {print $3}' coverage.txt | sed 's/%//')
-          echo "Coverage: ${coverage}% (threshold: ${threshold}%)"
-          if (( $(echo "$coverage < $threshold" | bc -l) )); then
-            echo "::error::Coverage ${coverage}% is below threshold ${threshold}%"
-            exit 1
-          fi
+    name: Run Tests
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      go-version: '1.25.x'
+      coverage-threshold: 50
+      with-services: true
+    permissions:
+      contents: read
 
   build:
     name: Build & Verify
-    needs: coverage
+    needs: [test, security, lint]
     runs-on: ubuntu-latest
     
     steps:
