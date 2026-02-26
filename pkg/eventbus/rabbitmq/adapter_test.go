@@ -58,3 +58,30 @@ func TestHeadersConversion(t *testing.T) {
 		t.Fatalf("unexpected conversion output: %#v", out)
 	}
 }
+
+func TestHeadersConversionEmpty(t *testing.T) {
+	amqpHeaders := toAMQPHeaders(nil)
+	if len(amqpHeaders) != 0 {
+		t.Fatalf("expected empty headers, got %v", amqpHeaders)
+	}
+
+	out := fromAMQPHeaders(nil)
+	if len(out) != 0 {
+		t.Fatalf("expected empty map, got %v", out)
+	}
+}
+
+func TestHeadersConversionNonString(t *testing.T) {
+	amqpHeaders := map[string]interface{}{"k1": "v1", "k2": 123, "k3": true}
+	out := fromAMQPHeaders(amqpHeaders)
+	if out["k1"] != "v1" {
+		t.Fatalf("expected k1=v1, got %v", out["k1"])
+	}
+	// Non-string values are converted to strings via fmt.Sprintf
+	if out["k2"] != "123" {
+		t.Fatalf("expected k2=123, got %v", out["k2"])
+	}
+	if out["k3"] != "true" {
+		t.Fatalf("expected k3=true, got %v", out["k3"])
+	}
+}
