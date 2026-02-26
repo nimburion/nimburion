@@ -47,7 +47,7 @@ func NewDynamoDBExecutor(adapter *dynamostore.DynamoDBAdapter) (*DynamoDBExecuto
 	return &DynamoDBExecutor{adapter: adapter}, nil
 }
 
-// PutItem TODO: add description
+// PutItem creates or replaces an item in the DynamoDB table.
 func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[string]types.AttributeValue) error {
 	_, err := e.adapter.PutItem(ctx, &awsdynamodb.PutItemInput{
 		TableName: &table,
@@ -56,7 +56,7 @@ func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[s
 	return err
 }
 
-// GetItem TODO: add description
+// GetItem retrieves an item by its primary key.
 func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[string]types.AttributeValue, consistentRead bool) (map[string]types.AttributeValue, error) {
 	out, err := e.adapter.GetItem(ctx, &awsdynamodb.GetItemInput{
 		TableName:      &table,
@@ -69,7 +69,7 @@ func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[st
 	return out.Item, nil
 }
 
-// UpdateItem TODO: add description
+// UpdateItem modifies attributes of an existing item.
 func (e *DynamoDBExecutor) UpdateItem(
 	ctx context.Context,
 	table string,
@@ -92,7 +92,7 @@ func (e *DynamoDBExecutor) UpdateItem(
 	return out.Attributes, nil
 }
 
-// DeleteItem TODO: add description
+// DeleteItem removes an item from the table.
 func (e *DynamoDBExecutor) DeleteItem(ctx context.Context, table string, key map[string]types.AttributeValue) error {
 	_, err := e.adapter.DeleteItem(ctx, &awsdynamodb.DeleteItemInput{
 		TableName: &table,

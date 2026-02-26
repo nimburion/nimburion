@@ -47,7 +47,7 @@ func NewSQLManager(db *sql.DB, migrationFiles fs.FS, migrationsDir string) (*SQL
 	return &SQLManager{db: db, migrations: migrations}, nil
 }
 
-// Up TODO: add description
+// Up applies all pending migrations in order.
 func (m *SQLManager) Up(ctx context.Context) (int, error) {
 	if err := m.ensureMetadataTable(ctx); err != nil {
 		return 0, err
@@ -89,7 +89,7 @@ func (m *SQLManager) Up(ctx context.Context) (int, error) {
 	return appliedCount, nil
 }
 
-// Down TODO: add description
+// Down rolls back the specified number of migrations.
 func (m *SQLManager) Down(ctx context.Context, steps int) (int, error) {
 	if steps <= 0 {
 		steps = 1

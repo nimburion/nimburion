@@ -70,17 +70,17 @@ func NewMongoDBAdapter(cfg Config, log logger.Logger) (*MongoDBAdapter, error) {
 	}, nil
 }
 
-// Client TODO: add description
+// Client returns the underlying MongoDB client for advanced operations.
 func (a *MongoDBAdapter) Client() *mongo.Client {
 	return a.client
 }
 
-// Database TODO: add description
+// Database returns the MongoDB database instance.
 func (a *MongoDBAdapter) Database() *mongo.Database {
 	return a.client.Database(a.database)
 }
 
-// Collection TODO: add description
+// Collection returns a MongoDB collection by name.
 func (a *MongoDBAdapter) Collection(name string) *mongo.Collection {
 	return a.Database().Collection(name)
 }
@@ -134,28 +134,28 @@ func (a *MongoDBAdapter) InsertOne(ctx context.Context, collection string, doc i
 	return a.Collection(collection).InsertOne(opCtx, doc)
 }
 
-// FindOne TODO: add description
+// FindOne finds a single document matching the filter.
 func (a *MongoDBAdapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)
 }
 
-// UpdateOne TODO: add description
+// UpdateOne updates a single document matching the filter.
 func (a *MongoDBAdapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).UpdateOne(opCtx, filter, update)
 }
 
-// DeleteOne TODO: add description
+// DeleteOne deletes a single document matching the filter.
 func (a *MongoDBAdapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).DeleteOne(opCtx, filter)
 }
 
-// EnsureCollection TODO: add description
+// EnsureCollection creates the collection if it does not exist.
 func (a *MongoDBAdapter) EnsureCollection(ctx context.Context, name string) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()

@@ -43,7 +43,7 @@ func NewMailerSendProvider(cfg MailerSendConfig, log logger.Logger) (*MailerSend
 	return &MailerSendProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *MailerSendProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -102,7 +102,7 @@ func NewPostmarkProvider(cfg PostmarkConfig, log logger.Logger) (*PostmarkProvid
 	return &PostmarkProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *PostmarkProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -159,7 +159,7 @@ func NewMailtrapProvider(cfg MailtrapConfig, log logger.Logger) (*MailtrapProvid
 	return &MailtrapProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *MailtrapProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -215,7 +215,7 @@ func NewSMTP2GOProvider(cfg SMTP2GOConfig, log logger.Logger) (*SMTP2GOProvider,
 	return &SMTP2GOProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *SMTP2GOProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -270,7 +270,7 @@ func NewSendPulseProvider(cfg SendPulseConfig, log logger.Logger) (*SendPulsePro
 	return &SendPulseProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *SendPulseProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -328,7 +328,7 @@ func NewBrevoProvider(cfg BrevoConfig, log logger.Logger) (*BrevoProvider, error
 	return &BrevoProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *BrevoProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -388,7 +388,7 @@ func NewMailjetProvider(cfg MailjetConfig, log logger.Logger) (*MailjetProvider,
 	return &MailjetProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send TODO: add description
+// Send sends an email message via the provider API.
 func (p *MailjetProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {

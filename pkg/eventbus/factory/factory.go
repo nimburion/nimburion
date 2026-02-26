@@ -122,7 +122,7 @@ func (v *validatedEventBus) Publish(ctx context.Context, topic string, message *
 	return v.base.Publish(ctx, topic, message)
 }
 
-// PublishBatch TODO: add description
+// PublishBatch publishes multiple messages in a single batch operation.
 func (v *validatedEventBus) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	if v.producerValidator != nil {
 		for _, message := range messages {

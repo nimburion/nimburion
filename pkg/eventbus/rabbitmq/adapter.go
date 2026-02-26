@@ -124,7 +124,7 @@ func (a *RabbitMQAdapter) Publish(ctx context.Context, topic string, message *ev
 	return nil
 }
 
-// PublishBatch TODO: add description
+// PublishBatch publishes multiple messages in a single batch operation.
 func (a *RabbitMQAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	for _, msg := range messages {
 		if err := a.Publish(ctx, topic, msg); err != nil {

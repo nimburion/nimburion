@@ -771,7 +771,7 @@ func (w *captureResponseWriter) Written() bool {
 	return w.base.Written() || w.headerWrote
 }
 
-// Body TODO: add description
+// Body returns the captured response body.
 func (w *captureResponseWriter) Body() []byte {
 	w.bodyMu.Lock()
 	defer w.bodyMu.Unlock()
@@ -795,7 +795,7 @@ func newRequestGroup() *requestGroup {
 	}
 }
 
-// InFlight TODO: add description
+// InFlight returns true if a request for the key is currently in flight.
 func (g *requestGroup) InFlight(key string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -803,7 +803,7 @@ func (g *requestGroup) InFlight(key string) bool {
 	return ok
 }
 
-// Do TODO: add description
+// Do executes the function for the key, deduplicating concurrent calls.
 func (g *requestGroup) Do(key string, fn func() (*cacheEntry, error)) (*cacheEntry, error, bool) {
 	g.mu.Lock()
 	if call, ok := g.m[key]; ok {

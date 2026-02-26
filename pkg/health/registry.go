@@ -188,12 +188,12 @@ type namedChecker struct {
 	checkFunc func(ctx context.Context) CheckResult
 }
 
-// Check TODO: add description
+// Check executes all registered health checks and returns the aggregated result.
 func (c *namedChecker) Check(ctx context.Context) CheckResult {
 	return c.checkFunc(ctx)
 }
 
-// Name TODO: add description
+// Name returns the name of this health check.
 func (c *namedChecker) Name() string {
 	return c.name
 }

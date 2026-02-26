@@ -29,7 +29,7 @@ func NewMongoDBExecutor(adapter *mongostore.MongoDBAdapter) (*MongoDBExecutor, e
 	return &MongoDBExecutor{adapter: adapter}, nil
 }
 
-// InsertOne TODO: add description
+// InsertOne inserts a document into the collection.
 func (e *MongoDBExecutor) InsertOne(ctx context.Context, collection string, document map[string]interface{}) (interface{}, error) {
 	result, err := e.adapter.InsertOne(ctx, collection, bson.M(document))
 	if err != nil {
@@ -38,7 +38,7 @@ func (e *MongoDBExecutor) InsertOne(ctx context.Context, collection string, docu
 	return result.InsertedID, nil
 }
 
-// FindOne TODO: add description
+// FindOne finds a single document matching the filter.
 func (e *MongoDBExecutor) FindOne(ctx context.Context, collection string, filter Filter) (map[string]interface{}, error) {
 	out := bson.M{}
 	if err := e.adapter.FindOne(ctx, collection, bson.M(filter), &out); err != nil {
@@ -47,7 +47,7 @@ func (e *MongoDBExecutor) FindOne(ctx context.Context, collection string, filter
 	return map[string]interface{}(out), nil
 }
 
-// UpdateOne TODO: add description
+// UpdateOne updates a single document matching the filter.
 func (e *MongoDBExecutor) UpdateOne(ctx context.Context, collection string, filter Filter, update map[string]interface{}) (int64, error) {
 	result, err := e.adapter.UpdateOne(ctx, collection, bson.M(filter), bson.M(update))
 	if err != nil {
@@ -56,7 +56,7 @@ func (e *MongoDBExecutor) UpdateOne(ctx context.Context, collection string, filt
 	return result.ModifiedCount, nil
 }
 
-// DeleteOne TODO: add description
+// DeleteOne deletes a single document matching the filter.
 func (e *MongoDBExecutor) DeleteOne(ctx context.Context, collection string, filter Filter) (int64, error) {
 	result, err := e.adapter.DeleteOne(ctx, collection, bson.M(filter))
 	if err != nil {

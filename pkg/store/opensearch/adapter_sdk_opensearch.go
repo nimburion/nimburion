@@ -108,7 +108,7 @@ func (a *OpenSearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-// IndexDocument TODO: add description
+// IndexDocument indexes a document with the given ID.
 func (a *OpenSearchSDKAdapter) IndexDocument(ctx context.Context, index, id string, document interface{}) error {
 	payload, err := json.Marshal(document)
 	if err != nil {
@@ -126,7 +126,7 @@ func (a *OpenSearchSDKAdapter) IndexDocument(ctx context.Context, index, id stri
 	return nil
 }
 
-// DeleteDocument TODO: add description
+// DeleteDocument deletes a document by ID.
 func (a *OpenSearchSDKAdapter) DeleteDocument(ctx context.Context, index, id string) error {
 	resp, err := a.perform(ctx, http.MethodDelete, fmt.Sprintf("/%s/_doc/%s", index, id), nil)
 	if err != nil {
@@ -143,7 +143,7 @@ func (a *OpenSearchSDKAdapter) DeleteDocument(ctx context.Context, index, id str
 	return nil
 }
 
-// Search TODO: add description
+// Search executes a search query and returns matching documents.
 func (a *OpenSearchSDKAdapter) Search(ctx context.Context, index string, query interface{}) (json.RawMessage, error) {
 	payload, err := json.Marshal(query)
 	if err != nil {

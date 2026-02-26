@@ -39,7 +39,7 @@ type Config struct {
 	Format LogFormat
 }
 
-// DefaultConfig TODO: add description
+// DefaultConfig returns default configuration for Zap logger with JSON encoding.
 func DefaultConfig() Config {
 	return Config{
 		Level:  InfoLevel,

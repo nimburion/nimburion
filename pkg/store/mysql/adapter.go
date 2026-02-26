@@ -62,7 +62,7 @@ func NewMySQLAdapter(cfg Config, log logger.Logger) (*MySQLAdapter, error) {
 	return &MySQLAdapter{db: db, logger: log, config: cfg}, nil
 }
 
-// DB TODO: add description
+// DB returns the underlying sql.DB for advanced operations.
 func (a *MySQLAdapter) DB() *sql.DB {
 	return a.db
 }
@@ -98,7 +98,7 @@ type contextKey string
 
 const txContextKey contextKey = "mysql_tx"
 
-// GetTx TODO: add description
+// GetTx returns the current transaction or nil if not in a transaction.
 func GetTx(ctx context.Context) (*sql.Tx, bool) {
 	tx, ok := ctx.Value(txContextKey).(*sql.Tx)
 	return tx, ok
@@ -136,7 +136,7 @@ func (a *MySQLAdapter) WithTransaction(ctx context.Context, fn func(context.Cont
 	return nil
 }
 
-// ExecContext TODO: add description
+// ExecContext executes a query without returning rows.
 func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -146,7 +146,7 @@ func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...in
 	return a.db.ExecContext(queryCtx, query, args...)
 }
 
-// QueryContext TODO: add description
+// QueryContext executes a query that returns rows.
 func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -156,7 +156,7 @@ func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...i
 	return a.db.QueryContext(queryCtx, query, args...)
 }
 
-// QueryRowContext TODO: add description
+// QueryRowContext executes a query that returns at most one row.
 func (a *MySQLAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()

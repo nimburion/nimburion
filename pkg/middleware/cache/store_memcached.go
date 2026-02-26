@@ -37,7 +37,7 @@ func (c *memcachedAdapterClient) Set(key string, value []byte, ttl time.Duration
 	return c.adapter.Set(ctx, key, value, ttl)
 }
 
-// Delete TODO: add description
+// Delete removes a key from the cache.
 func (c *memcachedAdapterClient) Delete(key string) error {
 	ctx, cancel := c.opContext()
 	defer cancel()

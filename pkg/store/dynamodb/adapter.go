@@ -77,7 +77,7 @@ func NewDynamoDBAdapter(cfg Config, log logger.Logger) (*DynamoDBAdapter, error)
 	return adapter, nil
 }
 
-// Client TODO: add description
+// Client returns the underlying DynamoDB client for advanced operations.
 func (a *DynamoDBAdapter) Client() *dynamodb.Client {
 	return a.client
 }
@@ -119,28 +119,28 @@ func (a *DynamoDBAdapter) Close() error {
 	return nil
 }
 
-// PutItem TODO: add description
+// PutItem creates or replaces an item in the table.
 func (a *DynamoDBAdapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.PutItem(opCtx, input)
 }
 
-// GetItem TODO: add description
+// GetItem retrieves an item by its primary key.
 func (a *DynamoDBAdapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.GetItem(opCtx, input)
 }
 
-// UpdateItem TODO: add description
+// UpdateItem modifies attributes of an existing item.
 func (a *DynamoDBAdapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.UpdateItem(opCtx, input)
 }
 
-// DeleteItem TODO: add description
+// DeleteItem removes an item from the table.
 func (a *DynamoDBAdapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
@@ -164,7 +164,7 @@ func (a *DynamoDBAdapter) withOperationTimeout(ctx context.Context) (context.Con
 	return context.WithTimeout(ctx, a.timeout)
 }
 
-// IsThrottlingError TODO: add description
+// IsThrottlingError returns true if the error is a DynamoDB throttling error.
 func IsThrottlingError(err error) bool {
 	if err == nil {
 		return false

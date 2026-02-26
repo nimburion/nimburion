@@ -118,7 +118,7 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
-// WriteJSON TODO: add description
+// WriteJSON serializes value as JSON and writes it as a text frame.
 func (c *Conn) WriteJSON(payload interface{}) error {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -127,7 +127,7 @@ func (c *Conn) WriteJSON(payload interface{}) error {
 	return c.WriteFrame(OpText, raw)
 }
 
-// WriteFrame TODO: add description
+// WriteFrame writes a WebSocket frame with the given opcode and payload.
 func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -164,7 +164,7 @@ func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 	return c.rw.Flush()
 }
 
-// ReadFrame TODO: add description
+// ReadFrame reads the next WebSocket frame and returns opcode and payload.
 func (c *Conn) ReadFrame() (byte, []byte, error) {
 	var header [2]byte
 	if _, err := io.ReadFull(c.rw, header[:]); err != nil {
@@ -221,7 +221,7 @@ func (c *Conn) ReadFrame() (byte, []byte, error) {
 	return opcode, payload, nil
 }
 
-// ParseTopics TODO: add description
+// ParseTopics parses a comma-separated topic list with validation.
 func ParseTopics(raw string, maxCount, maxLen int) ([]string, error) {
 	values := parseList(raw)
 	if len(values) == 0 {
