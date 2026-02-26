@@ -272,3 +272,93 @@ func TestHealthCheckResultError(t *testing.T) {
 		t.Fatalf("expected check name in error, got %v", err)
 	}
 }
+
+func TestResolveEnvPrefix(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", "APP"},
+		{"  ", "APP"},
+		{"custom", "CUSTOM"},
+		{"MyApp", "MYAPP"},
+	}
+
+	for _, tt := range tests {
+		result := resolveEnvPrefix(tt.input)
+		if result != tt.expected {
+			t.Errorf("resolveEnvPrefix(%q) = %q, want %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestFormatSettings(t *testing.T) {
+	result, err := formatSettings(nil)
+	if err != nil || result != "{}\n" {
+		t.Errorf("formatSettings(nil) = %q, %v", result, err)
+	}
+
+	result, err = formatSettings(map[string]interface{}{"key": "value"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "key") {
+		t.Errorf("expected key in output: %s", result)
+	}
+}
+
+func TestRedactSettingsMap(t *testing.T) {
+	settings := map[string]interface{}{
+		"public":  "visible",
+		"secret":  "hidden",
+		"nested": map[string]interface{}{"password": "secret123"},
+	}
+	secrets := map[string]interface{}{
+		"secret": true,
+		"nested": map[string]interface{}{"password": true},
+	}
+
+	result := redactSettingsMap(settings, secrets)
+	if result["public"] != "visible" {
+		t.Errorf("public value should not be redacted")
+	}
+	if result["secret"] != "***" {
+		t.Errorf("secret should be redacted, got %v", result["secret"])
+	}
+
+	nested := result["nested"].(map[string]interface{})
+	if nested["password"] != "***" {
+		t.Errorf("nested password should be redacted")
+	}
+}
+
+func TestShouldRedactSetting(t *testing.T) {
+	tests := []struct {
+		mask     interface{}
+		expected bool
+	}{
+		{nil, false},
+		{"", false},
+		{"  ", false},
+		{"secret", true},
+		{true, true},
+		{false, false},
+		{0, false},
+		{1, true},
+		{int64(0), false},
+		{int64(1), true},
+		{0.0, false},
+		{1.5, true},
+		{[]interface{}{}, false},
+		{[]interface{}{"x"}, true},
+		{map[string]interface{}{}, false},
+		{map[string]interface{}{"k": "v"}, true},
+	}
+
+	for _, tt := range tests {
+		result := shouldRedactSetting(tt.mask)
+		if result != tt.expected {
+			t.Errorf("shouldRedactSetting(%v) = %v, want %v", tt.mask, result, tt.expected)
+		}
+	}
+}
