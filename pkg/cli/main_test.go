@@ -101,6 +101,38 @@ func TestNewServiceCommand_AddsJobsWorkerCommand(t *testing.T) {
 	}
 }
 
+func TestNewServiceCommand_AddsJobsOpsCommands(t *testing.T) {
+	cmd := NewServiceCommand(ServiceCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+	})
+
+	enqueueCmd, _, err := cmd.Find([]string{"jobs", "enqueue"})
+	if err != nil {
+		t.Fatalf("expected jobs enqueue command, got error: %v", err)
+	}
+	if enqueueCmd == nil || enqueueCmd.Name() != "enqueue" {
+		t.Fatalf("expected enqueue command, got %#v", enqueueCmd)
+	}
+
+	dlqListCmd, _, err := cmd.Find([]string{"jobs", "dlq", "list"})
+	if err != nil {
+		t.Fatalf("expected jobs dlq list command, got error: %v", err)
+	}
+	if dlqListCmd == nil || dlqListCmd.Name() != "list" {
+		t.Fatalf("expected dlq list command, got %#v", dlqListCmd)
+	}
+
+	dlqReplayCmd, _, err := cmd.Find([]string{"jobs", "dlq", "replay"})
+	if err != nil {
+		t.Fatalf("expected jobs dlq replay command, got error: %v", err)
+	}
+	if dlqReplayCmd == nil || dlqReplayCmd.Name() != "replay" {
+		t.Fatalf("expected dlq replay command, got %#v", dlqReplayCmd)
+	}
+}
+
 func TestNewServiceCommand_AddsSchedulerRunCommand(t *testing.T) {
 	cmd := NewServiceCommand(ServiceCommandOptions{
 		Name:        "testsvc",
@@ -121,6 +153,30 @@ func TestNewServiceCommand_AddsSchedulerRunCommand(t *testing.T) {
 	policies := GetCommandPolicies(runCmd)
 	if got := policies[defaultPolicyContext]; got != string(PolicyScheduled) {
 		t.Fatalf("expected scheduler run policy %q, got %q", PolicyScheduled, got)
+	}
+}
+
+func TestNewServiceCommand_AddsSchedulerOpsCommands(t *testing.T) {
+	cmd := NewServiceCommand(ServiceCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+	})
+
+	validateCmd, _, err := cmd.Find([]string{"scheduler", "validate"})
+	if err != nil {
+		t.Fatalf("expected scheduler validate command, got error: %v", err)
+	}
+	if validateCmd == nil || validateCmd.Name() != "validate" {
+		t.Fatalf("expected validate command, got %#v", validateCmd)
+	}
+
+	triggerCmd, _, err := cmd.Find([]string{"scheduler", "trigger"})
+	if err != nil {
+		t.Fatalf("expected scheduler trigger command, got error: %v", err)
+	}
+	if triggerCmd == nil || triggerCmd.Name() != "trigger" {
+		t.Fatalf("expected trigger command, got %#v", triggerCmd)
 	}
 }
 

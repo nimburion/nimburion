@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	cliopenapi "github.com/nimburion/nimburion/pkg/cli/openapi"
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/jobs"
@@ -53,6 +55,14 @@ type JobsRuntimeFactory func(
 	validationCfg config.KafkaValidationConfig,
 	log logger.Logger,
 ) (jobs.Runtime, error)
+
+// JobsBackendFactory creates a lease-aware jobs backend from service configuration.
+type JobsBackendFactory func(
+	cfg config.JobsConfig,
+	eventBusCfg config.EventBusConfig,
+	validationCfg config.KafkaValidationConfig,
+	log logger.Logger,
+) (jobs.Backend, error)
 
 // SchedulerLockProviderFactory creates the scheduler lock provider.
 type SchedulerLockProviderFactory func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error)
@@ -96,6 +106,8 @@ type ServiceCommandOptions struct {
 	ConfigureScheduler func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error
 	// Optional: override jobs runtime factory (useful for tests/custom adapters).
 	JobsRuntimeFactory JobsRuntimeFactory
+	// Optional: override jobs backend factory (useful for tests/custom adapters).
+	JobsBackendFactory JobsBackendFactory
 	// Optional: override scheduler lock provider factory.
 	SchedulerLockProviderFactory SchedulerLockProviderFactory
 }
@@ -133,6 +145,30 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			opts.Name,
 			serviceNameOverride,
 		)
+	}
+
+	buildJobsRuntime := func(cfg *config.Config, log logger.Logger) (jobs.Runtime, error) {
+		runtimeFactory := opts.JobsRuntimeFactory
+		if runtimeFactory == nil {
+			runtimeFactory = jobsfactory.NewRuntimeWithValidation
+		}
+		return runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
+	}
+
+	buildJobsBackend := func(cfg *config.Config, log logger.Logger) (jobs.Backend, error) {
+		backendFactory := opts.JobsBackendFactory
+		if backendFactory == nil {
+			backendFactory = jobsfactory.NewBackendWithValidation
+		}
+		return backendFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
+	}
+
+	buildSchedulerLockProvider := func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error) {
+		lockFactory := opts.SchedulerLockProviderFactory
+		if lockFactory != nil {
+			return lockFactory(cfg, log)
+		}
+		return defaultSchedulerLockProviderFactory(cfg, log)
 	}
 
 	for _, ext := range opts.ConfigExtensions {
@@ -284,204 +320,513 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 		SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 	}
 
-	// jobs command (optional)
-	if opts.ConfigureJobsWorker != nil {
-		jobsCmd := &cobra.Command{
-			Use:   "jobs",
-			Short: "Jobs runtime commands",
-		}
-		SetCommandPolicies(jobsCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
-
-		var (
-			queues         []string
-			concurrency    int
-			leaseTTL       time.Duration
-			reserveTO      time.Duration
-			stopTO         time.Duration
-			maxAttempts    int
-			initialBackoff time.Duration
-			maxBackoff     time.Duration
-			attemptTO      time.Duration
-			dlqEnabled     bool
-			dlqSuffix      string
-			bufferSize     int
-		)
-
-		workerCmd := &cobra.Command{
-			Use:   "worker",
-			Short: "Run jobs worker",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, log, err := loadConfig(cmd.Flags())
-				if err != nil {
-					return err
-				}
-
-				runtimeFactory := opts.JobsRuntimeFactory
-				if runtimeFactory == nil {
-					runtimeFactory = jobsfactory.NewRuntimeWithValidation
-				}
-				jobsRuntime, err := runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
-				if err != nil {
-					return fmt.Errorf("create jobs runtime: %w", err)
-				}
-				defer func() {
-					if closeErr := jobsRuntime.Close(); closeErr != nil {
-						log.Error("failed to close jobs runtime", "error", closeErr)
-					}
-				}()
-
-				backend, err := jobs.NewRuntimeBackend(jobsRuntime, log, jobs.RuntimeBackendConfig{
-					BufferSize: bufferSize,
-					DLQSuffix:  dlqSuffix,
-				})
-				if err != nil {
-					return fmt.Errorf("create jobs backend: %w", err)
-				}
-				defer func() {
-					if closeErr := backend.Close(); closeErr != nil {
-						log.Error("failed to close jobs backend", "error", closeErr)
-					}
-				}()
-
-				workerQueues := resolveWorkerQueues(queues, cfg.Jobs.DefaultQueue)
-				worker, err := jobs.NewWorker(backend, log, jobs.WorkerConfig{
-					Queues:         workerQueues,
-					Concurrency:    concurrency,
-					LeaseTTL:       leaseTTL,
-					ReserveTimeout: reserveTO,
-					StopTimeout:    stopTO,
-					Retry: jobs.RetryPolicy{
-						MaxAttempts:    maxAttempts,
-						InitialBackoff: initialBackoff,
-						MaxBackoff:     maxBackoff,
-						AttemptTimeout: attemptTO,
-					},
-					DLQ: jobs.DLQPolicy{
-						Enabled:     dlqEnabled,
-						QueueSuffix: dlqSuffix,
-					},
-				})
-				if err != nil {
-					return fmt.Errorf("create worker: %w", err)
-				}
-				if err := opts.ConfigureJobsWorker(cfg, log, worker); err != nil {
-					return fmt.Errorf("configure jobs worker: %w", err)
-				}
-
-				runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-				defer stop()
-				return worker.Start(runCtx)
-			},
-		}
-		SetCommandPolicies(workerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
-		workerCmd.Flags().StringSliceVar(&queues, "queue", []string{}, "queue names to consume (repeatable)")
-		workerCmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of workers per queue")
-		workerCmd.Flags().DurationVar(&leaseTTL, "lease-ttl", jobs.DefaultLeaseTTL, "lease duration per reserved job")
-		workerCmd.Flags().DurationVar(&reserveTO, "reserve-timeout", jobs.DefaultWorkerReserveTimeout, "reserve call timeout")
-		workerCmd.Flags().DurationVar(&stopTO, "stop-timeout", jobs.DefaultWorkerStopTimeout, "graceful stop timeout")
-		workerCmd.Flags().IntVar(&maxAttempts, "max-attempts", jobs.DefaultWorkerMaxAttempts, "maximum processing attempts per job")
-		workerCmd.Flags().DurationVar(&initialBackoff, "initial-backoff", jobs.DefaultWorkerInitialBackoff, "retry initial backoff")
-		workerCmd.Flags().DurationVar(&maxBackoff, "max-backoff", jobs.DefaultWorkerMaxBackoff, "retry max backoff")
-		workerCmd.Flags().DurationVar(&attemptTO, "attempt-timeout", jobs.DefaultWorkerAttemptTimeout, "timeout for a single job execution")
-		workerCmd.Flags().BoolVar(&dlqEnabled, "dlq-enabled", true, "enable dead-letter queue routing")
-		workerCmd.Flags().StringVar(&dlqSuffix, "dlq-suffix", jobs.DefaultDLQSuffix, "suffix for dead-letter queues")
-		workerCmd.Flags().IntVar(&bufferSize, "buffer-size", 128, "in-memory reserve buffer size")
-		jobsCmd.AddCommand(workerCmd)
-		rootCmd.AddCommand(jobsCmd)
+	// jobs command
+	jobsCmd := &cobra.Command{
+		Use:   "jobs",
+		Short: "Jobs runtime commands",
 	}
+	SetCommandPolicies(jobsCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
 
-	// scheduler command (optional)
-	if opts.ConfigureScheduler != nil {
-		schedulerCmd := &cobra.Command{
-			Use:   "scheduler",
-			Short: "Distributed scheduler commands",
-		}
-		SetCommandPolicies(schedulerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+	var (
+		queues         []string
+		concurrency    int
+		leaseTTL       time.Duration
+		reserveTO      time.Duration
+		stopTO         time.Duration
+		maxAttempts    int
+		initialBackoff time.Duration
+		maxBackoff     time.Duration
+		attemptTO      time.Duration
+		dlqEnabled     bool
+		dlqSuffix      string
+	)
 
-		var (
-			dispatchTO       time.Duration
-			defaultLockTTL   time.Duration
-			redisURL         string
-			redisPrefix      string
-			redisOperationTO time.Duration
-		)
+	workerCmd := &cobra.Command{
+		Use:   "worker",
+		Short: "Run jobs worker",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.ConfigureJobsWorker == nil {
+				return errors.New("configure jobs worker callback is required for jobs worker command")
+			}
 
-		runCmd := &cobra.Command{
-			Use:   "run",
-			Short: "Run distributed scheduler",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, log, err := loadConfig(cmd.Flags())
-				if err != nil {
-					return err
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			backend, err := buildJobsBackend(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs backend: %w", err)
+			}
+			defer func() {
+				if closeErr := backend.Close(); closeErr != nil {
+					log.Error("failed to close jobs backend", "error", closeErr)
 				}
+			}()
 
-				runtimeFactory := opts.JobsRuntimeFactory
-				if runtimeFactory == nil {
-					runtimeFactory = jobsfactory.NewRuntimeWithValidation
-				}
-				jobsRuntime, err := runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
-				if err != nil {
-					return fmt.Errorf("create jobs runtime: %w", err)
-				}
-				defer func() {
-					if closeErr := jobsRuntime.Close(); closeErr != nil {
-						log.Error("failed to close jobs runtime", "error", closeErr)
-					}
-				}()
+			resolvedConcurrency := cfg.Jobs.Worker.Concurrency
+			if cmd.Flags().Changed("concurrency") {
+				resolvedConcurrency = concurrency
+			}
+			resolvedLeaseTTL := cfg.Jobs.Worker.LeaseTTL
+			if cmd.Flags().Changed("lease-ttl") {
+				resolvedLeaseTTL = leaseTTL
+			}
+			resolvedReserveTO := cfg.Jobs.Worker.ReserveTimeout
+			if cmd.Flags().Changed("reserve-timeout") {
+				resolvedReserveTO = reserveTO
+			}
+			resolvedStopTO := cfg.Jobs.Worker.StopTimeout
+			if cmd.Flags().Changed("stop-timeout") {
+				resolvedStopTO = stopTO
+			}
+			resolvedMaxAttempts := cfg.Jobs.Retry.MaxAttempts
+			if cmd.Flags().Changed("max-attempts") {
+				resolvedMaxAttempts = maxAttempts
+			}
+			resolvedInitialBackoff := cfg.Jobs.Retry.InitialBackoff
+			if cmd.Flags().Changed("initial-backoff") {
+				resolvedInitialBackoff = initialBackoff
+			}
+			resolvedMaxBackoff := cfg.Jobs.Retry.MaxBackoff
+			if cmd.Flags().Changed("max-backoff") {
+				resolvedMaxBackoff = maxBackoff
+			}
+			resolvedAttemptTO := cfg.Jobs.Retry.AttemptTimeout
+			if cmd.Flags().Changed("attempt-timeout") {
+				resolvedAttemptTO = attemptTO
+			}
+			resolvedDLQEnabled := cfg.Jobs.DLQ.Enabled
+			if cmd.Flags().Changed("dlq-enabled") {
+				resolvedDLQEnabled = dlqEnabled
+			}
+			resolvedDLQSuffix := cfg.Jobs.DLQ.QueueSuffix
+			if cmd.Flags().Changed("dlq-suffix") {
+				resolvedDLQSuffix = dlqSuffix
+			}
 
-				lockFactory := opts.SchedulerLockProviderFactory
-				if lockFactory == nil {
-					lockFactory = func(runtimeCfg *config.Config, runtimeLog logger.Logger) (scheduler.LockProvider, error) {
-						url := strings.TrimSpace(redisURL)
-						if url == "" {
-							url = strings.TrimSpace(runtimeCfg.Cache.URL)
-						}
-						if url == "" {
-							return nil, errors.New("redis url is required (set --redis-url or cache.url)")
-						}
-						return scheduler.NewRedisLockProvider(scheduler.RedisLockProviderConfig{
-							URL:              url,
-							Prefix:           redisPrefix,
-							OperationTimeout: redisOperationTO,
-						}, runtimeLog)
-					}
-				}
+			workerQueues := resolveWorkerQueues(queues, cfg.Jobs.DefaultQueue)
+			worker, err := jobs.NewWorker(backend, log, jobs.WorkerConfig{
+				Queues:         workerQueues,
+				Concurrency:    resolvedConcurrency,
+				LeaseTTL:       resolvedLeaseTTL,
+				ReserveTimeout: resolvedReserveTO,
+				StopTimeout:    resolvedStopTO,
+				Retry: jobs.RetryPolicy{
+					MaxAttempts:    resolvedMaxAttempts,
+					InitialBackoff: resolvedInitialBackoff,
+					MaxBackoff:     resolvedMaxBackoff,
+					AttemptTimeout: resolvedAttemptTO,
+				},
+				DLQ: jobs.DLQPolicy{
+					Enabled:     resolvedDLQEnabled,
+					QueueSuffix: resolvedDLQSuffix,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("create worker: %w", err)
+			}
+			if err := opts.ConfigureJobsWorker(cfg, log, worker); err != nil {
+				return fmt.Errorf("configure jobs worker: %w", err)
+			}
 
-				lockProvider, err := lockFactory(cfg, log)
-				if err != nil {
-					return fmt.Errorf("create scheduler lock provider: %w", err)
-				}
-				defer func() {
-					if closeErr := lockProvider.Close(); closeErr != nil {
-						log.Error("failed to close scheduler lock provider", "error", closeErr)
-					}
-				}()
+			runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return worker.Start(runCtx)
+		},
+	}
+	SetCommandPolicies(workerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+	workerCmd.Flags().StringSliceVar(&queues, "queue", []string{}, "queue names to consume (repeatable)")
+	workerCmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of workers per queue")
+	workerCmd.Flags().DurationVar(&leaseTTL, "lease-ttl", jobs.DefaultLeaseTTL, "lease duration per reserved job")
+	workerCmd.Flags().DurationVar(&reserveTO, "reserve-timeout", jobs.DefaultWorkerReserveTimeout, "reserve call timeout")
+	workerCmd.Flags().DurationVar(&stopTO, "stop-timeout", jobs.DefaultWorkerStopTimeout, "graceful stop timeout")
+	workerCmd.Flags().IntVar(&maxAttempts, "max-attempts", jobs.DefaultWorkerMaxAttempts, "maximum processing attempts per job")
+	workerCmd.Flags().DurationVar(&initialBackoff, "initial-backoff", jobs.DefaultWorkerInitialBackoff, "retry initial backoff")
+	workerCmd.Flags().DurationVar(&maxBackoff, "max-backoff", jobs.DefaultWorkerMaxBackoff, "retry max backoff")
+	workerCmd.Flags().DurationVar(&attemptTO, "attempt-timeout", jobs.DefaultWorkerAttemptTimeout, "timeout for a single job execution")
+	workerCmd.Flags().BoolVar(&dlqEnabled, "dlq-enabled", true, "enable dead-letter queue routing")
+	workerCmd.Flags().StringVar(&dlqSuffix, "dlq-suffix", jobs.DefaultDLQSuffix, "suffix for dead-letter queues")
+	jobsCmd.AddCommand(workerCmd)
 
-				runtime, err := scheduler.NewRuntime(jobsRuntime, lockProvider, log, scheduler.Config{
-					DispatchTimeout: dispatchTO,
-					DefaultLockTTL:  defaultLockTTL,
-				})
-				if err != nil {
-					return fmt.Errorf("create scheduler runtime: %w", err)
+	var (
+		enqueueName           string
+		enqueueQueue          string
+		enqueuePayload        string
+		enqueueTenantID       string
+		enqueueCorrelationID  string
+		enqueueIdempotencyKey string
+		enqueueRunAt          string
+		enqueueMaxAttempts    int
+		enqueueHeaders        []string
+	)
+
+	enqueueCmd := &cobra.Command{
+		Use:   "enqueue",
+		Short: "Enqueue a job manually",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			jobsRuntime, err := buildJobsRuntime(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs runtime: %w", err)
+			}
+			defer func() {
+				if closeErr := jobsRuntime.Close(); closeErr != nil {
+					log.Error("failed to close jobs runtime", "error", closeErr)
 				}
+			}()
+
+			jobName := strings.TrimSpace(enqueueName)
+			if jobName == "" {
+				return errors.New("job name is required")
+			}
+			queue := strings.TrimSpace(enqueueQueue)
+			if queue == "" {
+				queue = strings.TrimSpace(cfg.Jobs.DefaultQueue)
+			}
+			if queue == "" {
+				queue = "default"
+			}
+
+			payload := strings.TrimSpace(enqueuePayload)
+			if payload == "" {
+				payload = "{}"
+			}
+
+			headers, err := parseStringMapFlag(enqueueHeaders)
+			if err != nil {
+				return err
+			}
+
+			runAt := time.Time{}
+			if raw := strings.TrimSpace(enqueueRunAt); raw != "" {
+				parsedRunAt, parseErr := time.Parse(time.RFC3339, raw)
+				if parseErr != nil {
+					return fmt.Errorf("invalid --run-at value %q: %w", raw, parseErr)
+				}
+				runAt = parsedRunAt.UTC()
+			}
+
+			job := &jobs.Job{
+				ID:             uuid.NewString(),
+				Name:           jobName,
+				Queue:          queue,
+				Payload:        []byte(payload),
+				Headers:        headers,
+				ContentType:    jobs.DefaultContentType,
+				TenantID:       strings.TrimSpace(enqueueTenantID),
+				CorrelationID:  strings.TrimSpace(enqueueCorrelationID),
+				IdempotencyKey: strings.TrimSpace(enqueueIdempotencyKey),
+				RunAt:          runAt,
+				MaxAttempts:    enqueueMaxAttempts,
+				CreatedAt:      time.Now().UTC(),
+			}
+			if err := jobsRuntime.Enqueue(cmd.Context(), job); err != nil {
+				return fmt.Errorf("enqueue job: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "enqueued job %s on queue %s\n", job.ID, job.Queue)
+			return nil
+		},
+	}
+	SetCommandPolicies(enqueueCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+	enqueueCmd.Flags().StringVar(&enqueueName, "name", "", "job name")
+	enqueueCmd.Flags().StringVar(&enqueueQueue, "queue", "", "target queue (default: jobs.default_queue)")
+	enqueueCmd.Flags().StringVar(&enqueuePayload, "payload", "{}", "job payload as JSON string")
+	enqueueCmd.Flags().StringVar(&enqueueTenantID, "tenant-id", "", "tenant id")
+	enqueueCmd.Flags().StringVar(&enqueueCorrelationID, "correlation-id", "", "correlation id")
+	enqueueCmd.Flags().StringVar(&enqueueIdempotencyKey, "idempotency-key", "", "idempotency key")
+	enqueueCmd.Flags().StringVar(&enqueueRunAt, "run-at", "", "schedule run time in RFC3339 format")
+	enqueueCmd.Flags().IntVar(&enqueueMaxAttempts, "max-attempts", 0, "max attempts override for this job")
+	enqueueCmd.Flags().StringSliceVar(&enqueueHeaders, "header", []string{}, "job header in key=value format (repeatable)")
+	_ = enqueueCmd.MarkFlagRequired("name")
+	jobsCmd.AddCommand(enqueueCmd)
+
+	dlqCmd := &cobra.Command{
+		Use:   "dlq",
+		Short: "Dead-letter queue operations",
+	}
+	SetCommandPolicies(dlqCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+
+	var (
+		dlqListQueue string
+		dlqListLimit int
+	)
+
+	dlqListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List dead-letter queue entries",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			backend, err := buildJobsBackend(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs backend: %w", err)
+			}
+			defer func() {
+				if closeErr := backend.Close(); closeErr != nil {
+					log.Error("failed to close jobs backend", "error", closeErr)
+				}
+			}()
+
+			dlqStore, ok := backend.(jobs.DLQStore)
+			if !ok {
+				return errors.New("dlq operations are not supported by current jobs backend")
+			}
+			entries, err := dlqStore.ListDLQ(cmd.Context(), dlqListQueue, dlqListLimit)
+			if err != nil {
+				return fmt.Errorf("list dlq entries: %w", err)
+			}
+			data, err := json.MarshalIndent(entries, "", "  ")
+			if err != nil {
+				return fmt.Errorf("marshal dlq entries: %w", err)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			return nil
+		},
+	}
+	SetCommandPolicies(dlqListCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+	dlqListCmd.Flags().StringVar(&dlqListQueue, "queue", "", "original queue name")
+	dlqListCmd.Flags().IntVar(&dlqListLimit, "limit", 50, "max number of entries to list")
+	_ = dlqListCmd.MarkFlagRequired("queue")
+	dlqCmd.AddCommand(dlqListCmd)
+
+	var (
+		dlqReplayQueue string
+		dlqReplayIDs   []string
+	)
+
+	dlqReplayCmd := &cobra.Command{
+		Use:   "replay",
+		Short: "Replay dead-letter queue entries",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			backend, err := buildJobsBackend(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs backend: %w", err)
+			}
+			defer func() {
+				if closeErr := backend.Close(); closeErr != nil {
+					log.Error("failed to close jobs backend", "error", closeErr)
+				}
+			}()
+
+			dlqStore, ok := backend.(jobs.DLQStore)
+			if !ok {
+				return errors.New("dlq operations are not supported by current jobs backend")
+			}
+			if len(dlqReplayIDs) == 0 {
+				return errors.New("at least one --id value is required")
+			}
+			replayed, err := dlqStore.ReplayDLQ(cmd.Context(), dlqReplayQueue, dlqReplayIDs)
+			if err != nil {
+				return fmt.Errorf("replay dlq entries: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "replayed %d entries from queue %s\n", replayed, dlqReplayQueue)
+			return nil
+		},
+	}
+	SetCommandPolicies(dlqReplayCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+	dlqReplayCmd.Flags().StringVar(&dlqReplayQueue, "queue", "", "original queue name")
+	dlqReplayCmd.Flags().StringSliceVar(&dlqReplayIDs, "id", []string{}, "DLQ entry id to replay (repeatable)")
+	_ = dlqReplayCmd.MarkFlagRequired("queue")
+	dlqCmd.AddCommand(dlqReplayCmd)
+
+	jobsCmd.AddCommand(dlqCmd)
+	rootCmd.AddCommand(jobsCmd)
+
+	// scheduler command
+	schedulerCmd := &cobra.Command{
+		Use:   "scheduler",
+		Short: "Distributed scheduler commands",
+	}
+	SetCommandPolicies(schedulerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+
+	var (
+		runDispatchTO     time.Duration
+		runDefaultLockTTL time.Duration
+	)
+
+	runCmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run distributed scheduler",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			jobsRuntime, err := buildJobsRuntime(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs runtime: %w", err)
+			}
+			defer func() {
+				if closeErr := jobsRuntime.Close(); closeErr != nil {
+					log.Error("failed to close jobs runtime", "error", closeErr)
+				}
+			}()
+
+			lockProvider, err := buildSchedulerLockProvider(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create scheduler lock provider: %w", err)
+			}
+			defer func() {
+				if closeErr := lockProvider.Close(); closeErr != nil {
+					log.Error("failed to close scheduler lock provider", "error", closeErr)
+				}
+			}()
+
+			runtimeCfg := scheduler.Config{
+				DispatchTimeout: cfg.Scheduler.DispatchTimeout,
+				DefaultLockTTL:  cfg.Scheduler.LockTTL,
+			}
+			if cmd.Flags().Changed("dispatch-timeout") {
+				runtimeCfg.DispatchTimeout = runDispatchTO
+			}
+			if cmd.Flags().Changed("default-lock-ttl") {
+				runtimeCfg.DefaultLockTTL = runDefaultLockTTL
+			}
+
+			runtime, err := scheduler.NewRuntime(jobsRuntime, lockProvider, log, runtimeCfg)
+			if err != nil {
+				return fmt.Errorf("create scheduler runtime: %w", err)
+			}
+			if err := registerSchedulerTasksFromConfig(runtime, cfg); err != nil {
+				return fmt.Errorf("register scheduler tasks from config: %w", err)
+			}
+			if opts.ConfigureScheduler != nil {
 				if err := opts.ConfigureScheduler(cfg, log, runtime); err != nil {
 					return fmt.Errorf("configure scheduler runtime: %w", err)
 				}
+			}
 
-				runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-				defer stop()
-				return runtime.Start(runCtx)
-			},
-		}
-		SetCommandPolicies(runCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
-		runCmd.Flags().DurationVar(&dispatchTO, "dispatch-timeout", scheduler.DefaultDispatchTimeout, "max duration for single scheduled dispatch")
-		runCmd.Flags().DurationVar(&defaultLockTTL, "default-lock-ttl", scheduler.DefaultLockTTL, "default distributed lock TTL")
-		runCmd.Flags().StringVar(&redisURL, "redis-url", "", "redis URL for scheduler locks (fallback: cache.url)")
-		runCmd.Flags().StringVar(&redisPrefix, "redis-prefix", "nimburion:scheduler:lock", "redis key prefix for scheduler locks")
-		runCmd.Flags().DurationVar(&redisOperationTO, "redis-operation-timeout", 3*time.Second, "redis operation timeout for lock provider")
-		schedulerCmd.AddCommand(runCmd)
-		rootCmd.AddCommand(schedulerCmd)
+			runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return runtime.Start(runCtx)
+		},
 	}
+	SetCommandPolicies(runCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+	runCmd.Flags().DurationVar(&runDispatchTO, "dispatch-timeout", scheduler.DefaultDispatchTimeout, "max duration for single scheduled dispatch")
+	runCmd.Flags().DurationVar(&runDefaultLockTTL, "default-lock-ttl", scheduler.DefaultLockTTL, "default distributed lock TTL")
+	schedulerCmd.AddCommand(runCmd)
+
+	validateCmd := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate scheduler tasks and runtime configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, _, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+			tasks, err := schedulerTasksFromConfig(cfg)
+			if err != nil {
+				return err
+			}
+			for _, task := range tasks {
+				if err := task.Validate(); err != nil {
+					return fmt.Errorf("invalid scheduler task %q: %w", task.Name, err)
+				}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "scheduler configuration is valid (%d task(s))\n", len(tasks))
+			return nil
+		},
+	}
+	SetCommandPolicies(validateCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+	schedulerCmd.AddCommand(validateCmd)
+
+	var (
+		triggerTaskName    string
+		triggerDispatchTO  time.Duration
+		triggerDefaultLock time.Duration
+	)
+
+	triggerCmd := &cobra.Command{
+		Use:   "trigger",
+		Short: "Trigger one scheduler task manually",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
+			}
+
+			jobsRuntime, err := buildJobsRuntime(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create jobs runtime: %w", err)
+			}
+			defer func() {
+				if closeErr := jobsRuntime.Close(); closeErr != nil {
+					log.Error("failed to close jobs runtime", "error", closeErr)
+				}
+			}()
+
+			lockProvider, err := buildSchedulerLockProvider(cfg, log)
+			if err != nil {
+				return fmt.Errorf("create scheduler lock provider: %w", err)
+			}
+			defer func() {
+				if closeErr := lockProvider.Close(); closeErr != nil {
+					log.Error("failed to close scheduler lock provider", "error", closeErr)
+				}
+			}()
+
+			runtimeCfg := scheduler.Config{
+				DispatchTimeout: cfg.Scheduler.DispatchTimeout,
+				DefaultLockTTL:  cfg.Scheduler.LockTTL,
+			}
+			if cmd.Flags().Changed("dispatch-timeout") {
+				runtimeCfg.DispatchTimeout = triggerDispatchTO
+			}
+			if cmd.Flags().Changed("default-lock-ttl") {
+				runtimeCfg.DefaultLockTTL = triggerDefaultLock
+			}
+
+			runtime, err := scheduler.NewRuntime(jobsRuntime, lockProvider, log, runtimeCfg)
+			if err != nil {
+				return fmt.Errorf("create scheduler runtime: %w", err)
+			}
+			if err := registerSchedulerTasksFromConfig(runtime, cfg); err != nil {
+				return fmt.Errorf("register scheduler tasks from config: %w", err)
+			}
+			if opts.ConfigureScheduler != nil {
+				if err := opts.ConfigureScheduler(cfg, log, runtime); err != nil {
+					return fmt.Errorf("configure scheduler runtime: %w", err)
+				}
+			}
+
+			taskName := strings.TrimSpace(triggerTaskName)
+			if taskName == "" {
+				return errors.New("task name is required")
+			}
+			triggerCtx := cmd.Context()
+			if runtimeCfg.DispatchTimeout > 0 {
+				var cancel context.CancelFunc
+				triggerCtx, cancel = context.WithTimeout(triggerCtx, runtimeCfg.DispatchTimeout)
+				defer cancel()
+			}
+			if err := runtime.Trigger(triggerCtx, taskName); err != nil {
+				return fmt.Errorf("trigger scheduler task %q: %w", taskName, err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "triggered scheduler task %s\n", taskName)
+			return nil
+		},
+	}
+	SetCommandPolicies(triggerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
+	triggerCmd.Flags().StringVar(&triggerTaskName, "task", "", "task name to trigger")
+	triggerCmd.Flags().DurationVar(&triggerDispatchTO, "dispatch-timeout", scheduler.DefaultDispatchTimeout, "max duration for task dispatch")
+	triggerCmd.Flags().DurationVar(&triggerDefaultLock, "default-lock-ttl", scheduler.DefaultLockTTL, "default distributed lock TTL")
+	_ = triggerCmd.MarkFlagRequired("task")
+	schedulerCmd.AddCommand(triggerCmd)
+	rootCmd.AddCommand(schedulerCmd)
 
 	// config command
 	configCmd := &cobra.Command{
@@ -668,6 +1013,145 @@ func resolveWorkerQueues(flagQueues []string, configDefault string) []string {
 		return []string{trimmed}
 	}
 	return []string{"default"}
+}
+
+func parseStringMapFlag(raw []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, item := range raw {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		parts := strings.SplitN(trimmed, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header %q: expected key=value", item)
+		}
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			return nil, fmt.Errorf("invalid header %q: key is required", item)
+		}
+		out[key] = strings.TrimSpace(parts[1])
+	}
+	return out, nil
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
+}
+
+func schedulerTasksFromConfig(cfg *config.Config) ([]scheduler.Task, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+
+	defaultTimezone := strings.TrimSpace(cfg.Scheduler.Timezone)
+	tasks := make([]scheduler.Task, 0, len(cfg.Scheduler.Tasks))
+	seen := map[string]struct{}{}
+
+	for idx, configured := range cfg.Scheduler.Tasks {
+		name := strings.TrimSpace(configured.Name)
+		if name == "" {
+			return nil, fmt.Errorf("scheduler.tasks[%d].name is required", idx)
+		}
+		if _, ok := seen[name]; ok {
+			return nil, fmt.Errorf("scheduler.tasks contains duplicate name %q", name)
+		}
+		seen[name] = struct{}{}
+
+		payload := strings.TrimSpace(configured.Payload)
+		if payload == "" {
+			payload = "{}"
+		}
+
+		timezone := strings.TrimSpace(configured.Timezone)
+		if timezone == "" {
+			timezone = defaultTimezone
+		}
+
+		task := scheduler.Task{
+			Name:           name,
+			Schedule:       strings.TrimSpace(configured.Cron),
+			Queue:          strings.TrimSpace(configured.Queue),
+			JobName:        strings.TrimSpace(configured.JobName),
+			Payload:        []byte(payload),
+			Headers:        cloneStringMap(configured.Headers),
+			TenantID:       strings.TrimSpace(configured.TenantID),
+			IdempotencyKey: strings.TrimSpace(configured.IdempotencyKey),
+			Timezone:       timezone,
+			LockTTL:        configured.LockTTL,
+			MisfirePolicy:  strings.TrimSpace(configured.MisfirePolicy),
+		}
+		if err := task.Validate(); err != nil {
+			return nil, fmt.Errorf("scheduler.tasks[%s]: %w", name, err)
+		}
+		tasks = append(tasks, task)
+	}
+
+	return tasks, nil
+}
+
+func registerSchedulerTasksFromConfig(runtime *scheduler.Runtime, cfg *config.Config) error {
+	if runtime == nil {
+		return errors.New("scheduler runtime is required")
+	}
+	tasks, err := schedulerTasksFromConfig(cfg)
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		if err := runtime.Register(task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+	lockProvider := strings.ToLower(strings.TrimSpace(cfg.Scheduler.LockProvider))
+	if lockProvider == "" {
+		lockProvider = config.SchedulerLockProviderRedis
+	}
+
+	switch lockProvider {
+	case config.SchedulerLockProviderRedis:
+		redisURL := strings.TrimSpace(cfg.Scheduler.Redis.URL)
+		if redisURL == "" {
+			redisURL = strings.TrimSpace(cfg.Cache.URL)
+		}
+		if redisURL == "" {
+			return nil, errors.New("scheduler redis url is required (set scheduler.redis.url or cache.url)")
+		}
+		return scheduler.NewRedisLockProvider(scheduler.RedisLockProviderConfig{
+			URL:              redisURL,
+			Prefix:           cfg.Scheduler.Redis.Prefix,
+			OperationTimeout: cfg.Scheduler.Redis.OperationTimeout,
+		}, log)
+	case config.SchedulerLockProviderPostgres:
+		postgresURL := strings.TrimSpace(cfg.Scheduler.Postgres.URL)
+		if postgresURL == "" {
+			postgresURL = strings.TrimSpace(cfg.Database.URL)
+		}
+		if postgresURL == "" {
+			return nil, errors.New("scheduler postgres url is required (set scheduler.postgres.url or database.url)")
+		}
+		return scheduler.NewPostgresLockProvider(scheduler.PostgresLockProviderConfig{
+			URL:              postgresURL,
+			Table:            cfg.Scheduler.Postgres.Table,
+			OperationTimeout: cfg.Scheduler.Postgres.OperationTimeout,
+		}, log)
+	default:
+		return nil, fmt.Errorf("unsupported scheduler.lock_provider %q", cfg.Scheduler.LockProvider)
+	}
 }
 
 func LoadConfigAndLogger(
