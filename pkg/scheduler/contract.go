@@ -17,5 +17,6 @@ type LockProvider interface {
 	Acquire(ctx context.Context, key string, ttl time.Duration) (*LockLease, bool, error)
 	Renew(ctx context.Context, lease *LockLease, ttl time.Duration) error
 	Release(ctx context.Context, lease *LockLease) error
+	HealthCheck(ctx context.Context) error
 	Close() error
 }

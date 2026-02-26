@@ -53,3 +53,34 @@ func TestNextRunForSchedule_FixedMinute(t *testing.T) {
 		t.Fatalf("expected %v, got %v", expected, next)
 	}
 }
+
+func TestNextRunForSchedule_DailyHourMinute(t *testing.T) {
+	now := time.Date(2026, 2, 26, 12, 35, 0, 0, time.UTC)
+	next, err := nextRunForSchedule("0 2 * * *", now, time.UTC)
+	if err != nil {
+		t.Fatalf("nextRunForSchedule error: %v", err)
+	}
+	expected := time.Date(2026, 2, 27, 2, 0, 0, 0, time.UTC)
+	if !next.Equal(expected) {
+		t.Fatalf("expected %v, got %v", expected, next)
+	}
+}
+
+func TestNextRunForSchedule_DayOfWeek(t *testing.T) {
+	now := time.Date(2026, 2, 26, 12, 35, 0, 0, time.UTC) // Thursday
+	next, err := nextRunForSchedule("30 9 * * 1", now, time.UTC)
+	if err != nil {
+		t.Fatalf("nextRunForSchedule error: %v", err)
+	}
+	expected := time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC) // Monday
+	if !next.Equal(expected) {
+		t.Fatalf("expected %v, got %v", expected, next)
+	}
+}
+
+func TestNextRunForSchedule_InvalidCronField(t *testing.T) {
+	_, err := nextRunForSchedule("61 * * * *", time.Now().UTC(), time.UTC)
+	if err == nil {
+		t.Fatal("expected invalid cron field error")
+	}
+}

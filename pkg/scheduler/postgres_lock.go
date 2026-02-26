@@ -209,6 +209,16 @@ func (p *PostgresLockProvider) Release(ctx context.Context, lease *LockLease) er
 	return nil
 }
 
+// HealthCheck verifies Postgres connectivity.
+func (p *PostgresLockProvider) HealthCheck(ctx context.Context) error {
+	if p == nil || p.db == nil {
+		return errors.New("postgres lock provider is not initialized")
+	}
+	opCtx, cancel := p.operationContext(ctx)
+	defer cancel()
+	return p.db.PingContext(opCtx)
+}
+
 // Close closes DB resources.
 func (p *PostgresLockProvider) Close() error {
 	if p == nil || p.db == nil {

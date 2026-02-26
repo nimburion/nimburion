@@ -12,6 +12,8 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	"github.com/nimburion/nimburion/pkg/observability/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -227,6 +229,9 @@ func (r *Runtime) runTaskLoop(ctx context.Context, task Task) {
 }
 
 func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) error {
+	incrementSchedulerDispatchInFlight(task.Name)
+	defer decrementSchedulerDispatchInFlight(task.Name)
+
 	lockTTL := task.LockTTL
 	if lockTTL <= 0 {
 		lockTTL = r.config.DefaultLockTTL
@@ -235,9 +240,11 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	lockKey := fmt.Sprintf("scheduler:%s:%d", task.Name, runAt.Unix())
 	lease, acquired, err := r.lock.Acquire(ctx, lockKey, lockTTL)
 	if err != nil {
+		recordSchedulerDispatch(task.Name, "lock_error")
 		return fmt.Errorf("acquire lock failed: %w", err)
 	}
 	if !acquired {
+		recordSchedulerDispatch(task.Name, "lock_miss")
 		return nil
 	}
 
@@ -250,6 +257,19 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 
 	dispatchCtx, cancel := context.WithTimeout(ctx, r.config.DispatchTimeout)
 	defer cancel()
+	dispatchCtx, span := tracing.StartMessagingSpan(
+		dispatchCtx,
+		tracing.SpanOperationMsgPublish,
+		tracing.WithMessagingSystem("scheduler"),
+		tracing.WithMessagingDestination(task.Queue),
+	)
+	span.SetAttributes(
+		attribute.String("scheduler.task", strings.TrimSpace(task.Name)),
+		attribute.String("scheduler.lock_key", lockKey),
+		attribute.String("scheduler.run_at", runAt.UTC().Format(time.RFC3339Nano)),
+	)
+	defer span.End()
+
 	stopRenew, renewDone := r.startLeaseRenewal(dispatchCtx, lease, lockTTL)
 
 	job := &jobs.Job{
@@ -275,6 +295,10 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	if job.IdempotencyKey == "" {
 		job.IdempotencyKey = fmt.Sprintf("%s:%d", task.Name, runAt.Unix())
 	}
+	span.SetAttributes(
+		attribute.String("messaging.message_id", job.ID),
+		attribute.Int("messaging.payload_size_bytes", len(job.Payload)),
+	)
 
 	enqueueErr := r.jobs.Enqueue(dispatchCtx, job)
 	stopRenew()
@@ -283,7 +307,25 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	if renewErr != nil {
 		r.log.Warn("scheduler lock renew failed", "task", task.Name, "error", renewErr)
 	}
-	return errors.Join(enqueueErr, renewErr, releaseLockErr)
+	if enqueueErr != nil {
+		recordSchedulerDispatch(task.Name, "enqueue_error")
+		tracing.RecordError(span, enqueueErr)
+	}
+	if renewErr != nil {
+		tracing.RecordError(span, renewErr)
+	}
+	if releaseLockErr != nil {
+		tracing.RecordError(span, releaseLockErr)
+	}
+
+	dispatchErr := errors.Join(enqueueErr, renewErr, releaseLockErr)
+	if dispatchErr != nil {
+		recordSchedulerDispatch(task.Name, "error")
+		return dispatchErr
+	}
+	recordSchedulerDispatch(task.Name, "success")
+	tracing.RecordSuccess(span)
+	return nil
 }
 
 func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *LockLease, ttl time.Duration) (func(), <-chan error) {
@@ -315,10 +357,12 @@ func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *LockLease, ttl t
 				return
 			case <-ticker.C:
 				if err := r.lock.Renew(renewCtx, lease, ttl); err != nil {
+					recordSchedulerLockRenew(taskNameFromLockKey(lease.Key), "error")
 					done <- fmt.Errorf("renew lock failed: %w", err)
 					close(done)
 					return
 				}
+				recordSchedulerLockRenew(taskNameFromLockKey(lease.Key), "success")
 			}
 		}
 	}()
@@ -352,4 +396,20 @@ func cloneHeaders(input map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func taskNameFromLockKey(lockKey string) string {
+	trimmed := strings.TrimSpace(lockKey)
+	if trimmed == "" {
+		return "unknown"
+	}
+	if !strings.HasPrefix(trimmed, "scheduler:") {
+		return trimmed
+	}
+	payload := strings.TrimPrefix(trimmed, "scheduler:")
+	lastSeparator := strings.LastIndex(payload, ":")
+	if lastSeparator <= 0 {
+		return payload
+	}
+	return payload[:lastSeparator]
 }

@@ -178,6 +178,16 @@ func (p *RedisLockProvider) Release(ctx context.Context, lease *LockLease) error
 	return nil
 }
 
+// HealthCheck verifies Redis connectivity.
+func (p *RedisLockProvider) HealthCheck(ctx context.Context) error {
+	if p == nil || p.client == nil {
+		return errors.New("redis lock provider is not initialized")
+	}
+	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
+	defer cancel()
+	return p.client.Ping(opCtx).Err()
+}
+
 // Close closes Redis client connections.
 func (p *RedisLockProvider) Close() error {
 	if p == nil || p.client == nil {

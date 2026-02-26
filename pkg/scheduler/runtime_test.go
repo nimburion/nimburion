@@ -89,7 +89,8 @@ func (p *fakeLockProvider) Release(context.Context, *LockLease) error {
 	p.releases++
 	return nil
 }
-func (p *fakeLockProvider) Close() error { return nil }
+func (p *fakeLockProvider) HealthCheck(context.Context) error { return nil }
+func (p *fakeLockProvider) Close() error                      { return nil }
 
 func (p *fakeLockProvider) counts() (leases int, renews int, releases int) {
 	p.mu.Lock()
