@@ -3,6 +3,7 @@ package factory
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/config"
@@ -97,7 +98,10 @@ func TestNewRuntime_UnsupportedBackend(t *testing.T) {
 		},
 	)
 	if err == nil {
-		t.Fatal("expected unsupported backend error")
+		t.Fatal("expected redis runtime initialization error")
+	}
+	if !strings.Contains(err.Error(), "redis url is required") {
+		t.Fatalf("expected redis url error, got %v", err)
 	}
 }
 
@@ -147,6 +151,57 @@ func TestNewRuntime_UnsupportedBackendPublic(t *testing.T) {
 		Config{Backend: "unknown"},
 		config.EventBusConfig{},
 		&testLogger{},
+	)
+	if err == nil {
+		t.Fatal("expected unsupported backend error")
+	}
+}
+
+func TestNewBackend_DefaultEventBus(t *testing.T) {
+	backend, err := newBackend(
+		Config{},
+		config.EventBusConfig{},
+		config.KafkaValidationConfig{},
+		&testLogger{},
+		func(eventBusCfg config.EventBusConfig, validationCfg config.KafkaValidationConfig, log logger.Logger) (eventbus.EventBus, error) {
+			return &mockEventBus{}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if _, ok := backend.(*jobs.RuntimeBackend); !ok {
+		t.Fatalf("expected *jobs.RuntimeBackend, got %T", backend)
+	}
+}
+
+func TestNewBackend_RedisRequiresURL(t *testing.T) {
+	_, err := newBackend(
+		Config{Backend: "redis"},
+		config.EventBusConfig{},
+		config.KafkaValidationConfig{},
+		&testLogger{},
+		func(eventBusCfg config.EventBusConfig, validationCfg config.KafkaValidationConfig, log logger.Logger) (eventbus.EventBus, error) {
+			return &mockEventBus{}, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected redis url validation error")
+	}
+	if !strings.Contains(err.Error(), "redis url is required") {
+		t.Fatalf("expected redis url error, got %v", err)
+	}
+}
+
+func TestNewBackend_UnsupportedBackend(t *testing.T) {
+	_, err := newBackend(
+		Config{Backend: "unknown"},
+		config.EventBusConfig{},
+		config.KafkaValidationConfig{},
+		&testLogger{},
+		func(eventBusCfg config.EventBusConfig, validationCfg config.KafkaValidationConfig, log logger.Logger) (eventbus.EventBus, error) {
+			return &mockEventBus{}, nil
+		},
 	)
 	if err == nil {
 		t.Fatal("expected unsupported backend error")
