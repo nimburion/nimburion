@@ -2,16 +2,23 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
+	"syscall"
+	"time"
 
 	cliopenapi "github.com/nimburion/nimburion/pkg/cli/openapi"
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/jobs"
+	jobsfactory "github.com/nimburion/nimburion/pkg/jobs/factory"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	"github.com/nimburion/nimburion/pkg/scheduler"
 	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/nimburion/nimburion/pkg/version"
 	"github.com/spf13/cobra"
@@ -38,6 +45,17 @@ const (
 	PolicyScheduled   CommandPolicy = "scheduled"
 	PolicyConditional CommandPolicy = "conditional"
 )
+
+// JobsRuntimeFactory creates a jobs runtime from service configuration.
+type JobsRuntimeFactory func(
+	cfg config.JobsConfig,
+	eventBusCfg config.EventBusConfig,
+	validationCfg config.KafkaValidationConfig,
+	log logger.Logger,
+) (jobs.Runtime, error)
+
+// SchedulerLockProviderFactory creates the scheduler lock provider.
+type SchedulerLockProviderFactory func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error)
 
 // ServiceCommandOptions defines callbacks for service-specific logic.
 type ServiceCommandOptions struct {
@@ -71,6 +89,15 @@ type ServiceCommandOptions struct {
 
 	// Optional: additional custom commands
 	CustomCommands []*cobra.Command
+
+	// Optional: registers worker handlers for "jobs worker" command.
+	ConfigureJobsWorker func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error
+	// Optional: registers tasks for "scheduler run" command.
+	ConfigureScheduler func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error
+	// Optional: override jobs runtime factory (useful for tests/custom adapters).
+	JobsRuntimeFactory JobsRuntimeFactory
+	// Optional: override scheduler lock provider factory.
+	SchedulerLockProviderFactory SchedulerLockProviderFactory
 }
 
 // NewServiceCommand creates a standardized CLI with serve, migrate, cache, version, healthcheck, and config subcommands.
@@ -257,6 +284,205 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 		SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 	}
 
+	// jobs command (optional)
+	if opts.ConfigureJobsWorker != nil {
+		jobsCmd := &cobra.Command{
+			Use:   "jobs",
+			Short: "Jobs runtime commands",
+		}
+		SetCommandPolicies(jobsCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
+
+		var (
+			queues         []string
+			concurrency    int
+			leaseTTL       time.Duration
+			reserveTO      time.Duration
+			stopTO         time.Duration
+			maxAttempts    int
+			initialBackoff time.Duration
+			maxBackoff     time.Duration
+			attemptTO      time.Duration
+			dlqEnabled     bool
+			dlqSuffix      string
+			bufferSize     int
+		)
+
+		workerCmd := &cobra.Command{
+			Use:   "worker",
+			Short: "Run jobs worker",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				cfg, log, err := loadConfig(cmd.Flags())
+				if err != nil {
+					return err
+				}
+
+				runtimeFactory := opts.JobsRuntimeFactory
+				if runtimeFactory == nil {
+					runtimeFactory = jobsfactory.NewRuntimeWithValidation
+				}
+				jobsRuntime, err := runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
+				if err != nil {
+					return fmt.Errorf("create jobs runtime: %w", err)
+				}
+				defer func() {
+					if closeErr := jobsRuntime.Close(); closeErr != nil {
+						log.Error("failed to close jobs runtime", "error", closeErr)
+					}
+				}()
+
+				backend, err := jobs.NewRuntimeBackend(jobsRuntime, log, jobs.RuntimeBackendConfig{
+					BufferSize: bufferSize,
+					DLQSuffix:  dlqSuffix,
+				})
+				if err != nil {
+					return fmt.Errorf("create jobs backend: %w", err)
+				}
+				defer func() {
+					if closeErr := backend.Close(); closeErr != nil {
+						log.Error("failed to close jobs backend", "error", closeErr)
+					}
+				}()
+
+				workerQueues := resolveWorkerQueues(queues, cfg.Jobs.DefaultQueue)
+				worker, err := jobs.NewWorker(backend, log, jobs.WorkerConfig{
+					Queues:         workerQueues,
+					Concurrency:    concurrency,
+					LeaseTTL:       leaseTTL,
+					ReserveTimeout: reserveTO,
+					StopTimeout:    stopTO,
+					Retry: jobs.RetryPolicy{
+						MaxAttempts:    maxAttempts,
+						InitialBackoff: initialBackoff,
+						MaxBackoff:     maxBackoff,
+						AttemptTimeout: attemptTO,
+					},
+					DLQ: jobs.DLQPolicy{
+						Enabled:     dlqEnabled,
+						QueueSuffix: dlqSuffix,
+					},
+				})
+				if err != nil {
+					return fmt.Errorf("create worker: %w", err)
+				}
+				if err := opts.ConfigureJobsWorker(cfg, log, worker); err != nil {
+					return fmt.Errorf("configure jobs worker: %w", err)
+				}
+
+				runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+				defer stop()
+				return worker.Start(runCtx)
+			},
+		}
+		SetCommandPolicies(workerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+		workerCmd.Flags().StringSliceVar(&queues, "queue", []string{}, "queue names to consume (repeatable)")
+		workerCmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of workers per queue")
+		workerCmd.Flags().DurationVar(&leaseTTL, "lease-ttl", jobs.DefaultLeaseTTL, "lease duration per reserved job")
+		workerCmd.Flags().DurationVar(&reserveTO, "reserve-timeout", jobs.DefaultWorkerReserveTimeout, "reserve call timeout")
+		workerCmd.Flags().DurationVar(&stopTO, "stop-timeout", jobs.DefaultWorkerStopTimeout, "graceful stop timeout")
+		workerCmd.Flags().IntVar(&maxAttempts, "max-attempts", jobs.DefaultWorkerMaxAttempts, "maximum processing attempts per job")
+		workerCmd.Flags().DurationVar(&initialBackoff, "initial-backoff", jobs.DefaultWorkerInitialBackoff, "retry initial backoff")
+		workerCmd.Flags().DurationVar(&maxBackoff, "max-backoff", jobs.DefaultWorkerMaxBackoff, "retry max backoff")
+		workerCmd.Flags().DurationVar(&attemptTO, "attempt-timeout", jobs.DefaultWorkerAttemptTimeout, "timeout for a single job execution")
+		workerCmd.Flags().BoolVar(&dlqEnabled, "dlq-enabled", true, "enable dead-letter queue routing")
+		workerCmd.Flags().StringVar(&dlqSuffix, "dlq-suffix", jobs.DefaultDLQSuffix, "suffix for dead-letter queues")
+		workerCmd.Flags().IntVar(&bufferSize, "buffer-size", 128, "in-memory reserve buffer size")
+		jobsCmd.AddCommand(workerCmd)
+		rootCmd.AddCommand(jobsCmd)
+	}
+
+	// scheduler command (optional)
+	if opts.ConfigureScheduler != nil {
+		schedulerCmd := &cobra.Command{
+			Use:   "scheduler",
+			Short: "Distributed scheduler commands",
+		}
+		SetCommandPolicies(schedulerCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+
+		var (
+			dispatchTO       time.Duration
+			defaultLockTTL   time.Duration
+			redisURL         string
+			redisPrefix      string
+			redisOperationTO time.Duration
+		)
+
+		runCmd := &cobra.Command{
+			Use:   "run",
+			Short: "Run distributed scheduler",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				cfg, log, err := loadConfig(cmd.Flags())
+				if err != nil {
+					return err
+				}
+
+				runtimeFactory := opts.JobsRuntimeFactory
+				if runtimeFactory == nil {
+					runtimeFactory = jobsfactory.NewRuntimeWithValidation
+				}
+				jobsRuntime, err := runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
+				if err != nil {
+					return fmt.Errorf("create jobs runtime: %w", err)
+				}
+				defer func() {
+					if closeErr := jobsRuntime.Close(); closeErr != nil {
+						log.Error("failed to close jobs runtime", "error", closeErr)
+					}
+				}()
+
+				lockFactory := opts.SchedulerLockProviderFactory
+				if lockFactory == nil {
+					lockFactory = func(runtimeCfg *config.Config, runtimeLog logger.Logger) (scheduler.LockProvider, error) {
+						url := strings.TrimSpace(redisURL)
+						if url == "" {
+							url = strings.TrimSpace(runtimeCfg.Cache.URL)
+						}
+						if url == "" {
+							return nil, errors.New("redis url is required (set --redis-url or cache.url)")
+						}
+						return scheduler.NewRedisLockProvider(scheduler.RedisLockProviderConfig{
+							URL:              url,
+							Prefix:           redisPrefix,
+							OperationTimeout: redisOperationTO,
+						}, runtimeLog)
+					}
+				}
+
+				lockProvider, err := lockFactory(cfg, log)
+				if err != nil {
+					return fmt.Errorf("create scheduler lock provider: %w", err)
+				}
+				defer func() {
+					if closeErr := lockProvider.Close(); closeErr != nil {
+						log.Error("failed to close scheduler lock provider", "error", closeErr)
+					}
+				}()
+
+				runtime, err := scheduler.NewRuntime(jobsRuntime, lockProvider, log, scheduler.Config{
+					DispatchTimeout: dispatchTO,
+					DefaultLockTTL:  defaultLockTTL,
+				})
+				if err != nil {
+					return fmt.Errorf("create scheduler runtime: %w", err)
+				}
+				if err := opts.ConfigureScheduler(cfg, log, runtime); err != nil {
+					return fmt.Errorf("configure scheduler runtime: %w", err)
+				}
+
+				runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+				defer stop()
+				return runtime.Start(runCtx)
+			},
+		}
+		SetCommandPolicies(runCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyScheduled})
+		runCmd.Flags().DurationVar(&dispatchTO, "dispatch-timeout", scheduler.DefaultDispatchTimeout, "max duration for single scheduled dispatch")
+		runCmd.Flags().DurationVar(&defaultLockTTL, "default-lock-ttl", scheduler.DefaultLockTTL, "default distributed lock TTL")
+		runCmd.Flags().StringVar(&redisURL, "redis-url", "", "redis URL for scheduler locks (fallback: cache.url)")
+		runCmd.Flags().StringVar(&redisPrefix, "redis-prefix", "nimburion:scheduler:lock", "redis key prefix for scheduler locks")
+		runCmd.Flags().DurationVar(&redisOperationTO, "redis-operation-timeout", 3*time.Second, "redis operation timeout for lock provider")
+		schedulerCmd.AddCommand(runCmd)
+		rootCmd.AddCommand(schedulerCmd)
+	}
+
 	// config command
 	configCmd := &cobra.Command{
 		Use:   "config",
@@ -425,6 +651,23 @@ func policyAnnotationKeys(annotations map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func resolveWorkerQueues(flagQueues []string, configDefault string) []string {
+	queues := make([]string, 0, len(flagQueues)+1)
+	for _, queue := range flagQueues {
+		trimmed := strings.TrimSpace(queue)
+		if trimmed != "" {
+			queues = append(queues, trimmed)
+		}
+	}
+	if len(queues) > 0 {
+		return queues
+	}
+	if trimmed := strings.TrimSpace(configDefault); trimmed != "" {
+		return []string{trimmed}
+	}
+	return []string{"default"}
 }
 
 func LoadConfigAndLogger(

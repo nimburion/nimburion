@@ -1,6 +1,13 @@
 package cli
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/jobs"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
+	"github.com/nimburion/nimburion/pkg/scheduler"
+)
 
 func TestResolveServiceNameValue(t *testing.T) {
 	tests := []struct {
@@ -68,5 +75,93 @@ func TestNewServiceCommand_AddsCompletionByDefault(t *testing.T) {
 	policies := GetCommandPolicies(completionCmd)
 	if got := policies[defaultPolicyContext]; got != string(PolicyAlways) {
 		t.Fatalf("expected completion policy %q, got %q", PolicyAlways, got)
+	}
+}
+
+func TestNewServiceCommand_AddsJobsWorkerCommand(t *testing.T) {
+	cmd := NewServiceCommand(ServiceCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+		ConfigureJobsWorker: func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error {
+			return nil
+		},
+	})
+
+	workerCmd, _, err := cmd.Find([]string{"jobs", "worker"})
+	if err != nil {
+		t.Fatalf("expected jobs worker command, got error: %v", err)
+	}
+	if workerCmd == nil || workerCmd.Name() != "worker" {
+		t.Fatalf("expected worker command, got %#v", workerCmd)
+	}
+	policies := GetCommandPolicies(workerCmd)
+	if got := policies[defaultPolicyContext]; got != string(PolicyScheduled) {
+		t.Fatalf("expected worker policy %q, got %q", PolicyScheduled, got)
+	}
+}
+
+func TestNewServiceCommand_AddsSchedulerRunCommand(t *testing.T) {
+	cmd := NewServiceCommand(ServiceCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+		ConfigureScheduler: func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error {
+			return nil
+		},
+	})
+
+	runCmd, _, err := cmd.Find([]string{"scheduler", "run"})
+	if err != nil {
+		t.Fatalf("expected scheduler run command, got error: %v", err)
+	}
+	if runCmd == nil || runCmd.Name() != "run" {
+		t.Fatalf("expected run command, got %#v", runCmd)
+	}
+	policies := GetCommandPolicies(runCmd)
+	if got := policies[defaultPolicyContext]; got != string(PolicyScheduled) {
+		t.Fatalf("expected scheduler run policy %q, got %q", PolicyScheduled, got)
+	}
+}
+
+func TestResolveWorkerQueues(t *testing.T) {
+	tests := []struct {
+		name          string
+		flagQueues    []string
+		defaultQueue  string
+		expectedQueue []string
+	}{
+		{
+			name:          "uses flags",
+			flagQueues:    []string{"payments", "emails"},
+			defaultQueue:  "default",
+			expectedQueue: []string{"payments", "emails"},
+		},
+		{
+			name:          "falls back to config default",
+			flagQueues:    []string{"", " "},
+			defaultQueue:  "jobs-default",
+			expectedQueue: []string{"jobs-default"},
+		},
+		{
+			name:          "falls back to framework default",
+			flagQueues:    nil,
+			defaultQueue:  "",
+			expectedQueue: []string{"default"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveWorkerQueues(tt.flagQueues, tt.defaultQueue)
+			if len(got) != len(tt.expectedQueue) {
+				t.Fatalf("expected %d queues, got %d", len(tt.expectedQueue), len(got))
+			}
+			for idx := range got {
+				if got[idx] != tt.expectedQueue[idx] {
+					t.Fatalf("queue[%d] = %q, want %q", idx, got[idx], tt.expectedQueue[idx])
+				}
+			}
+		})
 	}
 }
