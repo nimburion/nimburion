@@ -23,8 +23,14 @@ linters:
   settings:
     errcheck:
       check-blank: true
+    govet:
+      enable-all: true
+    revive:
+      rules:
+        - name: exported
+          disabled: false
     gosec:
-      exclude:
+      excludes:
         - G404
 
 issues:
