@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/nimburion/nimburion/pkg/middleware"
 	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/nimburion/nimburion/pkg/server/router/nethttp"
 )
@@ -163,7 +164,7 @@ func TestRequestID_PropagatesAcrossMiddleware(t *testing.T) {
 
 func TestGetRequestID_WithValidContext(t *testing.T) {
 	// Given: A context with request ID
-	ctx := context.WithValue(context.Background(), RequestIDKey, "test-request-123")
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-123")
 	
 	// When: GetRequestID is called
 	requestID := GetRequestID(ctx)
@@ -202,7 +203,7 @@ func TestGetRequestID_WithoutRequestID(t *testing.T) {
 
 func TestGetRequestID_WithWrongType(t *testing.T) {
 	// Given: A context with wrong type for request ID
-	ctx := context.WithValue(context.Background(), RequestIDKey, 12345)
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, 12345)
 	
 	// When: GetRequestID is called
 	requestID := GetRequestID(ctx)

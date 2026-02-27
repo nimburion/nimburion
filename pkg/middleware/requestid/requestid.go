@@ -4,17 +4,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/nimburion/nimburion/pkg/middleware"
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
 // RequestIDHeader is the HTTP header name for request ID.
 const RequestIDHeader = "X-Request-ID"
-
-// contextKey is a typed key for context values to avoid collisions.
-type contextKey string
-
-// RequestIDKey is the context key for storing request ID.
-const RequestIDKey contextKey = "request_id"
 
 // RequestID creates middleware that generates or extracts request IDs.
 // It generates a UUID for requests without X-Request-ID header,
@@ -34,13 +29,13 @@ func RequestID() router.MiddlewareFunc {
 			}
 			
 			// Store request ID in context for use by other middleware and handlers
-			c.Set(string(RequestIDKey), requestID)
+			c.Set(string(middleware.RequestIDKey), requestID)
 			
 			// Add request ID to response headers
 			c.Response().Header().Set(RequestIDHeader, requestID)
 			
 			// Add request ID to request context for propagation
-			ctx := context.WithValue(c.Request().Context(), RequestIDKey, requestID)
+			ctx := context.WithValue(c.Request().Context(), middleware.RequestIDKey, requestID)
 			c.SetRequest(c.Request().WithContext(ctx))
 			
 			return next(c)
@@ -60,7 +55,7 @@ func GetRequestID(ctx context.Context) string {
 		return ""
 	}
 	
-	if requestID, ok := ctx.Value(RequestIDKey).(string); ok {
+	if requestID, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
 		return requestID
 	}
 	
