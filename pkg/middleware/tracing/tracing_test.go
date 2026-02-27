@@ -14,7 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/nimburion/nimburion/pkg/middleware/requestid"
+	"github.com/nimburion/nimburion/pkg/middleware"
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
@@ -276,7 +276,7 @@ func TestTracing_AddsRequestID(t *testing.T) {
 	recorder := setupTestTracerProvider(t)
 
 	req := httptest.NewRequest("GET", "/users", nil)
-	ctx := context.WithValue(req.Context(), requestid.RequestIDKey, "test-request-id-123")
+	ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "test-request-id-123")
 	req = req.WithContext(ctx)
 
 	mockCtx := newMockTracingContext(req)
