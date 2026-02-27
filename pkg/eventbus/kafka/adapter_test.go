@@ -23,7 +23,7 @@ func (m *mockLogger) WithContext(ctx context.Context) logger.Logger {
 	return m
 }
 
-func TestNewKafkaAdapter(t *testing.T) {
+func TestNewAdapter(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  Config
@@ -65,22 +65,22 @@ func TestNewKafkaAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter, err := NewKafkaAdapter(tt.config, &mockLogger{})
+			adapter, err := NewAdapter(tt.config, &mockLogger{})
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("NewKafkaAdapter() expected error, got nil")
+					t.Errorf("NewAdapter() expected error, got nil")
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("NewKafkaAdapter() unexpected error: %v", err)
+				t.Errorf("NewAdapter() unexpected error: %v", err)
 				return
 			}
 
 			if adapter == nil {
-				t.Error("NewKafkaAdapter() returned nil adapter")
+				t.Error("NewAdapter() returned nil adapter")
 				return
 			}
 
@@ -116,12 +116,12 @@ func TestNewKafkaAdapter(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Close(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Close(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 
 	// Close should succeed
@@ -156,12 +156,12 @@ func TestKafkaAdapter_Close(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Subscribe_AlreadySubscribed(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Subscribe_AlreadySubscribed(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -182,12 +182,12 @@ func TestKafkaAdapter_Subscribe_AlreadySubscribed(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Unsubscribe_NotSubscribed(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Unsubscribe_NotSubscribed(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -263,12 +263,12 @@ func TestConvertHeaders(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Publish_AfterClose(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Publish_AfterClose(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 
 	// Close the adapter
@@ -290,13 +290,13 @@ func TestKafkaAdapter_Publish_AfterClose(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Publish_WithTimeout(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Publish_WithTimeout(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers:          []string{"localhost:9092"},
 		OperationTimeout: 1 * time.Millisecond, // Very short timeout to test timeout behavior
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -318,12 +318,12 @@ func TestKafkaAdapter_Publish_WithTimeout(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_Publish_WithHeaders(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_Publish_WithHeaders(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -348,12 +348,12 @@ func TestKafkaAdapter_Publish_WithHeaders(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_PublishBatch_EmptyBatch(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_PublishBatch_EmptyBatch(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -370,12 +370,12 @@ func TestKafkaAdapter_PublishBatch_EmptyBatch(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_PublishBatch_AfterClose(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_PublishBatch_AfterClose(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 
 	// Close the adapter
@@ -405,13 +405,13 @@ func TestKafkaAdapter_PublishBatch_AfterClose(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_PublishBatch_WithTimeout(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_PublishBatch_WithTimeout(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers:          []string{"localhost:9092"},
 		OperationTimeout: 1 * time.Millisecond, // Very short timeout
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 
@@ -441,12 +441,12 @@ func TestKafkaAdapter_PublishBatch_WithTimeout(t *testing.T) {
 	}
 }
 
-func TestKafkaAdapter_PublishBatch_MultipleMessages(t *testing.T) {
-	adapter, err := NewKafkaAdapter(Config{
+func TestAdapter_PublishBatch_MultipleMessages(t *testing.T) {
+	adapter, err := NewAdapter(Config{
 		Brokers: []string{"localhost:9092"},
 	}, &mockLogger{})
 	if err != nil {
-		t.Fatalf("NewKafkaAdapter() unexpected error: %v", err)
+		t.Fatalf("NewAdapter() unexpected error: %v", err)
 	}
 	defer adapter.Close()
 

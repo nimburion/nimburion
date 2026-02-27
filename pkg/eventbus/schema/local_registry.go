@@ -37,8 +37,8 @@ func NewLocalRegistry(descriptorPath string) (*LocalRegistry, error) {
 	}
 
 	var set descriptorpb.FileDescriptorSet
-	if err := proto.Unmarshal(raw, &set); err != nil {
-		return nil, fmt.Errorf("decode descriptor set: %w", err)
+	if unmarshalErr := proto.Unmarshal(raw, &set); unmarshalErr != nil {
+		return nil, fmt.Errorf("decode descriptor set: %w", unmarshalErr)
 	}
 
 	files, err := protodesc.NewFiles(&set)

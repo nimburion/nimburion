@@ -11,10 +11,10 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-// KafkaAdapter implements the eventbus.EventBus interface for Apache Kafka.
+// Adapter implements the eventbus.EventBus interface for Apache Kafka.
 // It manages a single producer for publishing messages and multiple consumers
 // for subscribing to topics.
-type KafkaAdapter struct {
+type Adapter struct {
 	producer  *kafka.Writer
 	consumers map[string]*kafka.Reader
 	logger    logger.Logger
@@ -41,7 +41,7 @@ type Config struct {
 	GroupID string
 }
 
-// NewKafkaAdapter creates a new Kafka adapter with the specified configuration.
+// NewAdapter creates a new Kafka adapter with the specified configuration.
 // It initializes a producer for publishing messages and prepares for consumer subscriptions.
 //
 // Parameters:
@@ -49,9 +49,9 @@ type Config struct {
 //   - logger: Logger instance for structured logging
 //
 // Returns:
-//   - *KafkaAdapter: The initialized Kafka adapter
+//   - *Adapter: The initialized Kafka adapter
 //   - error: An error if initialization fails
-func NewKafkaAdapter(cfg Config, logger logger.Logger) (*KafkaAdapter, error) {
+func NewAdapter(cfg Config, logger logger.Logger) (*Adapter, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, fmt.Errorf("at least one broker address is required")
 	}
@@ -89,7 +89,7 @@ func NewKafkaAdapter(cfg Config, logger logger.Logger) (*KafkaAdapter, error) {
 		"operation_timeout", cfg.OperationTimeout,
 	)
 
-	return &KafkaAdapter{
+	return &Adapter{
 		producer:  producer,
 		consumers: make(map[string]*kafka.Reader),
 		logger:    logger,
@@ -108,7 +108,7 @@ func NewKafkaAdapter(cfg Config, logger logger.Logger) (*KafkaAdapter, error) {
 //
 // Returns:
 //   - error: An error if the publish operation fails
-func (a *KafkaAdapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
+func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -156,7 +156,7 @@ func (a *KafkaAdapter) Publish(ctx context.Context, topic string, message *event
 //
 // Returns:
 //   - error: An error if any message in the batch fails to publish
-func (a *KafkaAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
+func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -211,7 +211,7 @@ func (a *KafkaAdapter) PublishBatch(ctx context.Context, topic string, messages 
 //
 // Returns:
 //   - error: An error if the subscription fails
-func (a *KafkaAdapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
+func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -256,7 +256,7 @@ func (a *KafkaAdapter) Subscribe(ctx context.Context, topic string, handler even
 //
 // Returns:
 //   - error: An error if the unsubscribe operation fails
-func (a *KafkaAdapter) Unsubscribe(topic string) error {
+func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -285,7 +285,7 @@ func (a *KafkaAdapter) Unsubscribe(topic string) error {
 //
 // Returns:
 //   - error: An error if the shutdown fails
-func (a *KafkaAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -328,7 +328,7 @@ func (a *KafkaAdapter) Close() error {
 //
 // Returns:
 //   - error: An error if the health check fails
-func (a *KafkaAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -357,7 +357,7 @@ func (a *KafkaAdapter) HealthCheck(ctx context.Context) error {
 
 // consumeMessages is a background goroutine that consumes messages from a topic
 // and invokes the message handler for each message.
-func (a *KafkaAdapter) consumeMessages(ctx context.Context, topic string, reader *kafka.Reader, handler eventbus.MessageHandler) {
+func (a *Adapter) consumeMessages(ctx context.Context, topic string, reader *kafka.Reader, handler eventbus.MessageHandler) {
 	a.logger.Info("started consuming messages", "topic", topic)
 
 	for {

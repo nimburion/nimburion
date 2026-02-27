@@ -18,10 +18,10 @@ type MongoExecutor interface {
 
 // MongoDBExecutor adapts store/mongodb adapter to the repository/document executor contract.
 type MongoDBExecutor struct {
-	adapter *mongostore.MongoDBAdapter
+	adapter *mongostore.Adapter
 }
 
-func NewMongoDBExecutor(adapter *mongostore.MongoDBAdapter) (*MongoDBExecutor, error) {
+func NewMongoDBExecutor(adapter *mongostore.Adapter) (*MongoDBExecutor, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("mongodb adapter is required")
 	}

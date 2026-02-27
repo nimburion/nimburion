@@ -18,11 +18,11 @@ type Server struct {
 	httpServer *http.Server
 	router     router.Router
 	logger     logger.Logger
-	config     ServerConfig
+	config     Config
 }
 
-// ServerConfig holds configuration for the HTTP server.
-type ServerConfig struct {
+// Config holds configuration for the HTTP server.
+type Config struct {
 	Port         int
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
@@ -33,7 +33,7 @@ type ServerConfig struct {
 // NewServer creates a new Server instance with the provided configuration.
 // The router parameter defines the HTTP routing behavior.
 // The logger parameter is used for structured logging of server lifecycle events.
-func NewServer(cfg ServerConfig, router router.Router, logger logger.Logger) *Server {
+func NewServer(cfg Config, router router.Router, logger logger.Logger) *Server {
 	return &Server{
 		router: router,
 		logger: logger,

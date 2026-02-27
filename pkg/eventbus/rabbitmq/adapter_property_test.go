@@ -19,7 +19,7 @@ func TestProperty_ClosePreventsPublish(t *testing.T) {
 
 	properties.Property("closed adapter always rejects publish", prop.ForAll(
 		func(body string) bool {
-			a := &RabbitMQAdapter{closed: true, subs: map[string]*subscription{}}
+			a := &Adapter{closed: true, subs: map[string]*subscription{}}
 			msg := &eventbus.Message{ID: "id", Value: []byte(body), Timestamp: time.Now()}
 			return a.Publish(context.Background(), "topic", msg) != nil
 		},

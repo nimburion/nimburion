@@ -90,8 +90,8 @@ func (l *TokenBucketLimiter) getLimiter(key string) *rate.Limiter {
 	return limiter
 }
 
-// RateLimitConfig defines the configuration for rate limiting middleware.
-type RateLimitConfig struct {
+// Config defines the configuration for rate limiting middleware.
+type Config struct {
 	// RequestsPerSecond is the maximum average number of requests allowed per second.
 	RequestsPerSecond int
 	// Burst is the maximum number of requests allowed in a burst.
@@ -114,7 +114,7 @@ type RateLimitConfig struct {
 //
 //	// Per-IP rate limiting
 //	limiter := NewTokenBucketLimiter(100, 200)
-//	rateLimitMiddleware := RateLimit(limiter, RateLimitConfig{
+//	rateLimitMiddleware := RateLimit(limiter, Config{
 //	    RequestsPerSecond: 100,
 //	    Burst:             200,
 //	    KeyFunc: func(c router.Context) string {
@@ -123,7 +123,7 @@ type RateLimitConfig struct {
 //	})
 //
 //	// Per-user rate limiting
-//	rateLimitMiddleware := RateLimit(limiter, RateLimitConfig{
+//	rateLimitMiddleware := RateLimit(limiter, Config{
 //	    RequestsPerSecond: 100,
 //	    Burst:             200,
 //	    KeyFunc: func(c router.Context) string {
@@ -133,7 +133,7 @@ type RateLimitConfig struct {
 //	})
 //
 // Requirements: 34.1, 34.4, 34.5, 34.6, 34.7
-func RateLimit(limiter RateLimiter, cfg RateLimitConfig) router.MiddlewareFunc {
+func RateLimit(limiter RateLimiter, cfg Config) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
 			// Extract rate limiting key using the configured KeyFunc
@@ -164,7 +164,7 @@ func RateLimit(limiter RateLimiter, cfg RateLimitConfig) router.MiddlewareFunc {
 //
 // Example:
 //
-//	cfg := RateLimitConfig{
+//	cfg := Config{
 //	    KeyFunc: func(c router.Context) string {
 //	        return ExtractIPFromRequest(c.Request())
 //	    },
@@ -203,7 +203,7 @@ func ExtractIPFromRequest(r *http.Request) string {
 //
 // Example:
 //
-//	cfg := RateLimitConfig{
+//	cfg := Config{
 //	    KeyFunc: func(c router.Context) string {
 //	        return ExtractUserIDFromContext(c)
 //	    },

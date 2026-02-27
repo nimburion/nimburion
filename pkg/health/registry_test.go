@@ -479,19 +479,19 @@ func TestAggregatedResult_IsHealthy(t *testing.T) {
 	}
 }
 
-// mockHealthCheckable is a mock implementation of HealthCheckable for testing
-type mockHealthCheckable struct {
+// mockCheckable is a mock implementation of Checkable for testing
+type mockCheckable struct {
 	err error
 }
 
-func (m *mockHealthCheckable) HealthCheck(ctx context.Context) error {
+func (m *mockCheckable) HealthCheck(ctx context.Context) error {
 	return m.err
 }
 
 // TestAdapterChecker tests the adapter checker implementation
 func TestAdapterChecker(t *testing.T) {
 	t.Run("healthy adapter", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: nil}
+		adapter := &mockCheckable{err: nil}
 		checker := NewAdapterChecker("test-adapter", adapter, 5*time.Second)
 		
 		ctx := context.Background()
@@ -511,7 +511,7 @@ func TestAdapterChecker(t *testing.T) {
 	})
 	
 	t.Run("unhealthy adapter", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: errors.New("connection failed")}
+		adapter := &mockCheckable{err: errors.New("connection failed")}
 		checker := NewAdapterChecker("test-adapter", adapter, 5*time.Second)
 		
 		ctx := context.Background()
@@ -527,7 +527,7 @@ func TestAdapterChecker(t *testing.T) {
 	})
 	
 	t.Run("default timeout", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: nil}
+		adapter := &mockCheckable{err: nil}
 		checker := NewAdapterChecker("test-adapter", adapter, 0)
 		
 		if checker.timeout != 5*time.Second {

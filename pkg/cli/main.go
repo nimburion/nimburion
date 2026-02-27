@@ -35,17 +35,28 @@ const (
 )
 
 // CommandPolicy defines the supported command policy values.
+// CommandPolicy defines when a CLI command should be executed.
 type CommandPolicy string
 
+// Command execution policy constants
 const (
-	PolicyAlways      CommandPolicy = "always"
-	PolicyNever       CommandPolicy = "never"
-	PolicyOnce        CommandPolicy = "once"
-	PolicyMigration   CommandPolicy = "migration"
-	PolicyRun         CommandPolicy = "run"
-	PolicyManual      CommandPolicy = "manual"
-	PolicyOnDemand    CommandPolicy = "on_demand"
-	PolicyScheduled   CommandPolicy = "scheduled"
+	// PolicyAlways executes the command every time
+	PolicyAlways CommandPolicy = "always"
+	// PolicyNever skips command execution
+	PolicyNever CommandPolicy = "never"
+	// PolicyOnce executes the command only once
+	PolicyOnce CommandPolicy = "once"
+	// PolicyMigration executes during migration phase
+	PolicyMigration CommandPolicy = "migration"
+	// PolicyRun executes during normal runtime
+	PolicyRun CommandPolicy = "run"
+	// PolicyManual requires manual execution
+	PolicyManual CommandPolicy = "manual"
+	// PolicyOnDemand executes on demand
+	PolicyOnDemand CommandPolicy = "on_demand"
+	// PolicyScheduled executes on a schedule
+	PolicyScheduled CommandPolicy = "scheduled"
+	// PolicyConditional executes based on conditions
 	PolicyConditional CommandPolicy = "conditional"
 )
 
@@ -1281,6 +1292,7 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 	}
 }
 
+// LoadConfigAndLogger loads configuration and initializes logger with optional custom validation
 func LoadConfigAndLogger(
 	cfgPath,
 	envPrefix,

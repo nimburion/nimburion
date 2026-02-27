@@ -2,26 +2,41 @@ package config
 
 import "time"
 
+// Database type constants
 const (
+	// DatabaseTypePostgres represents PostgreSQL database
 	DatabaseTypePostgres = "postgres"
-	DatabaseTypeMySQL    = "mysql"
-	DatabaseTypeMongoDB  = "mongodb"
+	// DatabaseTypeMySQL represents MySQL database
+	DatabaseTypeMySQL = "mysql"
+	// DatabaseTypeMongoDB represents MongoDB database
+	DatabaseTypeMongoDB = "mongodb"
+	// DatabaseTypeDynamoDB represents AWS DynamoDB
 	DatabaseTypeDynamoDB = "dynamodb"
 )
 
+// Event bus type constants
 const (
-	EventBusTypeKafka    = "kafka"
+	// EventBusTypeKafka represents Apache Kafka event bus
+	EventBusTypeKafka = "kafka"
+	// EventBusTypeRabbitMQ represents RabbitMQ event bus
 	EventBusTypeRabbitMQ = "rabbitmq"
-	EventBusTypeSQS      = "sqs"
+	// EventBusTypeSQS represents AWS SQS event bus
+	EventBusTypeSQS = "sqs"
 )
 
+// Jobs backend type constants
 const (
+	// JobsBackendEventBus uses event bus for job queue
 	JobsBackendEventBus = "eventbus"
-	JobsBackendRedis    = "redis"
+	// JobsBackendRedis uses Redis for job queue
+	JobsBackendRedis = "redis"
 )
 
+// Scheduler lock provider constants
 const (
-	SchedulerLockProviderRedis    = "redis"
+	// SchedulerLockProviderRedis uses Redis for distributed locks
+	SchedulerLockProviderRedis = "redis"
+	// SchedulerLockProviderPostgres uses PostgreSQL for distributed locks
 	SchedulerLockProviderPostgres = "postgres"
 )
 

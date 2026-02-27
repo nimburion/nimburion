@@ -20,19 +20,19 @@ func (m *mockLogger) Error(string, ...any)                      {}
 func (m *mockLogger) With(...any) logger.Logger                 { return m }
 func (m *mockLogger) WithContext(context.Context) logger.Logger { return m }
 
-func TestNewSQSAdapter_Validation(t *testing.T) {
-	_, err := NewSQSAdapter(Config{}, &mockLogger{})
+func TestNewAdapter_Validation(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected error for empty region and queue URL")
 	}
-	_, err = NewSQSAdapter(Config{Region: "eu-west-1"}, &mockLogger{})
+	_, err = NewAdapter(Config{Region: "eu-west-1"}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected error for empty queue URL")
 	}
 }
 
 func TestClosedAdapterOperations(t *testing.T) {
-	a := &SQSAdapter{closed: true, subs: map[string]context.CancelFunc{}, logger: &mockLogger{}}
+	a := &Adapter{closed: true, subs: map[string]context.CancelFunc{}, logger: &mockLogger{}}
 	msg := &eventbus.Message{ID: "1", Value: []byte("v"), Timestamp: time.Now()}
 
 	if err := a.Publish(context.Background(), "", msg); err == nil {
@@ -50,7 +50,7 @@ func TestClosedAdapterOperations(t *testing.T) {
 }
 
 func TestResolveQueueURL(t *testing.T) {
-	a := &SQSAdapter{config: Config{QueueURL: "default"}}
+	a := &Adapter{config: Config{QueueURL: "default"}}
 	if got := a.resolveQueueURL("override"); got != "override" {
 		t.Fatalf("expected override queue, got %s", got)
 	}
@@ -104,7 +104,7 @@ func TestAttributesConversionNonString(t *testing.T) {
 
 func TestUnsubscribe(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	a := &SQSAdapter{subs: map[string]context.CancelFunc{"topic": cancel}}
+	a := &Adapter{subs: map[string]context.CancelFunc{"topic": cancel}}
 	
 	err := a.Unsubscribe("topic")
 	if err != nil {

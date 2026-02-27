@@ -10,7 +10,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-func TestNetHTTPRouter_BasicRouting(t *testing.T) {
+func TestRouter_BasicRouting(t *testing.T) {
 	tests := []struct {
 		name           string
 		method         string
@@ -106,7 +106,7 @@ func TestNetHTTPRouter_BasicRouting(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_PathParameters(t *testing.T) {
+func TestRouter_PathParameters(t *testing.T) {
 	r := NewRouter()
 
 	r.GET("/users/:id/posts/:postId", func(c router.Context) error {
@@ -141,7 +141,7 @@ func TestNetHTTPRouter_PathParameters(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_QueryParameters(t *testing.T) {
+func TestRouter_QueryParameters(t *testing.T) {
 	r := NewRouter()
 
 	r.GET("/search", func(c router.Context) error {
@@ -170,7 +170,7 @@ func TestNetHTTPRouter_QueryParameters(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_JSONBinding(t *testing.T) {
+func TestRouter_JSONBinding(t *testing.T) {
 	r := NewRouter()
 
 	type User struct {
@@ -213,7 +213,7 @@ func TestNetHTTPRouter_JSONBinding(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_Middleware(t *testing.T) {
+func TestRouter_Middleware(t *testing.T) {
 	r := NewRouter()
 
 	// Global middleware
@@ -245,7 +245,7 @@ func TestNetHTTPRouter_Middleware(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_RouteSpecificMiddleware(t *testing.T) {
+func TestRouter_RouteSpecificMiddleware(t *testing.T) {
 	r := NewRouter()
 
 	middleware := func(next router.HandlerFunc) router.HandlerFunc {
@@ -290,7 +290,7 @@ func TestNetHTTPRouter_RouteSpecificMiddleware(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_Group(t *testing.T) {
+func TestRouter_Group(t *testing.T) {
 	r := NewRouter()
 
 	api := r.Group("/api")
@@ -330,7 +330,7 @@ func TestNetHTTPRouter_Group(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_NotFound(t *testing.T) {
+func TestRouter_NotFound(t *testing.T) {
 	r := NewRouter()
 
 	r.GET("/users", func(c router.Context) error {
@@ -347,7 +347,7 @@ func TestNetHTTPRouter_NotFound(t *testing.T) {
 	}
 }
 
-func TestNetHTTPRouter_ContextStore(t *testing.T) {
+func TestRouter_ContextStore(t *testing.T) {
 	r := NewRouter()
 
 	r.GET("/test", func(c router.Context) error {

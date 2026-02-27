@@ -8,12 +8,17 @@ import (
 )
 
 // Status represents the health status of a component
+// Status represents the health status of a component.
 type Status string
 
+// Health status constants
 const (
-	StatusHealthy   Status = "healthy"
+	// StatusHealthy indicates the component is fully operational
+	StatusHealthy Status = "healthy"
+	// StatusUnhealthy indicates the component is not operational
 	StatusUnhealthy Status = "unhealthy"
-	StatusDegraded  Status = "degraded"
+	// StatusDegraded indicates the component is partially operational
+	StatusDegraded Status = "degraded"
 )
 
 // CheckResult represents the result of a health check

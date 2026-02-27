@@ -21,7 +21,7 @@ func TestNewDynamoDBExecutor_Validation(t *testing.T) {
 		t.Fatal("expected error for nil adapter")
 	}
 
-	exec, err := NewDynamoDBExecutor(&dynamostore.DynamoDBAdapter{})
+	exec, err := NewDynamoDBExecutor(&dynamostore.Adapter{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestNewMongoDBExecutor_Validation(t *testing.T) {
 		t.Fatal("expected error for nil adapter")
 	}
 
-	exec, err := NewMongoDBExecutor(&mongostore.MongoDBAdapter{})
+	exec, err := NewMongoDBExecutor(&mongostore.Adapter{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

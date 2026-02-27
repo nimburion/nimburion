@@ -8,8 +8,11 @@ import (
 	"time"
 )
 
+// Misfire policy constants define how to handle missed scheduled executions
 const (
-	MisfirePolicySkip     = "skip"
+	// MisfirePolicySkip skips missed executions
+	MisfirePolicySkip = "skip"
+	// MisfirePolicyFireOnce fires once for all missed executions
 	MisfirePolicyFireOnce = "fire_once"
 
 	maxCronSearchIterations = 5 * 366 * 24 * 60

@@ -515,8 +515,8 @@ security:
 		t.Fatalf("create temp config file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
-	if _, err := tmpFile.WriteString(content); err != nil {
-		t.Fatalf("write temp config file: %v", err)
+	if _, writeErr := tmpFile.WriteString(content); writeErr != nil {
+		t.Fatalf("write temp config file: %v", writeErr)
 	}
 	_ = tmpFile.Close()
 

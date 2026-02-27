@@ -22,7 +22,7 @@ func TestProperty_ClosePreventsSubsequentOperations(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			a := &MySQLAdapter{db: db, logger: &mockLogger{}}
+			a := &Adapter{db: db, logger: &mockLogger{}}
 			_ = a.Close()
 			_, err = a.ExecContext(context.Background(), query)
 			return err != nil

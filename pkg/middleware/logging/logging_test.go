@@ -193,11 +193,11 @@ func TestLogging_DurationTracking(t *testing.T) {
 	}
 }
 
-func TestLoggingWithConfig_ExcludedPath(t *testing.T) {
+func TestWithConfig_ExcludedPath(t *testing.T) {
 	mock := &testutil.MockLogger{}
 
 	r := nethttp.NewRouter()
-	r.Use(LoggingWithConfig(mock, Config{
+	r.Use(WithConfig(mock, Config{
 		Enabled:              true,
 		LogStart:             true,
 		ExcludedPathPrefixes: []string{"/health"},
@@ -216,11 +216,11 @@ func TestLoggingWithConfig_ExcludedPath(t *testing.T) {
 	}
 }
 
-func TestLoggingWithConfig_PathPolicyMinimal(t *testing.T) {
+func TestWithConfig_PathPolicyMinimal(t *testing.T) {
 	mock := &testutil.MockLogger{}
 
 	r := nethttp.NewRouter()
-	r.Use(LoggingWithConfig(mock, Config{
+	r.Use(WithConfig(mock, Config{
 		Enabled:  true,
 		LogStart: true,
 		PathPolicies: []PathPolicy{
@@ -244,11 +244,11 @@ func TestLoggingWithConfig_PathPolicyMinimal(t *testing.T) {
 	}
 }
 
-func TestLoggingWithConfig_UsesConfiguredFields(t *testing.T) {
+func TestWithConfig_UsesConfiguredFields(t *testing.T) {
 	mock := &testutil.MockLogger{}
 
 	r := nethttp.NewRouter()
-	r.Use(LoggingWithConfig(mock, Config{
+	r.Use(WithConfig(mock, Config{
 		Enabled: true,
 		Fields: []string{
 			"request_method",

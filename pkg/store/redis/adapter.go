@@ -10,8 +10,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// RedisAdapter provides Redis cache connectivity with connection pooling
-type RedisAdapter struct {
+// Adapter provides Redis cache connectivity with connection pooling
+type Adapter struct {
 	client *redis.Client
 	logger logger.Logger
 	config Config
@@ -24,8 +24,8 @@ type Config struct {
 	OperationTimeout time.Duration
 }
 
-// NewRedisAdapter creates a new Redis adapter with connection pooling
-func NewRedisAdapter(cfg Config, log logger.Logger) (*RedisAdapter, error) {
+// NewAdapter creates a new Redis adapter with connection pooling
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("redis URL is required")
 	}
@@ -59,7 +59,7 @@ func NewRedisAdapter(cfg Config, log logger.Logger) (*RedisAdapter, error) {
 		"operation_timeout", cfg.OperationTimeout,
 	)
 
-	return &RedisAdapter{
+	return &Adapter{
 		client: client,
 		logger: log,
 		config: cfg,
@@ -67,17 +67,17 @@ func NewRedisAdapter(cfg Config, log logger.Logger) (*RedisAdapter, error) {
 }
 
 // Client returns the underlying *redis.Client for direct access when needed
-func (a *RedisAdapter) Client() *redis.Client {
+func (a *Adapter) Client() *redis.Client {
 	return a.client
 }
 
 // Ping verifies the Redis connection is alive
-func (a *RedisAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	return a.client.Ping(ctx).Err()
 }
 
 // Get retrieves a value from Redis by key
-func (a *RedisAdapter) Get(ctx context.Context, key string) (string, error) {
+func (a *Adapter) Get(ctx context.Context, key string) (string, error) {
 	val, err := a.client.Get(ctx, key).Result()
 	if err == redis.Nil {
 		return "", fmt.Errorf("key not found: %s", key)
@@ -89,7 +89,7 @@ func (a *RedisAdapter) Get(ctx context.Context, key string) (string, error) {
 }
 
 // Set stores a key-value pair in Redis without expiration
-func (a *RedisAdapter) Set(ctx context.Context, key string, value interface{}) error {
+func (a *Adapter) Set(ctx context.Context, key string, value interface{}) error {
 	if err := a.client.Set(ctx, key, value, 0).Err(); err != nil {
 		return fmt.Errorf("failed to set key %s: %w", key, err)
 	}
@@ -97,7 +97,7 @@ func (a *RedisAdapter) Set(ctx context.Context, key string, value interface{}) e
 }
 
 // SetWithTTL stores a key-value pair in Redis with expiration
-func (a *RedisAdapter) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (a *Adapter) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
 	if err := a.client.Set(ctx, key, value, ttl).Err(); err != nil {
 		return fmt.Errorf("failed to set key %s with TTL: %w", key, err)
 	}
@@ -105,7 +105,7 @@ func (a *RedisAdapter) SetWithTTL(ctx context.Context, key string, value interfa
 }
 
 // Delete removes a key from Redis
-func (a *RedisAdapter) Delete(ctx context.Context, keys ...string) error {
+func (a *Adapter) Delete(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
 	}
@@ -117,7 +117,7 @@ func (a *RedisAdapter) Delete(ctx context.Context, keys ...string) error {
 }
 
 // Incr atomically increments the value of a key by 1
-func (a *RedisAdapter) Incr(ctx context.Context, key string) (int64, error) {
+func (a *Adapter) Incr(ctx context.Context, key string) (int64, error) {
 	val, err := a.client.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to increment key %s: %w", key, err)
@@ -126,7 +126,7 @@ func (a *RedisAdapter) Incr(ctx context.Context, key string) (int64, error) {
 }
 
 // IncrBy atomically increments the value of a key by the specified amount
-func (a *RedisAdapter) IncrBy(ctx context.Context, key string, value int64) (int64, error) {
+func (a *Adapter) IncrBy(ctx context.Context, key string, value int64) (int64, error) {
 	val, err := a.client.IncrBy(ctx, key, value).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to increment key %s by %d: %w", key, value, err)
@@ -135,7 +135,7 @@ func (a *RedisAdapter) IncrBy(ctx context.Context, key string, value int64) (int
 }
 
 // Decr atomically decrements the value of a key by 1
-func (a *RedisAdapter) Decr(ctx context.Context, key string) (int64, error) {
+func (a *Adapter) Decr(ctx context.Context, key string) (int64, error) {
 	val, err := a.client.Decr(ctx, key).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to decrement key %s: %w", key, err)
@@ -144,7 +144,7 @@ func (a *RedisAdapter) Decr(ctx context.Context, key string) (int64, error) {
 }
 
 // DecrBy atomically decrements the value of a key by the specified amount
-func (a *RedisAdapter) DecrBy(ctx context.Context, key string, value int64) (int64, error) {
+func (a *Adapter) DecrBy(ctx context.Context, key string, value int64) (int64, error) {
 	val, err := a.client.DecrBy(ctx, key, value).Result()
 	if err != nil {
 		return 0, fmt.Errorf("failed to decrement key %s by %d: %w", key, value, err)
@@ -153,7 +153,7 @@ func (a *RedisAdapter) DecrBy(ctx context.Context, key string, value int64) (int
 }
 
 // HealthCheck verifies the Redis connection is healthy with a timeout
-func (a *RedisAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -166,7 +166,7 @@ func (a *RedisAdapter) HealthCheck(ctx context.Context) error {
 }
 
 // Close gracefully closes the Redis connection
-func (a *RedisAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing Redis connection")
 	
 	if err := a.client.Close(); err != nil {

@@ -52,8 +52,8 @@ type presignAPI interface {
 	PresignGetObject(ctx context.Context, params *awss3.GetObjectInput, optFns ...func(*awss3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
 }
 
-// S3Adapter provides object storage operations backed by AWS S3 API.
-type S3Adapter struct {
+// Adapter provides object storage operations backed by AWS S3 API.
+type Adapter struct {
 	client  s3API
 	presign presignAPI
 	logger  logger.Logger
@@ -63,8 +63,8 @@ type S3Adapter struct {
 	closed bool
 }
 
-// NewS3Adapter creates a new S3 adapter and verifies bucket accessibility.
-func NewS3Adapter(cfg Config, log logger.Logger) (*S3Adapter, error) {
+// NewAdapter creates a new S3 adapter and verifies bucket accessibility.
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if strings.TrimSpace(cfg.Bucket) == "" {
 		return nil, errors.New("s3 bucket is required")
 	}
@@ -103,7 +103,7 @@ func NewS3Adapter(cfg Config, log logger.Logger) (*S3Adapter, error) {
 	}
 
 	client := awss3.NewFromConfig(awsCfg, clientOptions...)
-	adapter := &S3Adapter{
+	adapter := &Adapter{
 		client:  client,
 		presign: awss3.NewPresignClient(client),
 		logger:  log,
@@ -121,7 +121,7 @@ func NewS3Adapter(cfg Config, log logger.Logger) (*S3Adapter, error) {
 }
 
 // Ping verifies that the configured bucket is accessible.
-func (a *S3Adapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	if err := a.ensureOpen(); err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (a *S3Adapter) Ping(ctx context.Context) error {
 }
 
 // Upload stores an object and returns its ETag (without quotes when present).
-func (a *S3Adapter) Upload(ctx context.Context, key string, body io.Reader, contentType string, metadata map[string]string) (string, error) {
+func (a *Adapter) Upload(ctx context.Context, key string, body io.Reader, contentType string, metadata map[string]string) (string, error) {
 	if err := a.ensureOpen(); err != nil {
 		return "", err
 	}
@@ -170,12 +170,12 @@ func (a *S3Adapter) Upload(ctx context.Context, key string, body io.Reader, cont
 }
 
 // UploadBytes stores an object from an in-memory byte slice.
-func (a *S3Adapter) UploadBytes(ctx context.Context, key string, payload []byte, contentType string, metadata map[string]string) (string, error) {
+func (a *Adapter) UploadBytes(ctx context.Context, key string, payload []byte, contentType string, metadata map[string]string) (string, error) {
 	return a.Upload(ctx, key, bytes.NewReader(payload), contentType, metadata)
 }
 
 // Download fetches an object payload and returns bytes + content type.
-func (a *S3Adapter) Download(ctx context.Context, key string) ([]byte, string, error) {
+func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, error) {
 	if err := a.ensureOpen(); err != nil {
 		return nil, "", err
 	}
@@ -205,7 +205,7 @@ func (a *S3Adapter) Download(ctx context.Context, key string) ([]byte, string, e
 }
 
 // Delete removes an object by key.
-func (a *S3Adapter) Delete(ctx context.Context, key string) error {
+func (a *Adapter) Delete(ctx context.Context, key string) error {
 	if err := a.ensureOpen(); err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (a *S3Adapter) Delete(ctx context.Context, key string) error {
 }
 
 // List returns object metadata for a prefix.
-func (a *S3Adapter) List(ctx context.Context, prefix string, maxKeys int32) ([]ObjectInfo, error) {
+func (a *Adapter) List(ctx context.Context, prefix string, maxKeys int32) ([]ObjectInfo, error) {
 	if err := a.ensureOpen(); err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (a *S3Adapter) List(ctx context.Context, prefix string, maxKeys int32) ([]O
 }
 
 // PresignGetURL generates a temporary download URL.
-func (a *S3Adapter) PresignGetURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+func (a *Adapter) PresignGetURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	if err := a.ensureOpen(); err != nil {
 		return "", err
 	}
@@ -284,7 +284,7 @@ func (a *S3Adapter) PresignGetURL(ctx context.Context, key string, expiry time.D
 }
 
 // HealthCheck verifies the adapter can reach the bucket within a short timeout.
-func (a *S3Adapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if err := a.Ping(hcCtx); err != nil {
@@ -295,21 +295,21 @@ func (a *S3Adapter) HealthCheck(ctx context.Context) error {
 }
 
 // Close marks the adapter as closed.
-func (a *S3Adapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.closed = true
 	return nil
 }
 
-func (a *S3Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.config.OperationTimeout <= 0 {
 		return context.WithCancel(ctx)
 	}
 	return context.WithTimeout(ctx, a.config.OperationTimeout)
 }
 
-func (a *S3Adapter) ensureOpen() error {
+func (a *Adapter) ensureOpen() error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {

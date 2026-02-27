@@ -36,10 +36,10 @@ type DynamoExecutor interface {
 
 // DynamoDBExecutor adapts store/dynamodb adapter to the repository/document executor contract.
 type DynamoDBExecutor struct {
-	adapter *dynamostore.DynamoDBAdapter
+	adapter *dynamostore.Adapter
 }
 
-func NewDynamoDBExecutor(adapter *dynamostore.DynamoDBAdapter) (*DynamoDBExecutor, error) {
+func NewDynamoDBExecutor(adapter *dynamostore.Adapter) (*DynamoDBExecutor, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("dynamodb adapter is required")
 	}

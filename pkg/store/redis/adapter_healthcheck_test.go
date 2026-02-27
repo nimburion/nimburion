@@ -8,11 +8,11 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// TestRedisAdapter_HealthCheckAndClose_Unit tests the HealthCheck and Close methods
+// TestAdapter_HealthCheckAndClose_Unit tests the HealthCheck and Close methods
 // without requiring a real Redis instance.
 //
 // **Validates: Requirements 21.4, 21.5, 21.6**
-func TestRedisAdapter_HealthCheckAndClose_Unit(t *testing.T) {
+func TestAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 	log, err := logger.NewZapLogger(logger.Config{
 		Level:  logger.InfoLevel,
 		Format: logger.JSONFormat,
@@ -30,7 +30,7 @@ func TestRedisAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 		}
 
 		// This should fail during connection
-		_, err := NewRedisAdapter(cfg, log)
+		_, err := NewAdapter(cfg, log)
 		if err == nil {
 			t.Error("Expected error when connecting to non-existent Redis, got nil")
 		}
@@ -47,7 +47,7 @@ func TestRedisAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 
 		// We can't test Close without a real connection, but we verify the method exists
 		// and has the correct signature by checking compilation
-		var adapter *RedisAdapter
+		var adapter *Adapter
 		if adapter != nil {
 			_ = adapter.Close()
 			_ = adapter.HealthCheck(context.Background())
@@ -68,7 +68,7 @@ func TestRedisAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		var adapter *RedisAdapter
+		var adapter *Adapter
 		if adapter != nil {
 			_ = adapter.HealthCheck(ctx)
 		}

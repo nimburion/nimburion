@@ -12,9 +12,13 @@ const (
 	DefaultDLQSuffix = ".dlq"
 )
 
+// Job metadata header constants
 const (
+	// HeaderJobFailureReason stores the reason for job failure
 	HeaderJobFailureReason = "job_failure_reason"
-	HeaderJobFailedAt      = "job_failed_at"
+	// HeaderJobFailedAt stores the timestamp when job failed
+	HeaderJobFailedAt = "job_failed_at"
+	// HeaderJobOriginalQueue stores the original queue name for DLQ entries
 	HeaderJobOriginalQueue = "job_original_queue"
 )
 

@@ -20,8 +20,8 @@ func (m *mockLogger) Error(string, ...any)                      {}
 func (m *mockLogger) With(...any) logger.Logger                 { return m }
 func (m *mockLogger) WithContext(context.Context) logger.Logger { return m }
 
-func TestNewMySQLAdapter_Validation(t *testing.T) {
-	_, err := NewMySQLAdapter(Config{}, &mockLogger{})
+func TestNewAdapter_Validation(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected error for empty URL")
 	}
@@ -63,7 +63,7 @@ func TestClosePreventsSubsequentOperations(t *testing.T) {
 	defer db.Close()
 	expectations.ExpectClose()
 
-	a := &MySQLAdapter{db: db, logger: &mockLogger{}}
+	a := &Adapter{db: db, logger: &mockLogger{}}
 	if err := a.Close(); err != nil {
 		t.Fatalf("close error: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestWithTransaction_RollbackOnError(t *testing.T) {
 	}
 	defer db.Close()
 
-	a := &MySQLAdapter{db: db, logger: &mockLogger{}}
+	a := &Adapter{db: db, logger: &mockLogger{}}
 
 	mock.ExpectBegin()
 	mock.ExpectRollback()
@@ -112,7 +112,7 @@ func TestWithTransaction_CommitOnSuccess(t *testing.T) {
 	}
 	defer db.Close()
 
-	a := &MySQLAdapter{db: db, logger: &mockLogger{}}
+	a := &Adapter{db: db, logger: &mockLogger{}}
 
 	mock.ExpectBegin()
 	mock.ExpectCommit()
@@ -136,7 +136,7 @@ func TestQueryRowContext_UsesDBWhenNoTx(t *testing.T) {
 	}
 	defer db.Close()
 
-	a := &MySQLAdapter{db: db, logger: &mockLogger{}, config: Config{QueryTimeout: 2 * time.Second}}
+	a := &Adapter{db: db, logger: &mockLogger{}, config: Config{QueryTimeout: 2 * time.Second}}
 	mock.ExpectQuery("SELECT 1").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 
 	var v int
@@ -149,7 +149,7 @@ func TestQueryRowContext_UsesDBWhenNoTx(t *testing.T) {
 }
 
 func TestWithQueryTimeout_UsesConfigWhenNoDeadline(t *testing.T) {
-	a := &MySQLAdapter{config: Config{QueryTimeout: 2 * time.Second}}
+	a := &Adapter{config: Config{QueryTimeout: 2 * time.Second}}
 
 	ctx, cancel := a.withQueryTimeout(context.Background())
 	defer cancel()
@@ -164,7 +164,7 @@ func TestWithQueryTimeout_UsesConfigWhenNoDeadline(t *testing.T) {
 }
 
 func TestWithQueryTimeout_PreservesCallerDeadline(t *testing.T) {
-	a := &MySQLAdapter{config: Config{QueryTimeout: 2 * time.Second}}
+	a := &Adapter{config: Config{QueryTimeout: 2 * time.Second}}
 	parentCtx, parentCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer parentCancel()
 

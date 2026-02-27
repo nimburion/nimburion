@@ -1,7 +1,17 @@
-.PHONY: test test-fast test-coverage test-parallel help
+.PHONY: test test-fast test-coverage test-parallel lint lint-fix help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+lint: ## Run linter
+	golangci-lint run
+
+lint-fix: ## Run linter and apply automated fixes
+	@echo "Applying automated fixes..."
+	@bash scripts/apply-all-fixes.sh
+
+lint-critical: ## Show only critical security issues
+	golangci-lint run --disable-all -E gosec,errcheck --max-issues-per-linter=50
 
 test: ## Run all tests
 	./scripts/test.sh

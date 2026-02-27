@@ -34,7 +34,7 @@ func NewEventBusAdapterWithValidation(
 
 	switch strings.ToLower(strings.TrimSpace(cfg.Type)) {
 	case "kafka":
-		base, err = kafka.NewKafkaAdapter(kafka.Config{
+		base, err = kafka.NewAdapter(kafka.Config{
 			Brokers:          cfg.Brokers,
 			OperationTimeout: cfg.OperationTimeout,
 			GroupID:          cfg.GroupID,
@@ -44,7 +44,7 @@ func NewEventBusAdapterWithValidation(
 		if url == "" && len(cfg.Brokers) > 0 {
 			url = cfg.Brokers[0]
 		}
-		base, err = rabbitmq.NewRabbitMQAdapter(rabbitmq.Config{
+		base, err = rabbitmq.NewAdapter(rabbitmq.Config{
 			URL:              url,
 			Exchange:         cfg.Exchange,
 			ExchangeType:     cfg.ExchangeType,
@@ -54,7 +54,7 @@ func NewEventBusAdapterWithValidation(
 			ConsumerTag:      cfg.ConsumerTag,
 		}, log)
 	case "sqs":
-		base, err = sqs.NewSQSAdapter(sqs.Config{
+		base, err = sqs.NewAdapter(sqs.Config{
 			Region:            cfg.Region,
 			QueueURL:          cfg.QueueURL,
 			Endpoint:          cfg.Endpoint,

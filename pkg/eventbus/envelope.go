@@ -8,24 +8,33 @@ import (
 	"time"
 )
 
+// Event envelope constants
 const (
+	// EventEnvelopeContentType is the default content type for event envelopes
 	EventEnvelopeContentType = "application/json"
 )
 
 // DataClass identifies the PII sensitivity of an event.
 type DataClass string
 
+// Data classification constants
 const (
-	DataClassPublic     DataClass = "public"
-	DataClassInternal   DataClass = "internal"
+	// DataClassPublic indicates publicly shareable data
+	DataClassPublic DataClass = "public"
+	// DataClassInternal indicates internal-only data
+	DataClassInternal DataClass = "internal"
+	// DataClassRestricted indicates restricted/sensitive data
 	DataClassRestricted DataClass = "restricted"
 )
 
 // ActorType identifies who triggered the event.
 type ActorType string
 
+// Actor type constants
 const (
-	ActorTypeUser    ActorType = "user"
+	// ActorTypeUser indicates a user triggered the event
+	ActorTypeUser ActorType = "user"
+	// ActorTypeService indicates a service triggered the event
 	ActorTypeService ActorType = "service"
 )
 

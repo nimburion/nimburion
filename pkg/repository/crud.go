@@ -39,10 +39,14 @@ type Sort struct {
 }
 
 // SortOrder defines the direction of sorting
+// SortOrder defines the sort direction for queries.
 type SortOrder string
 
+// Sort order constants
 const (
-	SortAsc  SortOrder = "asc"
+	// SortAsc sorts in ascending order
+	SortAsc SortOrder = "asc"
+	// SortDesc sorts in descending order
 	SortDesc SortOrder = "desc"
 )
 

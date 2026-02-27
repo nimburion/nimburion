@@ -11,20 +11,32 @@ import (
 	"github.com/nimburion/nimburion/pkg/eventbus"
 )
 
+// Job content type constants
 const (
+	// DefaultContentType is the default content type for job payloads
 	DefaultContentType = "application/json"
 )
 
+// Job header constants
 const (
-	HeaderJobID             = "job_id"
-	HeaderJobName           = "job_name"
-	HeaderJobQueue          = "job_queue"
-	HeaderJobTenantID       = "job_tenant_id"
-	HeaderJobCorrelationID  = "job_correlation_id"
+	// HeaderJobID is the unique job identifier
+	HeaderJobID = "job_id"
+	// HeaderJobName is the job handler name
+	HeaderJobName = "job_name"
+	// HeaderJobQueue is the queue name
+	HeaderJobQueue = "job_queue"
+	// HeaderJobTenantID is the tenant identifier
+	HeaderJobTenantID = "job_tenant_id"
+	// HeaderJobCorrelationID is the correlation identifier for tracing
+	HeaderJobCorrelationID = "job_correlation_id"
+	// HeaderJobIdempotencyKey ensures job is processed only once
 	HeaderJobIdempotencyKey = "job_idempotency_key"
-	HeaderJobRunAt          = "job_run_at"
-	HeaderJobAttempt        = "job_attempt"
-	HeaderJobMaxAttempts    = "job_max_attempts"
+	// HeaderJobRunAt is the scheduled execution time
+	HeaderJobRunAt = "job_run_at"
+	// HeaderJobAttempt is the current attempt number
+	HeaderJobAttempt = "job_attempt"
+	// HeaderJobMaxAttempts is the maximum retry attempts
+	HeaderJobMaxAttempts = "job_max_attempts"
 )
 
 // Job describes one logical application workload unit.

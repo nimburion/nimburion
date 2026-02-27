@@ -16,8 +16,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// SQSAdapter implements eventbus.EventBus for AWS SQS.
-type SQSAdapter struct {
+// Adapter implements eventbus.EventBus for AWS SQS.
+type Adapter struct {
 	client *sqs.Client
 	logger logger.Logger
 	config Config
@@ -42,8 +42,8 @@ type Config struct {
 
 // Cosa fa: crea adapter SQS con supporto endpoint custom e long polling.
 // Cosa NON fa: non crea code o policy IAM.
-// Esempio minimo: adapter, err := sqs.NewSQSAdapter(cfg, log)
-func NewSQSAdapter(cfg Config, log logger.Logger) (*SQSAdapter, error) {
+// Esempio minimo: adapter, err := sqs.NewAdapter(cfg, log)
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("aws region is required")
 	}
@@ -80,7 +80,7 @@ func NewSQSAdapter(cfg Config, log logger.Logger) (*SQSAdapter, error) {
 	}
 
 	client := sqs.NewFromConfig(awsCfg, opts...)
-	adapter := &SQSAdapter{
+	adapter := &Adapter{
 		client: client,
 		logger: log,
 		config: cfg,
@@ -92,7 +92,7 @@ func NewSQSAdapter(cfg Config, log logger.Logger) (*SQSAdapter, error) {
 	return adapter, nil
 }
 
-func (a *SQSAdapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
+func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -118,7 +118,7 @@ func (a *SQSAdapter) Publish(ctx context.Context, topic string, message *eventbu
 	return nil
 }
 
-func (a *SQSAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
+func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -156,7 +156,7 @@ func (a *SQSAdapter) PublishBatch(ctx context.Context, topic string, messages []
 	return nil
 }
 
-func (a *SQSAdapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
+func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
@@ -173,7 +173,7 @@ func (a *SQSAdapter) Subscribe(ctx context.Context, topic string, handler eventb
 	return nil
 }
 
-func (a *SQSAdapter) pollLoop(ctx context.Context, queueURL string, handler eventbus.MessageHandler) {
+func (a *Adapter) pollLoop(ctx context.Context, queueURL string, handler eventbus.MessageHandler) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -211,7 +211,7 @@ func (a *SQSAdapter) pollLoop(ctx context.Context, queueURL string, handler even
 	}
 }
 
-func (a *SQSAdapter) Unsubscribe(topic string) error {
+func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	cancel, ok := a.subs[topic]
@@ -223,7 +223,7 @@ func (a *SQSAdapter) Unsubscribe(topic string) error {
 	return nil
 }
 
-func (a *SQSAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -245,7 +245,7 @@ func (a *SQSAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (a *SQSAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
@@ -259,7 +259,7 @@ func (a *SQSAdapter) Close() error {
 	return nil
 }
 
-func (a *SQSAdapter) resolveQueueURL(topic string) string {
+func (a *Adapter) resolveQueueURL(topic string) string {
 	if topic != "" {
 		return topic
 	}

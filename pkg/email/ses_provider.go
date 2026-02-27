@@ -76,8 +76,8 @@ func (p *SESProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return err
 	}
-	if err := msg.validate(); err != nil {
-		return err
+	if validateErr := msg.validate(); validateErr != nil {
+		return validateErr
 	}
 
 	payload := map[string]interface{}{
@@ -124,8 +124,8 @@ func (p *SESProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return err
 	}
-	if err := p.signer.SignHTTP(cctx, creds, req, payloadHash, "ses", p.cfg.Region, time.Now().UTC()); err != nil {
-		return err
+	if signErr := p.signer.SignHTTP(cctx, creds, req, payloadHash, "ses", p.cfg.Region, time.Now().UTC()); signErr != nil {
+		return signErr
 	}
 
 	resp, err := p.httpClient.Do(req)

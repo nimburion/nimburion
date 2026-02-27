@@ -10,8 +10,11 @@ import (
 // RequestIDHeader is the HTTP header name for request ID.
 const RequestIDHeader = "X-Request-ID"
 
+// contextKey is a typed key for context values to avoid collisions.
+type contextKey string
+
 // RequestIDKey is the context key for storing request ID.
-const RequestIDKey = "request_id"
+const RequestIDKey contextKey = "request_id"
 
 // RequestID creates middleware that generates or extracts request IDs.
 // It generates a UUID for requests without X-Request-ID header,
@@ -31,7 +34,7 @@ func RequestID() router.MiddlewareFunc {
 			}
 			
 			// Store request ID in context for use by other middleware and handlers
-			c.Set(RequestIDKey, requestID)
+			c.Set(string(RequestIDKey), requestID)
 			
 			// Add request ID to response headers
 			c.Response().Header().Set(RequestIDHeader, requestID)

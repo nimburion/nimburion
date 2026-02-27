@@ -7,19 +7,32 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
+// Email provider type constants
 const (
-	ProviderSMTP       = "smtp"
-	ProviderSES        = "ses"
-	ProviderSendGrid   = "sendgrid"
-	ProviderMailgun    = "mailgun"
-	ProviderMailchimp  = "mailchimp"
+	// ProviderSMTP uses standard SMTP protocol
+	ProviderSMTP = "smtp"
+	// ProviderSES uses AWS Simple Email Service
+	ProviderSES = "ses"
+	// ProviderSendGrid uses SendGrid API
+	ProviderSendGrid = "sendgrid"
+	// ProviderMailgun uses Mailgun API
+	ProviderMailgun = "mailgun"
+	// ProviderMailchimp uses Mailchimp Transactional API
+	ProviderMailchimp = "mailchimp"
+	// ProviderMailerSend uses MailerSend API
 	ProviderMailerSend = "mailersend"
-	ProviderPostmark   = "postmark"
-	ProviderMailtrap   = "mailtrap"
-	ProviderSMTP2GO    = "smtp2go"
-	ProviderSendPulse  = "sendpulse"
-	ProviderBrevo      = "brevo"
-	ProviderMailjet    = "mailjet"
+	// ProviderPostmark uses Postmark API
+	ProviderPostmark = "postmark"
+	// ProviderMailtrap uses Mailtrap API
+	ProviderMailtrap = "mailtrap"
+	// ProviderSMTP2GO uses SMTP2GO API
+	ProviderSMTP2GO = "smtp2go"
+	// ProviderSendPulse uses SendPulse API
+	ProviderSendPulse = "sendpulse"
+	// ProviderBrevo uses Brevo (formerly Sendinblue) API
+	ProviderBrevo = "brevo"
+	// ProviderMailjet uses Mailjet API
+	ProviderMailjet = "mailjet"
 )
 
 // Config is the root provider factory configuration.

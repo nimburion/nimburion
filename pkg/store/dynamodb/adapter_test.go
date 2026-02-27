@@ -19,22 +19,22 @@ func (m *mockLogger) Error(string, ...any)                      {}
 func (m *mockLogger) With(...any) logger.Logger                 { return m }
 func (m *mockLogger) WithContext(context.Context) logger.Logger { return m }
 
-func TestNewDynamoDBAdapter_Validation(t *testing.T) {
-	_, err := NewDynamoDBAdapter(Config{}, &mockLogger{})
+func TestNewAdapter_Validation(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected error for empty region")
 	}
 }
 
 func TestPing_WhenClosed(t *testing.T) {
-	a := &DynamoDBAdapter{closed: true, logger: &mockLogger{}}
+	a := &Adapter{closed: true, logger: &mockLogger{}}
 	if err := a.Ping(context.Background()); err == nil {
 		t.Fatal("expected error when closed")
 	}
 }
 
 func TestClose_Idempotent(t *testing.T) {
-	a := &DynamoDBAdapter{}
+	a := &Adapter{}
 	if err := a.Close(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestIsThrottlingError(t *testing.T) {
 }
 
 func TestWithOperationTimeout_UsesAdapterTimeoutWhenNoDeadline(t *testing.T) {
-	a := &DynamoDBAdapter{timeout: 2 * time.Second}
+	a := &Adapter{timeout: 2 * time.Second}
 
 	ctx, cancel := a.withOperationTimeout(context.Background())
 	defer cancel()
@@ -71,7 +71,7 @@ func TestWithOperationTimeout_UsesAdapterTimeoutWhenNoDeadline(t *testing.T) {
 }
 
 func TestWithOperationTimeout_PreservesCallerDeadline(t *testing.T) {
-	a := &DynamoDBAdapter{timeout: 2 * time.Second}
+	a := &Adapter{timeout: 2 * time.Second}
 	parentCtx, parentCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer parentCancel()
 

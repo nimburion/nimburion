@@ -231,7 +231,7 @@ func NewPublicAPIServerWithConfig(
 		})
 	}
 
-	tracingCfg := tracing.TracingConfig{
+	tracingCfg := tracing.Config{
 		TracerName:           "http-server",
 		ExcludedPathPrefixes: obsCfg.RequestTracing.ExcludedPathPrefixes,
 		PathPolicies:         make([]tracing.PathPolicy, 0, len(obsCfg.RequestTracing.PathPolicies)),
@@ -268,7 +268,7 @@ func NewPublicAPIServerWithConfig(
 		{name: "csrf", fn: csrf.Middleware(csrfMiddlewareCfg)},
 		{name: "cors", fn: cors.Middleware(corsMiddlewareCfg)},
 		{name: "i18n", fn: i18nmiddleware.Middleware(i18nMiddlewareCfg)},
-		{name: "logging", fn: logging.LoggingWithConfig(effectiveLogger, loggingCfg)},
+		{name: "logging", fn: logging.WithConfig(effectiveLogger, loggingCfg)},
 		{name: "recovery", fn: recovery.Recovery(effectiveLogger)},
 		{name: "metrics", fn: metrics.Metrics()},
 	}
@@ -309,7 +309,7 @@ func NewPublicAPIServerWithConfig(
 	}
 
 	// Create server config from HTTP config
-	serverCfg := ServerConfig{
+	serverCfg := Config{
 		Port:         cfg.Port,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
@@ -349,6 +349,7 @@ func (s *PublicAPIServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// Router returns the public API server's router instance
 func (s *PublicAPIServer) Router() *router.Router {
 	return &s.router
 }

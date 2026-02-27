@@ -18,15 +18,15 @@ func (m *mockLogger) Error(string, ...any)                      {}
 func (m *mockLogger) With(...any) logger.Logger                 { return m }
 func (m *mockLogger) WithContext(context.Context) logger.Logger { return m }
 
-func TestNewRabbitMQAdapter_Validation(t *testing.T) {
-	_, err := NewRabbitMQAdapter(Config{}, &mockLogger{})
+func TestNewAdapter_Validation(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected validation error for empty URL")
 	}
 }
 
 func TestClosedAdapterOperations(t *testing.T) {
-	a := &RabbitMQAdapter{closed: true, subs: map[string]*subscription{}}
+	a := &Adapter{closed: true, subs: map[string]*subscription{}}
 	msg := &eventbus.Message{ID: "1", Value: []byte("v"), Timestamp: time.Now()}
 
 	if err := a.Publish(context.Background(), "topic", msg); err == nil {
@@ -44,7 +44,7 @@ func TestClosedAdapterOperations(t *testing.T) {
 }
 
 func TestUnsubscribe_NotSubscribed(t *testing.T) {
-	a := &RabbitMQAdapter{subs: map[string]*subscription{}}
+	a := &Adapter{subs: map[string]*subscription{}}
 	if err := a.Unsubscribe("missing"); err == nil {
 		t.Fatal("expected error for missing subscription")
 	}

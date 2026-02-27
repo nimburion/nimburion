@@ -20,7 +20,7 @@ import (
 func NewStorageAdapter(cfg config.DatabaseConfig, log logger.Logger) (Adapter, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Type)) {
 	case "postgres":
-		return postgres.NewPostgreSQLAdapter(postgres.Config{
+		return postgres.NewAdapter(postgres.Config{
 			URL:             cfg.URL,
 			MaxOpenConns:    cfg.MaxOpenConns,
 			MaxIdleConns:    cfg.MaxIdleConns,
@@ -29,7 +29,7 @@ func NewStorageAdapter(cfg config.DatabaseConfig, log logger.Logger) (Adapter, e
 			QueryTimeout:    cfg.QueryTimeout,
 		}, log)
 	case "mysql":
-		return mysql.NewMySQLAdapter(mysql.Config{
+		return mysql.NewAdapter(mysql.Config{
 			URL:             cfg.URL,
 			MaxOpenConns:    cfg.MaxOpenConns,
 			MaxIdleConns:    cfg.MaxIdleConns,
@@ -38,14 +38,14 @@ func NewStorageAdapter(cfg config.DatabaseConfig, log logger.Logger) (Adapter, e
 			QueryTimeout:    cfg.QueryTimeout,
 		}, log)
 	case "mongodb":
-		return mongodb.NewMongoDBAdapter(mongodb.Config{
+		return mongodb.NewAdapter(mongodb.Config{
 			URL:              cfg.URL,
 			Database:         cfg.DatabaseName,
 			ConnectTimeout:   cfg.ConnectTimeout,
 			OperationTimeout: cfg.QueryTimeout,
 		}, log)
 	case "dynamodb":
-		return dynamodb.NewDynamoDBAdapter(dynamodb.Config{
+		return dynamodb.NewAdapter(dynamodb.Config{
 			Region:           cfg.Region,
 			Endpoint:         cfg.Endpoint,
 			AccessKeyID:      cfg.AccessKeyID,
@@ -70,7 +70,7 @@ func NewSearchAdapter(cfg config.SearchConfig, log logger.Logger) (Adapter, erro
 	case "http":
 		switch searchType {
 		case "opensearch", "elasticsearch":
-			return opensearch.NewOpenSearchAdapter(opensearch.Config{
+			return opensearch.NewAdapter(opensearch.Config{
 				URL:              cfg.URL,
 				URLs:             cfg.URLs,
 				Username:         cfg.Username,
@@ -92,7 +92,7 @@ func NewSearchAdapter(cfg config.SearchConfig, log logger.Logger) (Adapter, erro
 		if searchType != "opensearch" {
 			return nil, fmt.Errorf("search.driver %q requires search.type opensearch", cfg.Driver)
 		}
-		return opensearch.NewOpenSearchSDKAdapter(opensearch.Config{
+		return opensearch.NewSDKAdapter(opensearch.Config{
 			URL:              cfg.URL,
 			URLs:             cfg.URLs,
 			Username:         cfg.Username,
@@ -144,7 +144,7 @@ func NewObjectStorageAdapter(cfg config.ObjectStorageConfig, log logger.Logger) 
 
 	switch storageType {
 	case "s3":
-		return s3.NewS3Adapter(s3.Config{
+		return s3.NewAdapter(s3.Config{
 			Bucket:           cfg.S3.Bucket,
 			Region:           cfg.S3.Region,
 			Endpoint:         cfg.S3.Endpoint,

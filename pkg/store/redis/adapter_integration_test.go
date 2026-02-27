@@ -12,11 +12,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// TestRedisAdapter_Integration tests the Redis adapter with a real Redis instance
+// TestAdapter_Integration tests the Redis adapter with a real Redis instance
 // using testcontainers.
 //
 // **Validates: Requirements 21.1-21.8, 38.2**
-func TestRedisAdapter_Integration(t *testing.T) {
+func TestAdapter_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -63,7 +63,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -83,7 +83,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -103,7 +103,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -123,7 +123,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -147,7 +147,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -190,7 +190,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -231,7 +231,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -281,7 +281,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -334,7 +334,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -387,7 +387,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 5 * time.Second,
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -424,7 +424,7 @@ func TestRedisAdapter_Integration(t *testing.T) {
 			OperationTimeout: 1 * time.Millisecond, // Very short timeout
 		}
 
-		adapter, err := NewRedisAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}

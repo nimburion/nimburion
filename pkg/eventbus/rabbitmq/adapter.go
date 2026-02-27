@@ -11,8 +11,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// RabbitMQAdapter implements eventbus.EventBus for RabbitMQ.
-type RabbitMQAdapter struct {
+// Adapter implements eventbus.EventBus for RabbitMQ.
+type Adapter struct {
 	conn   *amqp.Connection
 	pubCh  *amqp.Channel
 	logger logger.Logger
@@ -41,8 +41,8 @@ type Config struct {
 
 // Cosa fa: crea connessione/channel RabbitMQ e prepara publish/subscribe.
 // Cosa NON fa: non crea policy broker o dead-letter exchange.
-// Esempio minimo: adapter, err := rabbitmq.NewRabbitMQAdapter(cfg, log)
-func NewRabbitMQAdapter(cfg Config, log logger.Logger) (*RabbitMQAdapter, error) {
+// Esempio minimo: adapter, err := rabbitmq.NewAdapter(cfg, log)
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("rabbitmq URL is required")
 	}
@@ -73,7 +73,7 @@ func NewRabbitMQAdapter(cfg Config, log logger.Logger) (*RabbitMQAdapter, error)
 		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	a := &RabbitMQAdapter{
+	a := &Adapter{
 		conn:   conn,
 		pubCh:  pubCh,
 		logger: log,
@@ -89,7 +89,7 @@ func NewRabbitMQAdapter(cfg Config, log logger.Logger) (*RabbitMQAdapter, error)
 	return a, nil
 }
 
-func (a *RabbitMQAdapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
+func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -123,7 +123,7 @@ func (a *RabbitMQAdapter) Publish(ctx context.Context, topic string, message *ev
 	return nil
 }
 
-func (a *RabbitMQAdapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
+func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	for _, msg := range messages {
 		if err := a.Publish(ctx, topic, msg); err != nil {
 			return err
@@ -132,7 +132,7 @@ func (a *RabbitMQAdapter) PublishBatch(ctx context.Context, topic string, messag
 	return nil
 }
 
-func (a *RabbitMQAdapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
+func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -148,9 +148,9 @@ func (a *RabbitMQAdapter) Subscribe(ctx context.Context, topic string, handler e
 		return fmt.Errorf("failed to create consumer channel: %w", err)
 	}
 
-	if err := ch.ExchangeDeclare(a.config.Exchange, a.config.ExchangeType, true, false, false, false, nil); err != nil {
+	if declareErr := ch.ExchangeDeclare(a.config.Exchange, a.config.ExchangeType, true, false, false, false, nil); declareErr != nil {
 		_ = ch.Close()
-		return fmt.Errorf("failed to declare exchange: %w", err)
+		return fmt.Errorf("failed to declare exchange: %w", declareErr)
 	}
 
 	qName := a.config.QueueName
@@ -167,9 +167,9 @@ func (a *RabbitMQAdapter) Subscribe(ctx context.Context, topic string, handler e
 	if bindKey == "" {
 		bindKey = a.config.RoutingKey
 	}
-	if err := ch.QueueBind(q.Name, bindKey, a.config.Exchange, false, nil); err != nil {
+	if bindErr := ch.QueueBind(q.Name, bindKey, a.config.Exchange, false, nil); bindErr != nil {
 		_ = ch.Close()
-		return fmt.Errorf("failed to bind queue: %w", err)
+		return fmt.Errorf("failed to bind queue: %w", bindErr)
 	}
 
 	deliveries, err := ch.Consume(q.Name, a.config.ConsumerTag, false, false, false, false, nil)
@@ -185,7 +185,7 @@ func (a *RabbitMQAdapter) Subscribe(ctx context.Context, topic string, handler e
 	return nil
 }
 
-func (a *RabbitMQAdapter) consumeLoop(ctx context.Context, topic string, deliveries <-chan amqp.Delivery, handler eventbus.MessageHandler) {
+func (a *Adapter) consumeLoop(ctx context.Context, topic string, deliveries <-chan amqp.Delivery, handler eventbus.MessageHandler) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -212,7 +212,7 @@ func (a *RabbitMQAdapter) consumeLoop(ctx context.Context, topic string, deliver
 	}
 }
 
-func (a *RabbitMQAdapter) Unsubscribe(topic string) error {
+func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -228,7 +228,7 @@ func (a *RabbitMQAdapter) Unsubscribe(topic string) error {
 	return nil
 }
 
-func (a *RabbitMQAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
 		a.mu.RUnlock()
@@ -257,7 +257,7 @@ func (a *RabbitMQAdapter) HealthCheck(ctx context.Context) error {
 	}
 }
 
-func (a *RabbitMQAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

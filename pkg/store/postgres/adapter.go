@@ -11,8 +11,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// PostgreSQLAdapter provides PostgreSQL database connectivity with connection pooling
-type PostgreSQLAdapter struct {
+// Adapter provides PostgreSQL database connectivity with connection pooling
+type Adapter struct {
 	db     *sql.DB
 	logger logger.Logger
 	config Config
@@ -28,8 +28,8 @@ type Config struct {
 	QueryTimeout    time.Duration
 }
 
-// NewPostgreSQLAdapter creates a new PostgreSQL adapter with connection pooling
-func NewPostgreSQLAdapter(cfg Config, log logger.Logger) (*PostgreSQLAdapter, error) {
+// NewAdapter creates a new PostgreSQL adapter with connection pooling
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("database URL is required")
 	}
@@ -62,7 +62,7 @@ func NewPostgreSQLAdapter(cfg Config, log logger.Logger) (*PostgreSQLAdapter, er
 		"conn_max_idle_time", cfg.ConnMaxIdleTime,
 	)
 
-	return &PostgreSQLAdapter{
+	return &Adapter{
 		db:     db,
 		logger: log,
 		config: cfg,
@@ -70,17 +70,17 @@ func NewPostgreSQLAdapter(cfg Config, log logger.Logger) (*PostgreSQLAdapter, er
 }
 
 // DB returns the underlying *sql.DB for direct access when needed
-func (a *PostgreSQLAdapter) DB() *sql.DB {
+func (a *Adapter) DB() *sql.DB {
 	return a.db
 }
 
 // Ping verifies the database connection is alive
-func (a *PostgreSQLAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
 }
 
 // HealthCheck verifies the database connection is healthy with a timeout
-func (a *PostgreSQLAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -93,7 +93,7 @@ func (a *PostgreSQLAdapter) HealthCheck(ctx context.Context) error {
 }
 
 // Close gracefully closes the database connection
-func (a *PostgreSQLAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing PostgreSQL connection")
 
 	if err := a.db.Close(); err != nil {
@@ -108,7 +108,7 @@ func (a *PostgreSQLAdapter) Close() error {
 // WithTransaction executes the given function within a database transaction
 // If the function returns an error, the transaction is rolled back
 // Otherwise, the transaction is committed
-func (a *PostgreSQLAdapter) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+func (a *Adapter) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	// Begin transaction
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -168,7 +168,7 @@ func GetTx(ctx context.Context) (*sql.Tx, bool) {
 
 // ExecContext executes a query with the transaction from context if available
 // Otherwise uses the regular database connection
-func (a *PostgreSQLAdapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -179,7 +179,7 @@ func (a *PostgreSQLAdapter) ExecContext(ctx context.Context, query string, args 
 
 // QueryContext executes a query with the transaction from context if available
 // Otherwise uses the regular database connection
-func (a *PostgreSQLAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -190,7 +190,7 @@ func (a *PostgreSQLAdapter) QueryContext(ctx context.Context, query string, args
 
 // QueryRowContext executes a query that returns a single row with the transaction from context if available
 // Otherwise uses the regular database connection
-func (a *PostgreSQLAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -199,7 +199,7 @@ func (a *PostgreSQLAdapter) QueryRowContext(ctx context.Context, query string, a
 	return a.db.QueryRowContext(queryCtx, query, args...)
 }
 
-func (a *PostgreSQLAdapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.config.QueryTimeout <= 0 {
 		return ctx, func() {}
 	}

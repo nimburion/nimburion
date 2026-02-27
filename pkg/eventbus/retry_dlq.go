@@ -13,14 +13,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Retry and DLQ configuration constants
 const (
-	DefaultRetryMaxRetries             = 5
-	DefaultRetryInitialBackoff         = time.Second
-	DefaultRetryMaxBackoff             = 60 * time.Second
-	DefaultRetryAttemptTimeout         = 30 * time.Second
+	// DefaultRetryMaxRetries is the default maximum number of retry attempts
+	DefaultRetryMaxRetries = 5
+	// DefaultRetryInitialBackoff is the default initial backoff duration
+	DefaultRetryInitialBackoff = time.Second
+	// DefaultRetryMaxBackoff is the default maximum backoff duration
+	DefaultRetryMaxBackoff = 60 * time.Second
+	// DefaultRetryAttemptTimeout is the default timeout per retry attempt
+	DefaultRetryAttemptTimeout = 30 * time.Second
+	// DefaultRetryCircuitBreakerFailures is the default failure threshold for circuit breaker
 	DefaultRetryCircuitBreakerFailures = 5
-	DefaultRetryCircuitBreakerReset    = 30 * time.Second
-	DefaultDLQTopicSuffix              = ".dlq"
+	// DefaultRetryCircuitBreakerReset is the default circuit breaker reset timeout
+	DefaultRetryCircuitBreakerReset = 30 * time.Second
+	// DefaultDLQTopicSuffix is the default suffix for dead letter queue topics
+	DefaultDLQTopicSuffix = ".dlq"
 )
 
 // DLQPayload describes the payload forwarded to dead-letter topic.

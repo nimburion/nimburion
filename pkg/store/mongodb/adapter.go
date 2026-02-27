@@ -13,8 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-// MongoDBAdapter provides MongoDB connectivity.
-type MongoDBAdapter struct {
+// Adapter provides MongoDB connectivity.
+type Adapter struct {
 	client   *mongo.Client
 	database string
 	logger   logger.Logger
@@ -33,8 +33,8 @@ type Config struct {
 
 // Cosa fa: inizializza un adapter MongoDB e verifica connettività via ping.
 // Cosa NON fa: non crea indici o collezioni automaticamente.
-// Esempio minimo: adapter, err := mongodb.NewMongoDBAdapter(cfg, log)
-func NewMongoDBAdapter(cfg Config, log logger.Logger) (*MongoDBAdapter, error) {
+// Esempio minimo: adapter, err := mongodb.NewAdapter(cfg, log)
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("mongodb URL is required")
 	}
@@ -62,7 +62,7 @@ func NewMongoDBAdapter(cfg Config, log logger.Logger) (*MongoDBAdapter, error) {
 	}
 
 	log.Info("MongoDB connection established", "database", cfg.Database)
-	return &MongoDBAdapter{
+	return &Adapter{
 		client:   client,
 		database: cfg.Database,
 		logger:   log,
@@ -70,19 +70,19 @@ func NewMongoDBAdapter(cfg Config, log logger.Logger) (*MongoDBAdapter, error) {
 	}, nil
 }
 
-func (a *MongoDBAdapter) Client() *mongo.Client {
+func (a *Adapter) Client() *mongo.Client {
 	return a.client
 }
 
-func (a *MongoDBAdapter) Database() *mongo.Database {
+func (a *Adapter) Database() *mongo.Database {
 	return a.client.Database(a.database)
 }
 
-func (a *MongoDBAdapter) Collection(name string) *mongo.Collection {
+func (a *Adapter) Collection(name string) *mongo.Collection {
 	return a.Database().Collection(name)
 }
 
-func (a *MongoDBAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
 	a.mu.RUnlock()
@@ -92,7 +92,7 @@ func (a *MongoDBAdapter) Ping(ctx context.Context) error {
 	return a.client.Ping(ctx, readpref.Primary())
 }
 
-func (a *MongoDBAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if err := a.Ping(hcCtx); err != nil {
@@ -102,7 +102,7 @@ func (a *MongoDBAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (a *MongoDBAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	if a.closed {
 		a.mu.Unlock()
@@ -122,38 +122,38 @@ func (a *MongoDBAdapter) Close() error {
 // Cosa fa: inserisce un documento nella collection target.
 // Cosa NON fa: non valida lo schema del documento.
 // Esempio minimo: _, err := adapter.InsertOne(ctx, "users", doc)
-func (a *MongoDBAdapter) InsertOne(ctx context.Context, collection string, doc interface{}) (*mongo.InsertOneResult, error) {
+func (a *Adapter) InsertOne(ctx context.Context, collection string, doc interface{}) (*mongo.InsertOneResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).InsertOne(opCtx, doc)
 }
 
-func (a *MongoDBAdapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
+func (a *Adapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)
 }
 
-func (a *MongoDBAdapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
+func (a *Adapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).UpdateOne(opCtx, filter, update)
 }
 
-func (a *MongoDBAdapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
+func (a *Adapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).DeleteOne(opCtx, filter)
 }
 
-func (a *MongoDBAdapter) EnsureCollection(ctx context.Context, name string) error {
+func (a *Adapter) EnsureCollection(ctx context.Context, name string) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	_, err := a.Database().Collection(name).CountDocuments(opCtx, bson.D{})
 	return err
 }
 
-func (a *MongoDBAdapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.timeout <= 0 {
 		return ctx, func() {}
 	}

@@ -14,22 +14,31 @@ import (
 // SpanOperation represents a traced operation type.
 type SpanOperation string
 
+// Span operation constants for different operation types
 const (
-	// Database operations
-	SpanOperationDBQuery  SpanOperation = "db.query"
+	// SpanOperationDBQuery represents a database query operation
+	SpanOperationDBQuery SpanOperation = "db.query"
+	// SpanOperationDBInsert represents a database insert operation
 	SpanOperationDBInsert SpanOperation = "db.insert"
+	// SpanOperationDBUpdate represents a database update operation
 	SpanOperationDBUpdate SpanOperation = "db.update"
+	// SpanOperationDBDelete represents a database delete operation
 	SpanOperationDBDelete SpanOperation = "db.delete"
-	SpanOperationDBTx     SpanOperation = "db.transaction"
-	
-	// Message broker operations
-	SpanOperationMsgPublish   SpanOperation = "messaging.publish"
-	SpanOperationMsgConsume   SpanOperation = "messaging.consume"
-	SpanOperationMsgProcess   SpanOperation = "messaging.process"
-	
-	// Cache operations
+	// SpanOperationDBTx represents a database transaction
+	SpanOperationDBTx SpanOperation = "db.transaction"
+
+	// SpanOperationMsgPublish represents publishing a message
+	SpanOperationMsgPublish SpanOperation = "messaging.publish"
+	// SpanOperationMsgConsume represents consuming a message
+	SpanOperationMsgConsume SpanOperation = "messaging.consume"
+	// SpanOperationMsgProcess represents processing a message
+	SpanOperationMsgProcess SpanOperation = "messaging.process"
+
+	// SpanOperationCacheGet represents a cache get operation
 	SpanOperationCacheGet SpanOperation = "cache.get"
+	// SpanOperationCacheSet represents a cache set operation
 	SpanOperationCacheSet SpanOperation = "cache.set"
+	// SpanOperationCacheDel represents a cache delete operation
 	SpanOperationCacheDel SpanOperation = "cache.delete"
 )
 

@@ -21,8 +21,8 @@ func (m *mockLogger) Error(string, ...any)                      {}
 func (m *mockLogger) With(...any) logger.Logger                 { return m }
 func (m *mockLogger) WithContext(context.Context) logger.Logger { return m }
 
-func TestNewOpenSearchAdapter_EmptyURL(t *testing.T) {
-	_, err := NewOpenSearchAdapter(Config{}, &mockLogger{})
+func TestNewAdapter_EmptyURL(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected error for empty URL")
 	}
@@ -31,13 +31,13 @@ func TestNewOpenSearchAdapter_EmptyURL(t *testing.T) {
 	}
 }
 
-func TestNewOpenSearchAdapter_PingFailure(t *testing.T) {
+func TestNewAdapter_PingFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
-	_, err := NewOpenSearchAdapter(Config{
+	_, err := NewAdapter(Config{
 		URL:              srv.URL,
 		MaxConns:         2,
 		OperationTimeout: time.Second,
@@ -70,7 +70,7 @@ func TestIndexDocument_UsesAPIKeyAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter, err := NewOpenSearchAdapter(Config{
+	adapter, err := NewAdapter(Config{
 		URL:              srv.URL,
 		APIKey:           "api-key",
 		MaxConns:         2,
@@ -106,7 +106,7 @@ func TestSearch_ReturnsRawJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter, err := NewOpenSearchAdapter(Config{
+	adapter, err := NewAdapter(Config{
 		URL:              srv.URL,
 		MaxConns:         2,
 		OperationTimeout: time.Second,
@@ -145,7 +145,7 @@ func TestDeleteDocument_NotFoundIsNotError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter, err := NewOpenSearchAdapter(Config{
+	adapter, err := NewAdapter(Config{
 		URL:              srv.URL,
 		MaxConns:         2,
 		OperationTimeout: time.Second,

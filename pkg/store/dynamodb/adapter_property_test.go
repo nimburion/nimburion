@@ -16,7 +16,7 @@ func TestProperty_ClosePreventsHealthCheck(t *testing.T) {
 
 	properties.Property("closed adapter always fails healthcheck", prop.ForAll(
 		func() bool {
-			a := &DynamoDBAdapter{closed: true, logger: &mockLogger{}}
+			a := &Adapter{closed: true, logger: &mockLogger{}}
 			return a.HealthCheck(context.Background()) != nil
 		},
 	))

@@ -43,8 +43,8 @@ func NewRequestValidationMiddleware(cfg Config, log logpkg.Logger) (router.Middl
 	if err != nil {
 		return nil, fmt.Errorf("load openapi spec %s: %w", specPath, err)
 	}
-	if err := doc.Validate(context.Background()); err != nil {
-		return nil, fmt.Errorf("validate openapi spec %s: %w", specPath, err)
+	if validateErr := doc.Validate(context.Background()); validateErr != nil {
+		return nil, fmt.Errorf("validate openapi spec %s: %w", specPath, validateErr)
 	}
 
 	specRouter, err := legacyrouter.NewRouter(doc)

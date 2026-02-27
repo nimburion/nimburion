@@ -15,8 +15,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-// TracingConfig holds configuration for the tracing middleware.
-type TracingConfig struct {
+// Config holds configuration for the tracing middleware.
+type Config struct {
 	// TracerName identifies the tracer (e.g., "http-server")
 	TracerName string
 
@@ -34,10 +34,14 @@ type TracingConfig struct {
 // Mode defines tracing verbosity for matching request paths.
 type Mode string
 
+// Tracing mode constants
 const (
-	ModeOff     Mode = "off"
+	// ModeOff disables tracing
+	ModeOff Mode = "off"
+	// ModeMinimal creates minimal span with basic attributes
 	ModeMinimal Mode = "minimal"
-	ModeFull    Mode = "full"
+	// ModeFull creates detailed span with all attributes
+	ModeFull Mode = "full"
 )
 
 // PathPolicy configures tracing mode for a path prefix.
@@ -51,7 +55,7 @@ type PathPolicy struct {
 // and includes request ID and HTTP attributes in the span.
 //
 // Requirements: 14.2, 14.3, 14.6
-func Tracing(cfg TracingConfig) router.MiddlewareFunc {
+func Tracing(cfg Config) router.MiddlewareFunc {
 	if cfg.TracerName == "" {
 		cfg.TracerName = "http-server"
 	}
@@ -131,14 +135,14 @@ func Tracing(cfg TracingConfig) router.MiddlewareFunc {
 	}
 }
 
-func normalize(cfg TracingConfig) TracingConfig {
+func normalize(cfg Config) Config {
 	for index := range cfg.PathPolicies {
 		cfg.PathPolicies[index].Mode = parseMode(cfg.PathPolicies[index].Mode)
 	}
 	return cfg
 }
 
-func (cfg TracingConfig) modeForPath(path string) Mode {
+func (cfg Config) modeForPath(path string) Mode {
 	for _, prefix := range cfg.ExcludedPathPrefixes {
 		if strings.HasPrefix(path, prefix) {
 			return ModeOff

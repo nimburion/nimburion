@@ -40,6 +40,7 @@ type JWKSValidator struct {
 	mappings   map[string][]string
 }
 
+// JWKSValidatorOption is a functional option for configuring JWKSValidator
 type JWKSValidatorOption func(*JWKSValidator)
 
 // WithClaimMappings overrides claim alias mappings used during claim extraction.

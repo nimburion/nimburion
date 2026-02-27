@@ -58,8 +58,8 @@ func (c *Adapter) Get(ctx context.Context, key string) ([]byte, error) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-	if _, err := io.WriteString(conn, fmt.Sprintf("get %s\r\n", key)); err != nil {
-		return nil, err
+	if _, writeErr := io.WriteString(conn, fmt.Sprintf("get %s\r\n", key)); writeErr != nil {
+		return nil, writeErr
 	}
 
 	line, err := reader.ReadString('\n')
@@ -80,8 +80,8 @@ func (c *Adapter) Get(ctx context.Context, key string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid memcached size: %w", err)
 	}
 	payload := make([]byte, size+2) // include trailing CRLF
-	if _, err := io.ReadFull(reader, payload); err != nil {
-		return nil, err
+	if _, readErr := io.ReadFull(reader, payload); readErr != nil {
+		return nil, readErr
 	}
 	endLine, err := reader.ReadString('\n')
 	if err != nil {
@@ -103,14 +103,14 @@ func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Du
 
 	exptime := ttlToSeconds(ttl)
 	cmd := fmt.Sprintf("set %s 0 %d %d\r\n", key, exptime, len(value))
-	if _, err := io.WriteString(conn, cmd); err != nil {
-		return err
+	if _, writeErr := io.WriteString(conn, cmd); writeErr != nil {
+		return writeErr
 	}
-	if _, err := conn.Write(value); err != nil {
-		return err
+	if _, writeErr := conn.Write(value); writeErr != nil {
+		return writeErr
 	}
-	if _, err := io.WriteString(conn, "\r\n"); err != nil {
-		return err
+	if _, writeErr := io.WriteString(conn, "\r\n"); writeErr != nil {
+		return writeErr
 	}
 
 	reader := bufio.NewReader(conn)
@@ -132,8 +132,8 @@ func (c *Adapter) Delete(ctx context.Context, key string) error {
 	}
 	defer conn.Close()
 
-	if _, err := io.WriteString(conn, fmt.Sprintf("delete %s\r\n", key)); err != nil {
-		return err
+	if _, writeErr := io.WriteString(conn, fmt.Sprintf("delete %s\r\n", key)); writeErr != nil {
+		return writeErr
 	}
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadString('\n')
@@ -159,8 +159,8 @@ func (c *Adapter) Touch(ctx context.Context, key string, ttl time.Duration) erro
 	defer conn.Close()
 
 	exptime := ttlToSeconds(ttl)
-	if _, err := io.WriteString(conn, fmt.Sprintf("touch %s %d\r\n", key, exptime)); err != nil {
-		return err
+	if _, writeErr := io.WriteString(conn, fmt.Sprintf("touch %s %d\r\n", key, exptime)); writeErr != nil {
+		return writeErr
 	}
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadString('\n')

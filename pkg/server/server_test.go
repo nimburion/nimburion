@@ -32,7 +32,7 @@ func TestServerStartAndShutdown(t *testing.T) {
 	}
 
 	// Create server config
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8081,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -79,8 +79,8 @@ func TestServerStartAndShutdown(t *testing.T) {
 	}
 }
 
-// TestServerConfigurableTimeouts tests that server respects configured timeouts
-func TestServerConfigurableTimeouts(t *testing.T) {
+// TestConfigurableTimeouts tests that server respects configured timeouts
+func TestConfigurableTimeouts(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.GET("/test", func(c router.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"message": "test"})
@@ -94,7 +94,7 @@ func TestServerConfigurableTimeouts(t *testing.T) {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8082,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
@@ -158,7 +158,7 @@ func TestServerContextCancellation(t *testing.T) {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8083,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -209,7 +209,7 @@ func TestServerShutdownTimeout(t *testing.T) {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8084,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -266,7 +266,7 @@ func TestServerMultipleRequests(t *testing.T) {
 		t.Fatalf("failed to create logger: %v", err)
 	}
 
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8085,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -355,7 +355,7 @@ func TestServerStart_WithTLSConfigUsesHTTPS(t *testing.T) {
 		t.Fatalf("failed to load certificate pair: %v", err)
 	}
 
-	cfg := ServerConfig{
+	cfg := Config{
 		Port:         8086,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -427,7 +427,7 @@ func TestServerStartError(t *testing.T) {
 	}
 
 	// Start first server on port 8086
-	cfg1 := ServerConfig{
+	cfg1 := Config{
 		Port:         8086,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -447,7 +447,7 @@ func TestServerStartError(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Try to start second server on same port (should fail)
-	cfg2 := ServerConfig{
+	cfg2 := Config{
 		Port:         8086, // Same port
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,

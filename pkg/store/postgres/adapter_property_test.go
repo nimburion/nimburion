@@ -55,7 +55,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("adapter can be created with valid configuration", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				// If we can't connect to test DB, skip this test
 				if isConnectionError(err) {
@@ -76,7 +76,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("health check succeeds for healthy connection", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -95,7 +95,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("ping verifies connection is alive", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -114,7 +114,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("close gracefully shuts down connection", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -140,7 +140,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("transaction commits on success", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -193,7 +193,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("transaction rolls back on error", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -248,7 +248,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 	properties.Property("nested context preserves transaction", prop.ForAll(
 		func(cfg Config) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewPostgreSQLAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true

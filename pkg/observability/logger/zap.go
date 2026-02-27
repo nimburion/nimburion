@@ -18,18 +18,26 @@ type ZapLogger struct {
 // LogLevel represents the logging level
 type LogLevel string
 
+// Log level constants
 const (
+	// DebugLevel enables debug and above logs
 	DebugLevel LogLevel = "debug"
-	InfoLevel  LogLevel = "info"
-	WarnLevel  LogLevel = "warn"
+	// InfoLevel enables info and above logs
+	InfoLevel LogLevel = "info"
+	// WarnLevel enables warning and above logs
+	WarnLevel LogLevel = "warn"
+	// ErrorLevel enables error logs only
 	ErrorLevel LogLevel = "error"
 )
 
 // LogFormat represents the output format for logs
 type LogFormat string
 
+// Log format constants
 const (
+	// JSONFormat outputs structured JSON logs
 	JSONFormat LogFormat = "json"
+	// TextFormat outputs human-readable text logs
 	TextFormat LogFormat = "text"
 )
 
@@ -39,6 +47,7 @@ type Config struct {
 	Format LogFormat
 }
 
+// DefaultConfig returns the default logger configuration
 func DefaultConfig() Config {
 	return Config{
 		Level:  InfoLevel,

@@ -16,8 +16,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// Scheduler runtime constants
 const (
+	// DefaultDispatchTimeout is the default timeout for dispatching scheduled tasks
 	DefaultDispatchTimeout = 10 * time.Second
+	// DefaultLockTTL is the default time-to-live for distributed locks
 	DefaultLockTTL         = 30 * time.Second
 	minRenewInterval       = 100 * time.Millisecond
 	misfireGraceWindow     = 500 * time.Millisecond

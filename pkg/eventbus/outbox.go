@@ -11,13 +11,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Outbox pattern configuration constants
 const (
-	DefaultOutboxPollInterval   = time.Second
-	DefaultOutboxBatchSize      = 100
-	DefaultOutboxCleanupEvery   = time.Minute
-	DefaultOutboxCleanupRetain  = 7 * 24 * time.Hour
+	// DefaultOutboxPollInterval is the default polling interval for outbox entries
+	DefaultOutboxPollInterval = time.Second
+	// DefaultOutboxBatchSize is the default batch size for processing outbox entries
+	DefaultOutboxBatchSize = 100
+	// DefaultOutboxCleanupEvery is the default cleanup interval
+	DefaultOutboxCleanupEvery = time.Minute
+	// DefaultOutboxCleanupRetain is the default retention period for processed entries
+	DefaultOutboxCleanupRetain = 7 * 24 * time.Hour
+	// DefaultOutboxInitialBackoff is the default initial backoff for retries
 	DefaultOutboxInitialBackoff = time.Second
-	DefaultOutboxMaxBackoff     = time.Minute
+	// DefaultOutboxMaxBackoff is the default maximum backoff for retries
+	DefaultOutboxMaxBackoff = time.Minute
 )
 
 // CreateOutboxTablePostgres defines a reference PostgreSQL schema for transactional outbox.

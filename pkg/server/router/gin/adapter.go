@@ -12,8 +12,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-// GinRouter implements router.Router using gin-gonic/gin.
-type GinRouter struct {
+// Router implements router.Router using gin-gonic/gin.
+type Router struct {
 	engine            *ginpkg.Engine
 	group             *ginpkg.RouterGroup
 	middleware        []router.MiddlewareFunc
@@ -21,40 +21,40 @@ type GinRouter struct {
 	optionsRegistered *map[string]struct{}
 }
 
-// NewRouter creates a new GinRouter.
-func NewRouter() *GinRouter {
+// NewRouter creates a new Router.
+func NewRouter() *Router {
 	ginpkg.SetMode(ginpkg.ReleaseMode)
 	engine := ginpkg.New()
 	optionsRegistered := make(map[string]struct{})
-	return &GinRouter{
+	return &Router{
 		engine:            engine,
 		mu:                &sync.RWMutex{},
 		optionsRegistered: &optionsRegistered,
 	}
 }
 
-func (r *GinRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodGet, path, handler, middleware)
 }
 
-func (r *GinRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPost, path, handler, middleware)
 }
 
-func (r *GinRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPut, path, handler, middleware)
 }
 
-func (r *GinRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodDelete, path, handler, middleware)
 }
 
-func (r *GinRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPatch, path, handler, middleware)
 }
 
 // Group creates a route group with common prefix and middleware.
-func (r *GinRouter) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
+func (r *Router) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
 	r.mu.RLock()
 	combined := append([]router.MiddlewareFunc{}, r.middleware...)
 	r.mu.RUnlock()
@@ -67,7 +67,7 @@ func (r *GinRouter) Group(prefix string, middleware ...router.MiddlewareFunc) ro
 		group = r.group.Group(prefix)
 	}
 
-	return &GinRouter{
+	return &Router{
 		engine:            r.engine,
 		group:             group,
 		middleware:        combined,
@@ -77,18 +77,18 @@ func (r *GinRouter) Group(prefix string, middleware ...router.MiddlewareFunc) ro
 }
 
 // Use applies middleware to all routes.
-func (r *GinRouter) Use(middleware ...router.MiddlewareFunc) {
+func (r *Router) Use(middleware ...router.MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, middleware...)
 }
 
 // ServeHTTP implements http.Handler.
-func (r *GinRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.engine.ServeHTTP(w, req)
 }
 
-func (r *GinRouter) handle(method, path string, h router.HandlerFunc, routeMiddleware []router.MiddlewareFunc) {
+func (r *Router) handle(method, path string, h router.HandlerFunc, routeMiddleware []router.MiddlewareFunc) {
 	r.mu.RLock()
 	global := append([]router.MiddlewareFunc{}, r.middleware...)
 	r.mu.RUnlock()
@@ -118,7 +118,7 @@ func (r *GinRouter) handle(method, path string, h router.HandlerFunc, routeMiddl
 	r.ensureOptionsRoute(path)
 }
 
-func (r *GinRouter) ensureOptionsRoute(path string) {
+func (r *Router) ensureOptionsRoute(path string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

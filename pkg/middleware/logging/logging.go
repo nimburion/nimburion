@@ -17,37 +17,60 @@ import (
 )
 
 // Mode defines logging verbosity for matching request paths.
+// Mode defines the logging verbosity level.
 type Mode string
 
+// Logging mode constants
 const (
-	ModeOff     Mode = "off"
+	// ModeOff disables request logging
+	ModeOff Mode = "off"
+	// ModeMinimal logs only essential request info
 	ModeMinimal Mode = "minimal"
-	ModeFull    Mode = "full"
+	// ModeFull logs complete request details
+	ModeFull Mode = "full"
 )
 
 // Output defines where request logs are written.
 type Output string
 
+// Logging output constants
 const (
+	// OutputLogger writes to the configured logger
 	OutputLogger Output = "logger"
+	// OutputStdout writes to standard output
 	OutputStdout Output = "stdout"
+	// OutputStderr writes to standard error
 	OutputStderr Output = "stderr"
 )
 
+// Log field name constants
 const (
-	FieldRequestID     = "request_id"
-	FieldMethod        = "method"
-	FieldPath          = "path"
-	FieldStatus        = "status"
-	FieldDurationMS    = "duration_ms"
-	FieldError         = "error"
-	FieldRemoteAddr    = "remote_addr"
-	FieldRemotePort    = "remote_port"
+	// FieldRequestID is the request identifier field
+	FieldRequestID = "request_id"
+	// FieldMethod is the HTTP method field
+	FieldMethod = "method"
+	// FieldPath is the request path field
+	FieldPath = "path"
+	// FieldStatus is the HTTP status code field
+	FieldStatus = "status"
+	// FieldDurationMS is the request duration in milliseconds
+	FieldDurationMS = "duration_ms"
+	// FieldError is the error message field
+	FieldError = "error"
+	// FieldRemoteAddr is the client IP address
+	FieldRemoteAddr = "remote_addr"
+	// FieldRemotePort is the client port
+	FieldRemotePort = "remote_port"
+	// FieldRequestMethod is the HTTP request method
 	FieldRequestMethod = "request_method"
-	FieldRequestURI    = "request_uri"
-	FieldURI           = "uri"
-	FieldArgs          = "args"
-	FieldQueryString   = "query_string"
+	// FieldRequestURI is the full request URI
+	FieldRequestURI = "request_uri"
+	// FieldURI is the request URI
+	FieldURI = "uri"
+	// FieldArgs is the request arguments
+	FieldArgs = "args"
+	// FieldQueryString is the URL query string
+	FieldQueryString = "query_string"
 	FieldRequestTime   = "request_time"
 	FieldTimeLocal     = "time_local"
 	FieldHost          = "host"
@@ -134,11 +157,12 @@ func DefaultConfig() Config {
 
 // Logging creates middleware with default configuration.
 func Logging(log logger.Logger) router.MiddlewareFunc {
-	return LoggingWithConfig(log, DefaultConfig())
+	return WithConfig(log, DefaultConfig())
 }
 
-// LoggingWithConfig creates middleware that logs HTTP requests and responses.
-func LoggingWithConfig(log logger.Logger, cfg Config) router.MiddlewareFunc {
+// WithConfig creates middleware that logs HTTP requests and responses.
+// WithConfig creates request logging middleware with custom configuration
+func WithConfig(log logger.Logger, cfg Config) router.MiddlewareFunc {
 	normalized := normalize(cfg)
 	emitter := newEventEmitter(log, normalized.Output)
 

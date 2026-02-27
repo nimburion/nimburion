@@ -16,11 +16,16 @@ const (
 // VersionStatus describes ordering quality for a received event version.
 type VersionStatus string
 
+// Version status constants
 const (
-	VersionStatusOK         VersionStatus = "ok"
-	VersionStatusDuplicate  VersionStatus = "duplicate"
+	// VersionStatusOK indicates the event version is in correct order
+	VersionStatusOK VersionStatus = "ok"
+	// VersionStatusDuplicate indicates the event version was already processed
+	VersionStatusDuplicate VersionStatus = "duplicate"
+	// VersionStatusOutOfOrder indicates the event arrived out of sequence
 	VersionStatusOutOfOrder VersionStatus = "out_of_order"
-	VersionStatusGap        VersionStatus = "gap"
+	// VersionStatusGap indicates there's a gap in the version sequence
+	VersionStatusGap VersionStatus = "gap"
 )
 
 // VersionCheck holds the result of validating a received event version.

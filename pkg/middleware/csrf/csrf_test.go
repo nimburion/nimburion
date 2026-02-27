@@ -11,7 +11,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router/nethttp"
 )
 
-func setupCSRFRouter(t *testing.T) *nethttp.NetHTTPRouter {
+func setupCSRFRouter(t *testing.T) *nethttp.Router {
 	t.Helper()
 	r := nethttp.NewRouter()
 	r.Use(session.Middleware(session.Config{

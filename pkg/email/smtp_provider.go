@@ -85,10 +85,15 @@ func (p *SMTPProvider) Send(ctx context.Context, message Message) error {
 }
 
 func (p *SMTPProvider) sendMailWithTLS(addr string, auth smtp.Auth, from string, to []string, raw []byte) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{
-		ServerName:         p.cfg.Host,
-		InsecureSkipVerify: p.cfg.InsecureSkipVerify,
-	})
+	tlsConfig := &tls.Config{
+		ServerName: p.cfg.Host,
+		MinVersion: tls.VersionTLS12,
+	}
+	// #nosec G402 - InsecureSkipVerify is configurable for testing environments
+	if p.cfg.InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
 	if err != nil {
 		return err
 	}
@@ -101,16 +106,16 @@ func (p *SMTPProvider) sendMailWithTLS(addr string, auth smtp.Auth, from string,
 	defer client.Close()
 
 	if auth != nil {
-		if err := client.Auth(auth); err != nil {
-			return err
+		if authErr := client.Auth(auth); authErr != nil {
+			return authErr
 		}
 	}
-	if err := client.Mail(from); err != nil {
-		return err
+	if mailErr := client.Mail(from); mailErr != nil {
+		return mailErr
 	}
 	for _, rcpt := range to {
-		if err := client.Rcpt(rcpt); err != nil {
-			return err
+		if rcptErr := client.Rcpt(rcpt); rcptErr != nil {
+			return rcptErr
 		}
 	}
 	w, err := client.Data()

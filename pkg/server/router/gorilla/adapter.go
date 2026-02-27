@@ -15,52 +15,52 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-// GorillaRouter implements router.Router using gorilla/mux.
-type GorillaRouter struct {
+// Router implements router.Router using gorilla/mux.
+type Router struct {
 	router            *mux.Router
 	middleware        []router.MiddlewareFunc
 	mu                *sync.RWMutex
 	optionsRegistered *map[string]struct{}
 }
 
-// NewRouter creates a new GorillaRouter.
-func NewRouter() *GorillaRouter {
+// NewRouter creates a new Router.
+func NewRouter() *Router {
 	optionsRegistered := make(map[string]struct{})
-	return &GorillaRouter{
+	return &Router{
 		router:            mux.NewRouter(),
 		mu:                &sync.RWMutex{},
 		optionsRegistered: &optionsRegistered,
 	}
 }
 
-func (r *GorillaRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodGet, path, handler, middleware)
 }
 
-func (r *GorillaRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPost, path, handler, middleware)
 }
 
-func (r *GorillaRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPut, path, handler, middleware)
 }
 
-func (r *GorillaRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodDelete, path, handler, middleware)
 }
 
-func (r *GorillaRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPatch, path, handler, middleware)
 }
 
 // Group creates a route group with common prefix and middleware.
-func (r *GorillaRouter) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
+func (r *Router) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
 	r.mu.RLock()
 	combined := append([]router.MiddlewareFunc{}, r.middleware...)
 	r.mu.RUnlock()
 	combined = append(combined, middleware...)
 
-	return &GorillaRouter{
+	return &Router{
 		router:            r.router.PathPrefix(prefix).Subrouter(),
 		middleware:        combined,
 		mu:                r.mu,
@@ -69,18 +69,18 @@ func (r *GorillaRouter) Group(prefix string, middleware ...router.MiddlewareFunc
 }
 
 // Use applies middleware to all routes.
-func (r *GorillaRouter) Use(middleware ...router.MiddlewareFunc) {
+func (r *Router) Use(middleware ...router.MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, middleware...)
 }
 
 // ServeHTTP implements http.Handler.
-func (r *GorillaRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.router.ServeHTTP(w, req)
 }
 
-func (r *GorillaRouter) handle(method, path string, h router.HandlerFunc, routeMiddleware []router.MiddlewareFunc) {
+func (r *Router) handle(method, path string, h router.HandlerFunc, routeMiddleware []router.MiddlewareFunc) {
 	r.mu.RLock()
 	global := append([]router.MiddlewareFunc{}, r.middleware...)
 	r.mu.RUnlock()
@@ -105,7 +105,7 @@ func (r *GorillaRouter) handle(method, path string, h router.HandlerFunc, routeM
 	r.ensureOptionsRoute(muxPath)
 }
 
-func (r *GorillaRouter) ensureOptionsRoute(muxPath string) {
+func (r *Router) ensureOptionsRoute(muxPath string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

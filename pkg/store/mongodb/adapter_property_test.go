@@ -16,7 +16,7 @@ func TestProperty_ClosePreventsPing(t *testing.T) {
 
 	properties.Property("closed adapter always fails ping", prop.ForAll(
 		func() bool {
-			a := &MongoDBAdapter{closed: true}
+			a := &Adapter{closed: true}
 			return a.Ping(context.Background()) != nil
 		},
 	))

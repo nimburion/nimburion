@@ -16,12 +16,14 @@ type extensionValidator interface {
 	Validate() error
 }
 
+// ConfigProvider provides a fluent interface for loading configuration
 type ConfigProvider struct {
 	loader *ViperLoader
 	v      *viper.Viper
 	flags  *pflag.FlagSet
 }
 
+// NewConfigProvider creates a new configuration provider
 func NewConfigProvider(configFile, envPrefix string) *ConfigProvider {
 	return &ConfigProvider{
 		loader: NewViperLoader(configFile, envPrefix),
@@ -29,11 +31,13 @@ func NewConfigProvider(configFile, envPrefix string) *ConfigProvider {
 	}
 }
 
+// WithFlags adds command-line flags to the configuration provider
 func (p *ConfigProvider) WithFlags(flags *pflag.FlagSet) *ConfigProvider {
 	p.flags = flags
 	return p
 }
 
+// WithServiceNameDefault sets a default service name if not configured
 func (p *ConfigProvider) WithServiceNameDefault(serviceName string) *ConfigProvider {
 	if p == nil || p.loader == nil {
 		return p
@@ -50,6 +54,7 @@ func (p *ConfigProvider) ConfigFile() string {
 	return p.loader.configFile
 }
 
+// Load loads core and extension configuration from all sources
 func (p *ConfigProvider) Load(core *Config, extensions ...interface{}) error {
 	_, err := p.load(core, false, extensions...)
 	return err
@@ -149,6 +154,7 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	return secrets, nil
 }
 
+// RegisterFlagsFromStruct registers command-line flags from struct tags
 func RegisterFlagsFromStruct(flags *pflag.FlagSet, target interface{}) error {
 	fields, err := collectConfigFields(target)
 	if err != nil {

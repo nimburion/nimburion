@@ -72,8 +72,8 @@ func Upgrade(w http.ResponseWriter, r *http.Request, cfg Config) (*Conn, []strin
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateWebSocketHeaders(r, cfg); err != nil {
-		return nil, nil, err
+	if validateErr := validateWebSocketHeaders(r, cfg); validateErr != nil {
+		return nil, nil, validateErr
 	}
 
 	hijacker, ok := w.(http.Hijacker)

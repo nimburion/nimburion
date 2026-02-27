@@ -59,7 +59,7 @@ func TestProperty15_CacheOperationsWithTTL(t *testing.T) {
 	properties.Property("key retrieval before TTL expiration returns value", prop.ForAll(
 		func(cfg Config, kv struct{ key, value string }) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -97,7 +97,7 @@ func TestProperty15_CacheOperationsWithTTL(t *testing.T) {
 	properties.Property("key retrieval after TTL expiration returns not-found error", prop.ForAll(
 		func(cfg Config, kv struct{ key, value string }) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -132,7 +132,7 @@ func TestProperty15_CacheOperationsWithTTL(t *testing.T) {
 	properties.Property("set without TTL persists indefinitely", prop.ForAll(
 		func(cfg Config, kv struct{ key, value string }) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -210,7 +210,7 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 	properties.Property("incr atomically increments value", prop.ForAll(
 		func(cfg Config, key string) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -251,7 +251,7 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 	properties.Property("decr atomically decrements value", prop.ForAll(
 		func(cfg Config, key string) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -299,7 +299,7 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 			}
 
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -338,7 +338,7 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 			}
 
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true
@@ -376,7 +376,7 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 	properties.Property("concurrent increments maintain atomicity", prop.ForAll(
 		func(cfg Config, key string) bool {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
-			adapter, err := NewRedisAdapter(cfg, log)
+			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
 				if isConnectionError(err) {
 					return true

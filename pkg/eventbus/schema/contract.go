@@ -8,19 +8,26 @@ import (
 )
 
 // ValidationMode controls runtime behavior on schema validation failures.
+// ValidationMode defines how schema validation failures are handled.
 type ValidationMode string
 
+// Schema validation mode constants
 const (
-	ValidationModeWarn    ValidationMode = "warn"
+	// ValidationModeWarn logs validation errors but allows processing
+	ValidationModeWarn ValidationMode = "warn"
+	// ValidationModeEnforce rejects messages that fail validation
 	ValidationModeEnforce ValidationMode = "enforce"
 )
 
 // CompatibilityPolicy defines schema evolution compatibility.
 type CompatibilityPolicy string
 
+// Schema compatibility policy constants
 const (
+	// CompatibilityBackward allows reading old data with new schema
 	CompatibilityBackward CompatibilityPolicy = "BACKWARD"
-	CompatibilityFull     CompatibilityPolicy = "FULL"
+	// CompatibilityFull allows both forward and backward compatibility
+	CompatibilityFull CompatibilityPolicy = "FULL"
 )
 
 // Descriptor identifies one concrete schema version for an event subject.

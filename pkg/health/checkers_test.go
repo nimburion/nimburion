@@ -239,12 +239,12 @@ func TestCustomChecker(t *testing.T) {
 	})
 }
 
-// slowHealthCheckable is a mock that simulates slow health checks
-type slowHealthCheckable struct {
+// slowCheckable is a mock that simulates slow health checks
+type slowCheckable struct {
 	delay time.Duration
 }
 
-func (s *slowHealthCheckable) HealthCheck(ctx context.Context) error {
+func (s *slowCheckable) HealthCheck(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -256,7 +256,7 @@ func (s *slowHealthCheckable) HealthCheck(ctx context.Context) error {
 // TestAdapterChecker_Timeout tests that adapter checker respects timeout
 func TestAdapterChecker_Timeout(t *testing.T) {
 	// Create an adapter that takes longer than the timeout
-	slowAdapter := &slowHealthCheckable{
+	slowAdapter := &slowCheckable{
 		delay: 200 * time.Millisecond,
 	}
 	
@@ -319,7 +319,7 @@ func TestCheckResult_Timestamp(t *testing.T) {
 
 // TestCheckResult_Duration tests that check results include duration
 func TestCheckResult_Duration(t *testing.T) {
-	adapter := &mockHealthCheckable{err: nil}
+	adapter := &mockCheckable{err: nil}
 	adapterChecker := NewAdapterChecker("test", adapter, 5*time.Second)
 	
 	ctx := context.Background()
@@ -331,7 +331,7 @@ func TestCheckResult_Duration(t *testing.T) {
 }
 // TestNewDatabaseChecker tests the database checker convenience function
 func TestNewDatabaseChecker(t *testing.T) {
-	adapter := &mockHealthCheckable{err: nil}
+	adapter := &mockCheckable{err: nil}
 	checker := NewDatabaseChecker("postgres", adapter)
 
 	if checker.Name() != "postgres" {
@@ -352,7 +352,7 @@ func TestNewDatabaseChecker(t *testing.T) {
 
 // TestNewCacheChecker tests the cache checker convenience function
 func TestNewCacheChecker(t *testing.T) {
-	adapter := &mockHealthCheckable{err: nil}
+	adapter := &mockCheckable{err: nil}
 	checker := NewCacheChecker("redis", adapter)
 
 	if checker.Name() != "redis" {
@@ -373,7 +373,7 @@ func TestNewCacheChecker(t *testing.T) {
 
 // TestNewMessageBrokerChecker tests the message broker checker convenience function
 func TestNewMessageBrokerChecker(t *testing.T) {
-	adapter := &mockHealthCheckable{err: nil}
+	adapter := &mockCheckable{err: nil}
 	checker := NewMessageBrokerChecker("kafka", adapter)
 
 	if checker.Name() != "kafka" {
@@ -395,7 +395,7 @@ func TestNewMessageBrokerChecker(t *testing.T) {
 // TestDependencyCheckers_WithFailures tests dependency checkers with failures
 func TestDependencyCheckers_WithFailures(t *testing.T) {
 	t.Run("database failure", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: errors.New("connection refused")}
+		adapter := &mockCheckable{err: errors.New("connection refused")}
 		checker := NewDatabaseChecker("postgres", adapter)
 
 		ctx := context.Background()
@@ -411,7 +411,7 @@ func TestDependencyCheckers_WithFailures(t *testing.T) {
 	})
 
 	t.Run("cache failure", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: errors.New("redis unavailable")}
+		adapter := &mockCheckable{err: errors.New("redis unavailable")}
 		checker := NewCacheChecker("redis", adapter)
 
 		ctx := context.Background()
@@ -427,7 +427,7 @@ func TestDependencyCheckers_WithFailures(t *testing.T) {
 	})
 
 	t.Run("message broker failure", func(t *testing.T) {
-		adapter := &mockHealthCheckable{err: errors.New("kafka broker down")}
+		adapter := &mockCheckable{err: errors.New("kafka broker down")}
 		checker := NewMessageBrokerChecker("kafka", adapter)
 
 		ctx := context.Background()

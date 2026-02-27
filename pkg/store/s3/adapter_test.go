@@ -78,8 +78,8 @@ func (m *mockPresign) PresignGetObject(ctx context.Context, in *awss3.GetObjectI
 	return nil, errors.New("unexpected presign")
 }
 
-func TestNewS3Adapter_Validation(t *testing.T) {
-	_, err := NewS3Adapter(Config{}, &mockLogger{})
+func TestNewAdapter_Validation(t *testing.T) {
+	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected validation error for empty bucket/region")
 	}
@@ -88,7 +88,7 @@ func TestNewS3Adapter_Validation(t *testing.T) {
 func TestUpload_Success(t *testing.T) {
 	var gotBucket, gotKey, gotContentType string
 
-	a := &S3Adapter{
+	a := &Adapter{
 		client: &mockS3Client{
 			putObjectFn: func(_ context.Context, in *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
 				gotBucket = aws.ToString(in.Bucket)
@@ -114,7 +114,7 @@ func TestUpload_Success(t *testing.T) {
 }
 
 func TestDownload_Success(t *testing.T) {
-	a := &S3Adapter{
+	a := &Adapter{
 		client: &mockS3Client{
 			getObjectFn: func(_ context.Context, _ *awss3.GetObjectInput, _ ...func(*awss3.Options)) (*awss3.GetObjectOutput, error) {
 				return &awss3.GetObjectOutput{
@@ -141,7 +141,7 @@ func TestDownload_Success(t *testing.T) {
 
 func TestList_Success(t *testing.T) {
 	now := time.Now().UTC()
-	a := &S3Adapter{
+	a := &Adapter{
 		client: &mockS3Client{
 			listObjectsV2Fn: func(_ context.Context, _ *awss3.ListObjectsV2Input, _ ...func(*awss3.Options)) (*awss3.ListObjectsV2Output, error) {
 				return &awss3.ListObjectsV2Output{
@@ -173,7 +173,7 @@ func TestList_Success(t *testing.T) {
 }
 
 func TestPresignGetURL_Success(t *testing.T) {
-	a := &S3Adapter{
+	a := &Adapter{
 		client: &mockS3Client{},
 		presign: &mockPresign{
 			presignGetObjectFn: func(_ context.Context, in *awss3.GetObjectInput, _ ...func(*awss3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
@@ -197,7 +197,7 @@ func TestPresignGetURL_Success(t *testing.T) {
 }
 
 func TestCloseAndHealthCheck_WhenClosed(t *testing.T) {
-	a := &S3Adapter{
+	a := &Adapter{
 		client: &mockS3Client{},
 		logger: &mockLogger{},
 		config: Config{Bucket: "docs"},

@@ -11,8 +11,11 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
+// Context key constants for i18n
 const (
-	LocaleContextKey     = "locale"
+	// LocaleContextKey is the context key for storing locale
+	LocaleContextKey = "locale"
+	// TranslatorContextKey is the context key for storing translator
 	TranslatorContextKey = "translator"
 )
 

@@ -14,8 +14,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-// NetHTTPRouter implements router.Router using net/http and a simple pattern matcher.
-type NetHTTPRouter struct {
+// Router implements router.Router using net/http and a simple pattern matcher.
+type Router struct {
 	routes            *[]route
 	middleware        []router.MiddlewareFunc
 	prefix            string
@@ -30,12 +30,12 @@ type route struct {
 	middleware []router.MiddlewareFunc
 }
 
-// NewRouter creates a new NetHTTPRouter.
-func NewRouter() *NetHTTPRouter {
+// NewRouter creates a new Router.
+func NewRouter() *Router {
 	routes := make([]route, 0)
 	optionsRegistered := make(map[string]struct{})
 	mu := &sync.RWMutex{}
-	return &NetHTTPRouter{
+	return &Router{
 		routes:            &routes,
 		mu:                mu,
 		optionsRegistered: &optionsRegistered,
@@ -43,33 +43,33 @@ func NewRouter() *NetHTTPRouter {
 }
 
 // GET registers a GET route.
-func (r *NetHTTPRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.addRoute(http.MethodGet, path, handler, middleware)
 }
 
 // POST registers a POST route.
-func (r *NetHTTPRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.addRoute(http.MethodPost, path, handler, middleware)
 }
 
 // PUT registers a PUT route.
-func (r *NetHTTPRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.addRoute(http.MethodPut, path, handler, middleware)
 }
 
 // DELETE registers a DELETE route.
-func (r *NetHTTPRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.addRoute(http.MethodDelete, path, handler, middleware)
 }
 
 // PATCH registers a PATCH route.
-func (r *NetHTTPRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (r *Router) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.addRoute(http.MethodPatch, path, handler, middleware)
 }
 
 // Group creates a route group with common prefix and middleware.
-func (r *NetHTTPRouter) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
-	return &NetHTTPRouter{
+func (r *Router) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
+	return &Router{
 		routes:            r.routes,
 		middleware:        append(r.middleware, middleware...),
 		prefix:            r.prefix + prefix,
@@ -79,14 +79,14 @@ func (r *NetHTTPRouter) Group(prefix string, middleware ...router.MiddlewareFunc
 }
 
 // Use applies middleware to all routes.
-func (r *NetHTTPRouter) Use(middleware ...router.MiddlewareFunc) {
+func (r *Router) Use(middleware ...router.MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, middleware...)
 }
 
 // ServeHTTP implements http.Handler.
-func (r *NetHTTPRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -122,7 +122,7 @@ func (r *NetHTTPRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	http.NotFound(w, req)
 }
 
-func (r *NetHTTPRouter) addRoute(method, path string, handler router.HandlerFunc, middleware []router.MiddlewareFunc) {
+func (r *Router) addRoute(method, path string, handler router.HandlerFunc, middleware []router.MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -141,7 +141,7 @@ func (r *NetHTTPRouter) addRoute(method, path string, handler router.HandlerFunc
 	r.ensureOptionsRouteLocked(fullPath, baseMiddleware)
 }
 
-func (r *NetHTTPRouter) ensureOptionsRouteLocked(path string, middleware []router.MiddlewareFunc) {
+func (r *Router) ensureOptionsRouteLocked(path string, middleware []router.MiddlewareFunc) {
 	if _, exists := (*r.optionsRegistered)[path]; exists {
 		return
 	}

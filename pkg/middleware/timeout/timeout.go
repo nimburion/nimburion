@@ -10,11 +10,15 @@ import (
 )
 
 // Mode defines timeout behavior for matching request paths.
+// Mode defines timeout enforcement mode.
 type Mode string
 
+// Timeout mode constants
 const (
+	// ModeOff disables timeout enforcement
 	ModeOff Mode = "off"
-	ModeOn  Mode = "on"
+	// ModeOn enables timeout enforcement
+	ModeOn Mode = "on"
 )
 
 // Config configures request timeout middleware behavior.

@@ -35,20 +35,30 @@ type Store interface {
 // KeySource defines where a cache key fragment is extracted from.
 type KeySource string
 
+// Cache key source constants
 const (
-	KeySourceStatic          KeySource = "static"
-	KeySourceRoute           KeySource = "route"
-	KeySourceHeader          KeySource = "header"
-	KeySourceQuery           KeySource = "query"
-	KeySourceClaim           KeySource = "claim"
-	KeySourceTenant          KeySource = "tenant"
-	KeySourceSubject         KeySource = "subject"
-	KeySourceScopeHash       KeySource = "scope_hash"
+	// KeySourceStatic uses a static value
+	KeySourceStatic KeySource = "static"
+	// KeySourceRoute extracts from route parameters
+	KeySourceRoute KeySource = "route"
+	// KeySourceHeader extracts from HTTP headers
+	KeySourceHeader KeySource = "header"
+	// KeySourceQuery extracts from query parameters
+	KeySourceQuery KeySource = "query"
+	// KeySourceClaim extracts from JWT claims
+	KeySourceClaim KeySource = "claim"
+	// KeySourceTenant uses tenant ID from context
+	KeySourceTenant KeySource = "tenant"
+	// KeySourceSubject uses subject ID from context
+	KeySourceSubject KeySource = "subject"
+	// KeySourceScopeHash uses hash of OAuth scopes
+	KeySourceScopeHash KeySource = "scope_hash"
+	// KeySourceAuthFingerprint uses authentication fingerprint
 	KeySourceAuthFingerprint KeySource = "auth_fingerprint"
 )
 
-// CacheKeyRule defines one dynamic fragment for cache key composition.
-type CacheKeyRule struct {
+// KeyRule defines one dynamic fragment for cache key composition.
+type KeyRule struct {
 	Source   KeySource
 	Key      string
 	Value    string
@@ -72,7 +82,7 @@ type Config struct {
 	BypassQueryParam string
 
 	KeyPrefix string
-	KeyRules  []CacheKeyRule
+	KeyRules  []KeyRule
 
 	// Sensitive triggers stronger key validation at startup.
 	Sensitive bool
@@ -92,7 +102,7 @@ func DefaultConfig() Config {
 		VaryHeaders:            []string{},
 		BypassQueryParam:       "__cache_bypass",
 		KeyPrefix:              "http-cache",
-		KeyRules:               []CacheKeyRule{},
+		KeyRules:               []KeyRule{},
 		Sensitive:              false,
 		RequireTenant:          false,
 		RequireAuthFingerprint: false,
@@ -437,7 +447,7 @@ func buildCacheKey(c router.Context, cfg Config) (string, error) {
 	return strings.Join(parts, ":"), nil
 }
 
-func resolveRuleValue(c router.Context, rule CacheKeyRule) (string, bool) {
+func resolveRuleValue(c router.Context, rule KeyRule) (string, bool) {
 	switch rule.Source {
 	case KeySourceStatic:
 		value := strings.TrimSpace(rule.Value)
@@ -491,7 +501,7 @@ func resolveRuleValue(c router.Context, rule CacheKeyRule) (string, bool) {
 	}
 }
 
-func defaultRuleName(rule CacheKeyRule) string {
+func defaultRuleName(rule KeyRule) string {
 	switch rule.Source {
 	case KeySourceRoute:
 		return "route." + rule.Key

@@ -10,8 +10,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// MySQLAdapter provides MySQL connectivity with pooled connections.
-type MySQLAdapter struct {
+// Adapter provides MySQL connectivity with pooled connections.
+type Adapter struct {
 	db     *sql.DB
 	logger logger.Logger
 	config Config
@@ -29,8 +29,8 @@ type Config struct {
 
 // Cosa fa: inizializza un adapter MySQL con validazione e ping iniziale.
 // Cosa NON fa: non esegue migrazioni schema né provisioning database.
-// Esempio minimo: adapter, err := mysql.NewMySQLAdapter(cfg, log)
-func NewMySQLAdapter(cfg Config, log logger.Logger) (*MySQLAdapter, error) {
+// Esempio minimo: adapter, err := mysql.NewAdapter(cfg, log)
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("database URL is required")
 	}
@@ -59,18 +59,18 @@ func NewMySQLAdapter(cfg Config, log logger.Logger) (*MySQLAdapter, error) {
 		"conn_max_idle_time", cfg.ConnMaxIdleTime,
 	)
 
-	return &MySQLAdapter{db: db, logger: log, config: cfg}, nil
+	return &Adapter{db: db, logger: log, config: cfg}, nil
 }
 
-func (a *MySQLAdapter) DB() *sql.DB {
+func (a *Adapter) DB() *sql.DB {
 	return a.db
 }
 
-func (a *MySQLAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
 }
 
-func (a *MySQLAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if err := a.db.PingContext(hcCtx); err != nil {
@@ -80,7 +80,7 @@ func (a *MySQLAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (a *MySQLAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing MySQL connection")
 	if err := a.db.Close(); err != nil {
 		a.logger.Error("failed to close MySQL connection", "error", err)
@@ -102,7 +102,7 @@ func GetTx(ctx context.Context) (*sql.Tx, bool) {
 // Cosa fa: esegue fn in transazione con commit/rollback automatici.
 // Cosa NON fa: non gestisce retry applicativi su deadlock o timeout.
 // Esempio minimo: err := adapter.WithTransaction(ctx, func(txCtx context.Context) error { return nil })
-func (a *MySQLAdapter) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+func (a *Adapter) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -131,7 +131,7 @@ func (a *MySQLAdapter) WithTransaction(ctx context.Context, fn func(context.Cont
 	return nil
 }
 
-func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -140,7 +140,7 @@ func (a *MySQLAdapter) ExecContext(ctx context.Context, query string, args ...in
 	return a.db.ExecContext(queryCtx, query, args...)
 }
 
-func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -149,7 +149,7 @@ func (a *MySQLAdapter) QueryContext(ctx context.Context, query string, args ...i
 	return a.db.QueryContext(queryCtx, query, args...)
 }
 
-func (a *MySQLAdapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
@@ -158,7 +158,7 @@ func (a *MySQLAdapter) QueryRowContext(ctx context.Context, query string, args .
 	return a.db.QueryRowContext(queryCtx, query, args...)
 }
 
-func (a *MySQLAdapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.config.QueryTimeout <= 0 {
 		return ctx, func() {}
 	}

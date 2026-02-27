@@ -54,7 +54,7 @@ func NewManagementServer(
 	// Apply standard middleware stack (lighter than public API)
 	r.Use(
 		requestid.RequestID(),
-		logging.LoggingWithConfig(log, logging.DefaultConfig()),
+		logging.WithConfig(log, logging.DefaultConfig()),
 		recovery.Recovery(log),
 	)
 	if cfg.AuthEnabled && validator == nil {
@@ -62,7 +62,7 @@ func NewManagementServer(
 	}
 
 	// Create server config from management config
-	serverCfg := ServerConfig{
+	serverCfg := Config{
 		Port:         cfg.Port,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
@@ -185,6 +185,7 @@ func (s *ManagementServer) Shutdown(ctx context.Context) error {
 	return s.Server.Shutdown(ctx)
 }
 
+// Router returns the management server's router instance
 func (s *ManagementServer) Router() router.Router {
 	return s.router
 }

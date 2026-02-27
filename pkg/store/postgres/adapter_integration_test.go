@@ -11,11 +11,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// TestPostgreSQLAdapter_Integration tests the PostgreSQL adapter with a real database
+// TestAdapter_Integration tests the PostgreSQL adapter with a real database
 // using testcontainers.
 //
 // **Validates: Requirements 16.1-16.8, 38.1**
-func TestPostgreSQLAdapter_Integration(t *testing.T) {
+func TestAdapter_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -68,7 +68,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -91,7 +91,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -113,7 +113,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -161,7 +161,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -209,7 +209,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -263,7 +263,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}
@@ -318,7 +318,7 @@ func TestPostgreSQLAdapter_Integration(t *testing.T) {
 			QueryTimeout:    10 * time.Second,
 		}
 
-		adapter, err := NewPostgreSQLAdapter(cfg, log)
+		adapter, err := NewAdapter(cfg, log)
 		if err != nil {
 			t.Fatalf("Failed to create adapter: %v", err)
 		}

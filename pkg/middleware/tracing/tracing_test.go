@@ -142,7 +142,7 @@ func TestTracing_CreatesSpan(t *testing.T) {
 	req := httptest.NewRequest("GET", "/users", nil)
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{
+	middleware := Tracing(Config{
 		TracerName: "test-tracer",
 	})
 
@@ -175,7 +175,7 @@ func TestTracing_AddsHTTPAttributes(t *testing.T) {
 
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{})
+	middleware := Tracing(Config{})
 
 	handler := middleware(func(c router.Context) error {
 		return nil
@@ -224,7 +224,7 @@ func TestTracing_ExcludedPathPrefixes(t *testing.T) {
 	req := httptest.NewRequest("GET", "/health/live", nil)
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{
+	middleware := Tracing(Config{
 		ExcludedPathPrefixes: []string{"/health"},
 	})
 
@@ -247,7 +247,7 @@ func TestTracing_PathPolicyMinimal(t *testing.T) {
 	req.RemoteAddr = "10.1.2.3:9999"
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{
+	middleware := Tracing(Config{
 		PathPolicies: []PathPolicy{
 			{Prefix: "/api/public", Mode: ModeMinimal},
 		},
@@ -281,7 +281,7 @@ func TestTracing_AddsRequestID(t *testing.T) {
 
 	mockCtx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{})
+	middleware := Tracing(Config{})
 
 	handler := middleware(func(c router.Context) error {
 		return nil
@@ -339,7 +339,7 @@ func TestTracing_RecordsStatusCode(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
 			ctx := newMockTracingContext(req)
 
-			middleware := Tracing(TracingConfig{})
+			middleware := Tracing(Config{})
 
 			handler := middleware(func(c router.Context) error {
 				c.Response().WriteHeader(tt.statusCode)
@@ -388,7 +388,7 @@ func TestTracing_RecordsError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/error", nil)
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{})
+	middleware := Tracing(Config{})
 
 	testErr := errors.New("test error")
 	handler := middleware(func(c router.Context) error {
@@ -430,7 +430,7 @@ func TestTracing_CustomSpanNameFormatter(t *testing.T) {
 	ctx := newMockTracingContext(req)
 	ctx.params["id"] = "123"
 
-	middleware := Tracing(TracingConfig{
+	middleware := Tracing(Config{
 		SpanNameFormatter: func(c router.Context) string {
 			return "Custom: " + c.Request().Method + " " + c.Param("id")
 		},
@@ -469,7 +469,7 @@ func TestTracing_PropagatesContext(t *testing.T) {
 
 	ctx := newMockTracingContext(req)
 
-	middleware := Tracing(TracingConfig{})
+	middleware := Tracing(Config{})
 
 	handler := middleware(func(c router.Context) error {
 		return nil

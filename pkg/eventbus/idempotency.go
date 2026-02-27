@@ -7,9 +7,13 @@ import (
 	"time"
 )
 
+// Idempotency configuration constants
 const (
+	// DefaultProcessedEventsRetention is the default retention period for processed events
 	DefaultProcessedEventsRetention = 30 * 24 * time.Hour
-	DefaultProcessedEventsCleanup   = time.Hour
+	// DefaultProcessedEventsCleanup is the default cleanup interval
+	DefaultProcessedEventsCleanup = time.Hour
+	// DefaultProcessedEventsBatchSize is the default batch size for cleanup
 	DefaultProcessedEventsBatchSize = 1000
 )
 

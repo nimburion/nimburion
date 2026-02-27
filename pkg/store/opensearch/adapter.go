@@ -22,8 +22,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// OpenSearchAdapter provides OpenSearch/Elasticsearch connectivity.
-type OpenSearchAdapter struct {
+// Adapter provides OpenSearch/Elasticsearch connectivity.
+type Adapter struct {
 	baseURLs []url.URL
 	client   *http.Client
 	logger   logger.Logger
@@ -51,8 +51,8 @@ type Config struct {
 	OperationTimeout time.Duration
 }
 
-// NewOpenSearchAdapter creates a new OpenSearch/Elasticsearch adapter.
-func NewOpenSearchAdapter(cfg Config, log logger.Logger) (*OpenSearchAdapter, error) {
+// NewAdapter creates a new OpenSearch/Elasticsearch adapter.
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	baseURLs, err := parseBaseURLs(cfg)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func NewOpenSearchAdapter(cfg Config, log logger.Logger) (*OpenSearchAdapter, er
 		Timeout:   cfg.OperationTimeout,
 	}
 
-	adapter := &OpenSearchAdapter{
+	adapter := &Adapter{
 		baseURLs: baseURLs,
 		client:   client,
 		logger:   log,
@@ -114,7 +114,7 @@ func NewOpenSearchAdapter(cfg Config, log logger.Logger) (*OpenSearchAdapter, er
 }
 
 // Ping verifies the OpenSearch/Elasticsearch connection is alive.
-func (a *OpenSearchAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	resp, err := a.request(ctx, http.MethodGet, "/", nil)
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (a *OpenSearchAdapter) Ping(ctx context.Context) error {
 }
 
 // HealthCheck verifies the OpenSearch/Elasticsearch cluster is healthy.
-func (a *OpenSearchAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -150,7 +150,7 @@ func (a *OpenSearchAdapter) HealthCheck(ctx context.Context) error {
 }
 
 // IndexDocument upserts a JSON document in the target index by ID.
-func (a *OpenSearchAdapter) IndexDocument(ctx context.Context, index, id string, document interface{}) error {
+func (a *Adapter) IndexDocument(ctx context.Context, index, id string, document interface{}) error {
 	if strings.TrimSpace(index) == "" {
 		return fmt.Errorf("index is required")
 	}
@@ -178,7 +178,7 @@ func (a *OpenSearchAdapter) IndexDocument(ctx context.Context, index, id string,
 }
 
 // DeleteDocument deletes a document by ID.
-func (a *OpenSearchAdapter) DeleteDocument(ctx context.Context, index, id string) error {
+func (a *Adapter) DeleteDocument(ctx context.Context, index, id string) error {
 	if strings.TrimSpace(index) == "" {
 		return fmt.Errorf("index is required")
 	}
@@ -205,7 +205,7 @@ func (a *OpenSearchAdapter) DeleteDocument(ctx context.Context, index, id string
 }
 
 // Search executes a JSON query and returns the raw JSON response.
-func (a *OpenSearchAdapter) Search(ctx context.Context, index string, query interface{}) (json.RawMessage, error) {
+func (a *Adapter) Search(ctx context.Context, index string, query interface{}) (json.RawMessage, error) {
 	if strings.TrimSpace(index) == "" {
 		return nil, fmt.Errorf("index is required")
 	}
@@ -233,7 +233,7 @@ func (a *OpenSearchAdapter) Search(ctx context.Context, index string, query inte
 }
 
 // Close gracefully closes idle HTTP connections.
-func (a *OpenSearchAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.logger.Info("closing Search connections")
 	if transport, ok := a.client.Transport.(*http.Transport); ok {
 		transport.CloseIdleConnections()
@@ -241,7 +241,7 @@ func (a *OpenSearchAdapter) Close() error {
 	return nil
 }
 
-func (a *OpenSearchAdapter) request(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
+func (a *Adapter) request(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	if len(a.baseURLs) == 0 {
 		return nil, fmt.Errorf("no search nodes configured")
 	}
@@ -274,7 +274,7 @@ func (a *OpenSearchAdapter) request(ctx context.Context, method, path string, bo
 	return nil, lastErr
 }
 
-func (a *OpenSearchAdapter) requestNode(ctx context.Context, baseURL url.URL, method, path string, body []byte) (*http.Response, error) {
+func (a *Adapter) requestNode(ctx context.Context, baseURL url.URL, method, path string, body []byte) (*http.Response, error) {
 	endpoint, err := resolveEndpoint(baseURL, path)
 	if err != nil {
 		return nil, err
@@ -296,8 +296,8 @@ func (a *OpenSearchAdapter) requestNode(ctx context.Context, baseURL url.URL, me
 	}
 
 	if a.config.AWSAuthEnabled {
-		if err := a.signRequest(ctx, req, body); err != nil {
-			return nil, err
+		if signErr := a.signRequest(ctx, req, body); signErr != nil {
+			return nil, signErr
 		}
 	} else {
 		switch {
@@ -315,7 +315,7 @@ func (a *OpenSearchAdapter) requestNode(ctx context.Context, baseURL url.URL, me
 	return resp, nil
 }
 
-func (a *OpenSearchAdapter) signRequest(ctx context.Context, req *http.Request, body []byte) error {
+func (a *Adapter) signRequest(ctx context.Context, req *http.Request, body []byte) error {
 	if a.signer == nil || a.creds == nil {
 		return fmt.Errorf("AWS signer is not initialized")
 	}
@@ -333,7 +333,7 @@ func (a *OpenSearchAdapter) signRequest(ctx context.Context, req *http.Request, 
 	return nil
 }
 
-func (a *OpenSearchAdapter) initAWSAuth() error {
+func (a *Adapter) initAWSAuth() error {
 	var provider aws.CredentialsProvider
 	if strings.TrimSpace(a.config.AWSAccessKeyID) != "" || strings.TrimSpace(a.config.AWSSecretKey) != "" {
 		if strings.TrimSpace(a.config.AWSAccessKeyID) == "" || strings.TrimSpace(a.config.AWSSecretKey) == "" {

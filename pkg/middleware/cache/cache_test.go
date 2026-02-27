@@ -127,7 +127,7 @@ func TestMiddleware_KeyRulesClaims(t *testing.T) {
 		Enabled: true,
 		Store:   NewInMemoryStore(),
 		TTL:     time.Minute,
-		KeyRules: []CacheKeyRule{
+		KeyRules: []KeyRule{
 			{Source: KeySourceRoute, Key: "tenantId"},
 			{Source: KeySourceTenant},
 			{Source: KeySourceAuthFingerprint},
@@ -249,7 +249,7 @@ func TestValidateConfig_SensitiveRequiresStrongRules(t *testing.T) {
 		Store:     NewInMemoryStore(),
 		TTL:       time.Minute,
 		Sensitive: true,
-		KeyRules: []CacheKeyRule{
+		KeyRules: []KeyRule{
 			{Source: KeySourceHeader, Key: "Accept-Language"},
 		},
 	})

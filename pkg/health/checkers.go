@@ -6,20 +6,20 @@ import (
 	"time"
 )
 
-// HealthCheckable is an interface for components that support health checks
-type HealthCheckable interface {
+// Checkable is an interface for components that support health checks
+type Checkable interface {
 	HealthCheck(ctx context.Context) error
 }
 
-// AdapterChecker creates a health checker for any component that implements HealthCheckable
+// AdapterChecker creates a health checker for any component that implements Checkable
 type AdapterChecker struct {
 	name    string
-	adapter HealthCheckable
+	adapter Checkable
 	timeout time.Duration
 }
 
 // NewAdapterChecker creates a new health checker for an adapter
-func NewAdapterChecker(name string, adapter HealthCheckable, timeout time.Duration) *AdapterChecker {
+func NewAdapterChecker(name string, adapter Checkable, timeout time.Duration) *AdapterChecker {
 	if timeout == 0 {
 		timeout = 5 * time.Second
 	}
@@ -193,19 +193,19 @@ func (c *CustomChecker) Name() string {
 }
 // NewDatabaseChecker creates a health checker for a database adapter
 // This is a convenience function for creating an AdapterChecker with database-specific defaults
-func NewDatabaseChecker(name string, db HealthCheckable) *AdapterChecker {
+func NewDatabaseChecker(name string, db Checkable) *AdapterChecker {
 	return NewAdapterChecker(name, db, 5*time.Second)
 }
 
 // NewCacheChecker creates a health checker for a cache adapter
 // This is a convenience function for creating an AdapterChecker with cache-specific defaults
-func NewCacheChecker(name string, cache HealthCheckable) *AdapterChecker {
+func NewCacheChecker(name string, cache Checkable) *AdapterChecker {
 	return NewAdapterChecker(name, cache, 3*time.Second)
 }
 
 // NewMessageBrokerChecker creates a health checker for a message broker adapter
 // This is a convenience function for creating an AdapterChecker with message broker-specific defaults
-func NewMessageBrokerChecker(name string, broker HealthCheckable) *AdapterChecker {
+func NewMessageBrokerChecker(name string, broker Checkable) *AdapterChecker {
 	return NewAdapterChecker(name, broker, 5*time.Second)
 }
 

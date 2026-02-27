@@ -7,8 +7,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// TestNewRedisAdapter_InvalidURL tests adapter creation with invalid URL
-func TestNewRedisAdapter_InvalidURL(t *testing.T) {
+// TestNewAdapter_InvalidURL tests adapter creation with invalid URL
+func TestNewAdapter_InvalidURL(t *testing.T) {
 	log, _ := logger.NewZapLogger(logger.Config{
 		Level:  logger.InfoLevel,
 		Format: logger.JSONFormat,
@@ -20,14 +20,14 @@ func TestNewRedisAdapter_InvalidURL(t *testing.T) {
 		OperationTimeout: 5 * time.Second,
 	}
 
-	_, err := NewRedisAdapter(cfg, log)
+	_, err := NewAdapter(cfg, log)
 	if err == nil {
 		t.Error("Expected error for invalid URL, got nil")
 	}
 }
 
-// TestNewRedisAdapter_EmptyURL tests adapter creation with empty URL
-func TestNewRedisAdapter_EmptyURL(t *testing.T) {
+// TestNewAdapter_EmptyURL tests adapter creation with empty URL
+func TestNewAdapter_EmptyURL(t *testing.T) {
 	log, _ := logger.NewZapLogger(logger.Config{
 		Level:  logger.InfoLevel,
 		Format: logger.JSONFormat,
@@ -39,7 +39,7 @@ func TestNewRedisAdapter_EmptyURL(t *testing.T) {
 		OperationTimeout: 5 * time.Second,
 	}
 
-	_, err := NewRedisAdapter(cfg, log)
+	_, err := NewAdapter(cfg, log)
 	if err == nil {
 		t.Error("Expected error for empty URL, got nil")
 	}

@@ -15,13 +15,20 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// Worker configuration constants
 const (
+	// DefaultWorkerReserveTimeout is the default timeout for reserving jobs
 	DefaultWorkerReserveTimeout = time.Second
-	DefaultWorkerStopTimeout    = 10 * time.Second
+	// DefaultWorkerStopTimeout is the default timeout for graceful shutdown
+	DefaultWorkerStopTimeout = 10 * time.Second
 
-	DefaultWorkerMaxAttempts    = 5
+	// DefaultWorkerMaxAttempts is the default maximum retry attempts
+	DefaultWorkerMaxAttempts = 5
+	// DefaultWorkerInitialBackoff is the default initial retry backoff
 	DefaultWorkerInitialBackoff = time.Second
-	DefaultWorkerMaxBackoff     = 60 * time.Second
+	// DefaultWorkerMaxBackoff is the default maximum retry backoff
+	DefaultWorkerMaxBackoff = 60 * time.Second
+	// DefaultWorkerAttemptTimeout is the default timeout per job attempt
 	DefaultWorkerAttemptTimeout = 30 * time.Second
 
 	minWorkerLeaseRenewInterval = 100 * time.Millisecond

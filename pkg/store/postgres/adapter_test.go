@@ -34,9 +34,9 @@ func TestConfig_Validation(t *testing.T) {
 				Format: logger.JSONFormat,
 			})
 
-			_, err := NewPostgreSQLAdapter(tt.cfg, log)
+			_, err := NewAdapter(tt.cfg, log)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("NewPostgreSQLAdapter() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("NewAdapter() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -66,7 +66,7 @@ func TestGetTx(t *testing.T) {
 }
 
 func TestWithQueryTimeout_UsesConfigWhenNoDeadline(t *testing.T) {
-	a := &PostgreSQLAdapter{config: Config{QueryTimeout: 2 * time.Second}}
+	a := &Adapter{config: Config{QueryTimeout: 2 * time.Second}}
 
 	ctx, cancel := a.withQueryTimeout(context.Background())
 	defer cancel()
@@ -81,7 +81,7 @@ func TestWithQueryTimeout_UsesConfigWhenNoDeadline(t *testing.T) {
 }
 
 func TestWithQueryTimeout_PreservesCallerDeadline(t *testing.T) {
-	a := &PostgreSQLAdapter{config: Config{QueryTimeout: 2 * time.Second}}
+	a := &Adapter{config: Config{QueryTimeout: 2 * time.Second}}
 	parentCtx, parentCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer parentCancel()
 
@@ -96,7 +96,7 @@ func TestWithQueryTimeout_PreservesCallerDeadline(t *testing.T) {
 }
 
 func TestWithQueryTimeout_ZeroTimeout(t *testing.T) {
-	a := &PostgreSQLAdapter{config: Config{QueryTimeout: 0}}
+	a := &Adapter{config: Config{QueryTimeout: 0}}
 	ctx, cancel := a.withQueryTimeout(context.Background())
 	defer cancel()
 
@@ -105,25 +105,25 @@ func TestWithQueryTimeout_ZeroTimeout(t *testing.T) {
 	}
 }
 
-func TestNewPostgreSQLAdapter_InvalidURL(t *testing.T) {
+func TestNewAdapter_InvalidURL(t *testing.T) {
 	log, _ := logger.NewZapLogger(logger.Config{
 		Level:  logger.InfoLevel,
 		Format: logger.JSONFormat,
 	})
 
-	_, err := NewPostgreSQLAdapter(Config{URL: ""}, log)
+	_, err := NewAdapter(Config{URL: ""}, log)
 	if err == nil {
 		t.Fatal("expected error for empty URL")
 	}
 }
 
-func TestNewPostgreSQLAdapter_InvalidDriver(t *testing.T) {
+func TestNewAdapter_InvalidDriver(t *testing.T) {
 	log, _ := logger.NewZapLogger(logger.Config{
 		Level:  logger.InfoLevel,
 		Format: logger.JSONFormat,
 	})
 
-	_, err := NewPostgreSQLAdapter(Config{
+	_, err := NewAdapter(Config{
 		URL: "invalid://localhost",
 	}, log)
 	if err == nil {

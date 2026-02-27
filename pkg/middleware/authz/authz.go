@@ -15,30 +15,44 @@ import (
 // ClaimsKey is the context key for storing JWT claims.
 const ClaimsKey = "claims"
 
+// Default header name constants for authorization
 const (
-	DefaultTenantHeader  = "X-Tenant-ID"
+	// DefaultTenantHeader is the default header for tenant ID
+	DefaultTenantHeader = "X-Tenant-ID"
+	// DefaultSubjectHeader is the default header for subject ID
 	DefaultSubjectHeader = "X-Subject-ID"
-	DefaultScopesHeader  = "X-Scopes"
-	DefaultRolesHeader   = "X-Roles"
+	// DefaultScopesHeader is the default header for OAuth scopes
+	DefaultScopesHeader = "X-Scopes"
+	// DefaultRolesHeader is the default header for user roles
+	DefaultRolesHeader = "X-Roles"
 )
 
 // ClaimValueSource defines where guard values are extracted from.
 type ClaimValueSource string
 
+// Claim value source constants
 const (
-	ClaimValueSourceRoute  ClaimValueSource = "route"
+	// ClaimValueSourceRoute extracts values from route parameters
+	ClaimValueSourceRoute ClaimValueSource = "route"
+	// ClaimValueSourceHeader extracts values from HTTP headers
 	ClaimValueSourceHeader ClaimValueSource = "header"
-	ClaimValueSourceQuery  ClaimValueSource = "query"
+	// ClaimValueSourceQuery extracts values from query parameters
+	ClaimValueSourceQuery ClaimValueSource = "query"
 )
 
 // ClaimOperator defines the rule evaluation operator.
 type ClaimOperator string
 
+// Claim operator constants
 const (
+	// ClaimOperatorRequired checks if claim exists
 	ClaimOperatorRequired ClaimOperator = "required"
-	ClaimOperatorEquals   ClaimOperator = "equals"
-	ClaimOperatorOneOf    ClaimOperator = "one_of"
-	ClaimOperatorRegex    ClaimOperator = "regex"
+	// ClaimOperatorEquals checks if claim equals expected value
+	ClaimOperatorEquals ClaimOperator = "equals"
+	// ClaimOperatorOneOf checks if claim is in allowed list
+	ClaimOperatorOneOf ClaimOperator = "one_of"
+	// ClaimOperatorRegex checks if claim matches regex pattern
+	ClaimOperatorRegex ClaimOperator = "regex"
 )
 
 // ClaimRule defines a generic claim guard rule.

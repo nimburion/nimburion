@@ -482,7 +482,7 @@ func (b *RedisBackend) ReplayDLQ(ctx context.Context, queue string, ids []string
 		}
 
 		var record redisDLQRecord
-		if err := json.Unmarshal([]byte(raw), &record); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(raw), &record); unmarshalErr != nil {
 			continue
 		}
 		job := cloneJob(record.Job)
@@ -494,8 +494,8 @@ func (b *RedisBackend) ReplayDLQ(ctx context.Context, queue string, ids []string
 		job.Attempt = 0
 		job.RunAt = time.Now().UTC()
 
-		if err := b.Enqueue(ctx, job); err != nil {
-			return replayed, err
+		if enqueueErr := b.Enqueue(ctx, job); enqueueErr != nil {
+			return replayed, enqueueErr
 		}
 
 		opCtx, cancel = b.operationContext(ctx)

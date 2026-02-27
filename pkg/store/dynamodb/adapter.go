@@ -15,8 +15,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// DynamoDBAdapter provides DynamoDB connectivity.
-type DynamoDBAdapter struct {
+// Adapter provides DynamoDB connectivity.
+type Adapter struct {
 	client  *dynamodb.Client
 	logger  logger.Logger
 	timeout time.Duration
@@ -36,8 +36,8 @@ type Config struct {
 
 // Cosa fa: costruisce client DynamoDB (AWS SDK v2) con supporto endpoint custom.
 // Cosa NON fa: non crea tabelle o throughput policy.
-// Esempio minimo: adapter, err := dynamodb.NewDynamoDBAdapter(cfg, log)
-func NewDynamoDBAdapter(cfg Config, log logger.Logger) (*DynamoDBAdapter, error) {
+// Esempio minimo: adapter, err := dynamodb.NewAdapter(cfg, log)
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("aws region is required")
 	}
@@ -65,7 +65,7 @@ func NewDynamoDBAdapter(cfg Config, log logger.Logger) (*DynamoDBAdapter, error)
 	}
 
 	client := dynamodb.NewFromConfig(awsCfg, opts...)
-	adapter := &DynamoDBAdapter{client: client, logger: log, timeout: cfg.OperationTimeout}
+	adapter := &Adapter{client: client, logger: log, timeout: cfg.OperationTimeout}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
 	defer cancel()
@@ -77,11 +77,11 @@ func NewDynamoDBAdapter(cfg Config, log logger.Logger) (*DynamoDBAdapter, error)
 	return adapter, nil
 }
 
-func (a *DynamoDBAdapter) Client() *dynamodb.Client {
+func (a *Adapter) Client() *dynamodb.Client {
 	return a.client
 }
 
-func (a *DynamoDBAdapter) Ping(ctx context.Context) error {
+func (a *Adapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
 	a.mu.RUnlock()
@@ -98,7 +98,7 @@ func (a *DynamoDBAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (a *DynamoDBAdapter) HealthCheck(ctx context.Context) error {
+func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if err := a.Ping(hcCtx); err != nil {
@@ -108,44 +108,44 @@ func (a *DynamoDBAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (a *DynamoDBAdapter) Close() error {
+func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.closed = true
 	return nil
 }
 
-func (a *DynamoDBAdapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+func (a *Adapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.PutItem(opCtx, input)
 }
 
-func (a *DynamoDBAdapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (a *Adapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.GetItem(opCtx, input)
 }
 
-func (a *DynamoDBAdapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
+func (a *Adapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.UpdateItem(opCtx, input)
 }
 
-func (a *DynamoDBAdapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
+func (a *Adapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.DeleteItem(opCtx, input)
 }
 
-func (a *DynamoDBAdapter) Query(ctx context.Context, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+func (a *Adapter) Query(ctx context.Context, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.Query(opCtx, input)
 }
 
-func (a *DynamoDBAdapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.timeout <= 0 {
 		return ctx, func() {}
 	}

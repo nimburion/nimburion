@@ -401,7 +401,7 @@ func (m *mockResponseWriter) Written() bool {
 
 func TestRateLimit_AllowsRequestWithinLimit(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10, 5)
-	cfg := RateLimitConfig{
+	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             5,
 		KeyFunc: func(c router.Context) string {
@@ -438,7 +438,7 @@ func TestRateLimit_AllowsRequestWithinLimit(t *testing.T) {
 
 func TestRateLimit_RejectsRequestExceedingLimit(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10, 2)
-	cfg := RateLimitConfig{
+	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             2,
 		KeyFunc: func(c router.Context) string {
@@ -484,7 +484,7 @@ func TestRateLimit_RejectsRequestExceedingLimit(t *testing.T) {
 
 func TestRateLimit_PerIPRateLimiting(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10, 2)
-	cfg := RateLimitConfig{
+	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             2,
 		KeyFunc: func(c router.Context) string {
@@ -539,7 +539,7 @@ func TestRateLimit_PerIPRateLimiting(t *testing.T) {
 
 func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10, 2)
-	cfg := RateLimitConfig{
+	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             2,
 		KeyFunc: func(c router.Context) string {
@@ -701,7 +701,7 @@ func TestExtractUserIDFromContext(t *testing.T) {
 
 func TestRateLimit_RetryAfterHeader(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10, 1)
-	cfg := RateLimitConfig{
+	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             1,
 		KeyFunc: func(c router.Context) string {

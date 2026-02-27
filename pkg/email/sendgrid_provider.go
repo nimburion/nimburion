@@ -53,8 +53,8 @@ func (p *SendGridProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return err
 	}
-	if err := msg.validate(); err != nil {
-		return err
+	if validateErr := msg.validate(); validateErr != nil {
+		return validateErr
 	}
 
 	payload := map[string]interface{}{
