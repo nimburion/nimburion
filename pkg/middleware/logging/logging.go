@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/middleware"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/server/router"
 )
@@ -453,14 +454,13 @@ func argsToMap(args []any) map[string]any {
 }
 
 // getRequestIDFromContext extracts the request ID from the context.
-// This function looks for the request ID under the "request_id" key.
 func getRequestIDFromContext(ctx interface{}) string {
 	if ctx == nil {
 		return ""
 	}
 
 	if c, ok := ctx.(interface{ Value(interface{}) interface{} }); ok {
-		if requestID, ok := c.Value("request_id").(string); ok {
+		if requestID, ok := c.Value(middleware.RequestIDKey).(string); ok {
 			return requestID
 		}
 	}

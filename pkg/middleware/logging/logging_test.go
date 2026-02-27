@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/middleware"
+
 	"github.com/nimburion/nimburion/pkg/middleware/testutil"
 	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/nimburion/nimburion/pkg/server/router/nethttp"
@@ -31,7 +33,7 @@ func TestLogging_RequestStartAndCompletion(t *testing.T) {
 	req.RemoteAddr = "192.168.1.1:12345"
 
 	// Add request ID to context
-	ctx := context.WithValue(req.Context(), "request_id", "test-req-123")
+	ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "test-req-123")
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
@@ -92,7 +94,7 @@ func TestLogging_RequestFailure(t *testing.T) {
 
 	// Make request
 	req := httptest.NewRequest(http.MethodGet, "/error", nil)
-	ctx := context.WithValue(req.Context(), "request_id", "error-req-456")
+	ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "error-req-456")
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
@@ -169,7 +171,7 @@ func TestLogging_DurationTracking(t *testing.T) {
 
 	// Make request
 	req := httptest.NewRequest(http.MethodGet, "/slow", nil)
-	ctx := context.WithValue(req.Context(), "request_id", "slow-req")
+	ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "slow-req")
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
