@@ -88,22 +88,27 @@ func WrapAsync(base Logger, cfg AsyncConfig) Logger {
 	}
 }
 
+// Debug logs a debug-level message asynchronously.
 func (l *AsyncLogger) Debug(msg string, args ...any) {
 	l.enqueue(logLevelDebug, msg, args...)
 }
 
+// Info logs an info-level message asynchronously.
 func (l *AsyncLogger) Info(msg string, args ...any) {
 	l.enqueue(logLevelInfo, msg, args...)
 }
 
+// Warn logs a warn-level message asynchronously.
 func (l *AsyncLogger) Warn(msg string, args ...any) {
 	l.enqueue(logLevelWarn, msg, args...)
 }
 
+// Error logs an error-level message asynchronously.
 func (l *AsyncLogger) Error(msg string, args ...any) {
 	l.enqueue(logLevelError, msg, args...)
 }
 
+// With returns a new logger with additional fields.
 func (l *AsyncLogger) With(args ...any) Logger {
 	return &AsyncLogger{
 		base:       l.base.With(args...),
@@ -111,6 +116,7 @@ func (l *AsyncLogger) With(args ...any) Logger {
 	}
 }
 
+// WithContext returns a new logger with the given context.
 func (l *AsyncLogger) WithContext(ctx context.Context) Logger {
 	return &AsyncLogger{
 		base:       l.base.WithContext(ctx),

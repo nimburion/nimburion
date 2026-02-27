@@ -293,10 +293,12 @@ func newCompressResponseWriter(base router.ResponseWriter, encoding string, cfg 
 	}
 }
 
+// Header returns the HTTP response headers that can be modified before writing the response.
 func (w *compressResponseWriter) Header() http.Header {
 	return w.base.Header()
 }
 
+// WriteHeader sends an HTTP response header with the provided status code.
 func (w *compressResponseWriter) WriteHeader(code int) {
 	if w.headerWritten {
 		return
@@ -310,6 +312,7 @@ func (w *compressResponseWriter) WriteHeader(code int) {
 	}
 }
 
+// Write writes data to the response body. Implements io.Writer interface.
 func (w *compressResponseWriter) Write(p []byte) (int, error) {
 	if !w.headerWritten {
 		w.WriteHeader(http.StatusOK)
@@ -445,6 +448,7 @@ func matchesMIME(contentType string, excluded []string) bool {
 	return false
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (w *compressResponseWriter) Close() error {
 	if !w.decided {
 		if err := w.decideAndFlushBuffer(); err != nil {
@@ -474,6 +478,7 @@ func (w *compressResponseWriter) statusOrOK() int {
 	return w.statusCode
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (w *compressResponseWriter) Status() int {
 	if w.base.Written() {
 		return w.base.Status()
@@ -484,10 +489,12 @@ func (w *compressResponseWriter) Status() int {
 	return w.statusCode
 }
 
+// Written returns true if the response headers and body have been written.
 func (w *compressResponseWriter) Written() bool {
 	return w.base.Written() || w.headerWritten
 }
 
+// Flush sends any buffered data to the client immediately.
 func (w *compressResponseWriter) Flush() {
 	if flusher, ok := w.compressedWriter.(interface{ Flush() error }); ok {
 		_ = flusher.Flush()
@@ -497,6 +504,7 @@ func (w *compressResponseWriter) Flush() {
 	}
 }
 
+// Hijack takes over the underlying connection for custom protocols like WebSocket.
 func (w *compressResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.base.(http.Hijacker)
 	if !ok {

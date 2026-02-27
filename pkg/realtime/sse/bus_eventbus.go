@@ -101,6 +101,7 @@ type eventBusSubscription struct {
 	closeFn func() error
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (s *eventBusSubscription) Close() error {
 	var err error
 	s.once.Do(func() {

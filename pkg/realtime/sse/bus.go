@@ -85,6 +85,7 @@ type inMemoryBusSubscription struct {
 	closeFn func()
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (s *inMemoryBusSubscription) Close() error {
 	s.once.Do(s.closeFn)
 	return nil
@@ -200,6 +201,7 @@ type redisBusSubscription struct {
 	pubsub *redis.PubSub
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (s *redisBusSubscription) Close() error {
 	var err error
 	s.once.Do(func() {

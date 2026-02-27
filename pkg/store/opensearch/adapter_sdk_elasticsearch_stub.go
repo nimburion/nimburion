@@ -17,10 +17,12 @@ func NewElasticsearchSDKAdapter(cfg Config, log logger.Logger) (*ElasticsearchSD
 	return nil, fmt.Errorf("elasticsearch-sdk adapter is not enabled; rebuild with `-tags elasticsearch_sdk`")
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *ElasticsearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	return fmt.Errorf("elasticsearch-sdk adapter is not enabled; rebuild with `-tags elasticsearch_sdk`")
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *ElasticsearchSDKAdapter) Close() error {
 	return nil
 }

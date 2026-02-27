@@ -80,6 +80,7 @@ func NewOpenSearchSDKAdapter(cfg Config, log logger.Logger) (*OpenSearchSDKAdapt
 	return adapter, nil
 }
 
+// Ping performs a basic connectivity check to verify the service is reachable.
 func (a *OpenSearchSDKAdapter) Ping(ctx context.Context) error {
 	resp, err := a.perform(ctx, http.MethodGet, "/", nil)
 	if err != nil {
@@ -93,6 +94,7 @@ func (a *OpenSearchSDKAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *OpenSearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	resp, err := a.perform(ctx, http.MethodGet, "/_cluster/health?local=true", nil)
 	if err != nil {
@@ -106,6 +108,7 @@ func (a *OpenSearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// IndexDocument indexes a document with the given ID.
 func (a *OpenSearchSDKAdapter) IndexDocument(ctx context.Context, index, id string, document interface{}) error {
 	payload, err := json.Marshal(document)
 	if err != nil {
@@ -123,6 +126,7 @@ func (a *OpenSearchSDKAdapter) IndexDocument(ctx context.Context, index, id stri
 	return nil
 }
 
+// DeleteDocument deletes a document by ID.
 func (a *OpenSearchSDKAdapter) DeleteDocument(ctx context.Context, index, id string) error {
 	resp, err := a.perform(ctx, http.MethodDelete, fmt.Sprintf("/%s/_doc/%s", index, id), nil)
 	if err != nil {
@@ -139,6 +143,7 @@ func (a *OpenSearchSDKAdapter) DeleteDocument(ctx context.Context, index, id str
 	return nil
 }
 
+// Search executes a search query and returns matching documents.
 func (a *OpenSearchSDKAdapter) Search(ctx context.Context, index string, query interface{}) (json.RawMessage, error) {
 	payload, err := json.Marshal(query)
 	if err != nil {
@@ -159,6 +164,7 @@ func (a *OpenSearchSDKAdapter) Search(ctx context.Context, index string, query i
 	return json.RawMessage(body), nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *OpenSearchSDKAdapter) Close() error {
 	if a.transport != nil {
 		a.transport.CloseIdleConnections()

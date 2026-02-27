@@ -112,6 +112,7 @@ type validatedEventBus struct {
 	consumerValidator schema.ConsumerValidator
 }
 
+// Publish sends a message to the specified topic.
 func (v *validatedEventBus) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	if v.producerValidator != nil {
 		if err := v.producerValidator.ValidateBeforePublish(ctx, topic, message); err != nil {
@@ -121,6 +122,7 @@ func (v *validatedEventBus) Publish(ctx context.Context, topic string, message *
 	return v.base.Publish(ctx, topic, message)
 }
 
+// PublishBatch publishes multiple messages in a single batch operation.
 func (v *validatedEventBus) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	if v.producerValidator != nil {
 		for _, message := range messages {
@@ -132,6 +134,7 @@ func (v *validatedEventBus) PublishBatch(ctx context.Context, topic string, mess
 	return v.base.PublishBatch(ctx, topic, messages)
 }
 
+// Subscribe registers a handler to receive messages from the specified topic.
 func (v *validatedEventBus) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	if v.consumerValidator == nil || handler == nil {
 		return v.base.Subscribe(ctx, topic, handler)
@@ -145,14 +148,17 @@ func (v *validatedEventBus) Subscribe(ctx context.Context, topic string, handler
 	})
 }
 
+// Unsubscribe removes the subscription for the specified topic.
 func (v *validatedEventBus) Unsubscribe(topic string) error {
 	return v.base.Unsubscribe(topic)
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (v *validatedEventBus) HealthCheck(ctx context.Context) error {
 	return v.base.HealthCheck(ctx)
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (v *validatedEventBus) Close() error {
 	return v.base.Close()
 }

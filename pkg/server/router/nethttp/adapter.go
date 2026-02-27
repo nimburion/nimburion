@@ -203,30 +203,37 @@ func newContext(w http.ResponseWriter, r *http.Request, params map[string]string
 	}
 }
 
+// Request returns the underlying HTTP request being processed.
 func (c *netHTTPContext) Request() *http.Request {
 	return c.request
 }
 
+// SetRequest updates the HTTP request associated with this context.
 func (c *netHTTPContext) SetRequest(r *http.Request) {
 	c.request = r
 }
 
+// Response returns the response writer for sending HTTP responses.
 func (c *netHTTPContext) Response() router.ResponseWriter {
 	return c.response
 }
 
+// SetResponse updates the response writer associated with this context.
 func (c *netHTTPContext) SetResponse(w router.ResponseWriter) {
 	c.response = w
 }
 
+// Param retrieves a URL path parameter by name.
 func (c *netHTTPContext) Param(name string) string {
 	return c.params[name]
 }
 
+// Query retrieves a URL query parameter by name.
 func (c *netHTTPContext) Query(name string) string {
 	return c.request.URL.Query().Get(name)
 }
 
+// Bind deserializes the request body into the provided struct based on Content-Type.
 func (c *netHTTPContext) Bind(v interface{}) error {
 	if c.request.Body == nil {
 		return fmt.Errorf("request body is empty")
@@ -243,6 +250,7 @@ func (c *netHTTPContext) Bind(v interface{}) error {
 	return fmt.Errorf("unsupported content type: %s", contentType)
 }
 
+// JSON serializes the given value as JSON and writes it to the response with the specified status code.
 func (c *netHTTPContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")
 	c.response.WriteHeader(code)
@@ -251,6 +259,7 @@ func (c *netHTTPContext) JSON(code int, v interface{}) error {
 	return encoder.Encode(v)
 }
 
+// String writes a plain text response with the specified status code.
 func (c *netHTTPContext) String(code int, s string) error {
 	c.response.Header().Set("Content-Type", "text/plain")
 	c.response.WriteHeader(code)
@@ -259,12 +268,14 @@ func (c *netHTTPContext) String(code int, s string) error {
 	return err
 }
 
+// Get retrieves a value from the context by key.
 func (c *netHTTPContext) Get(key string) interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.store[key]
 }
 
+// Set stores a value in the context with the given key.
 func (c *netHTTPContext) Set(key string, value interface{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -278,6 +289,7 @@ type responseWriter struct {
 	written bool
 }
 
+// WriteHeader sends an HTTP response header with the provided status code.
 func (w *responseWriter) WriteHeader(code int) {
 	if !w.written {
 		w.status = code
@@ -286,6 +298,7 @@ func (w *responseWriter) WriteHeader(code int) {
 	}
 }
 
+// Write writes data to the response body. Implements io.Writer interface.
 func (w *responseWriter) Write(b []byte) (int, error) {
 	if !w.written {
 		w.WriteHeader(http.StatusOK)
@@ -293,6 +306,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+// Hijack takes over the underlying connection for custom protocols like WebSocket.
 func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
@@ -301,6 +315,7 @@ func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
+// Flush sends any buffered data to the client immediately.
 func (w *responseWriter) Flush() {
 	flusher, ok := w.ResponseWriter.(http.Flusher)
 	if !ok {
@@ -309,6 +324,7 @@ func (w *responseWriter) Flush() {
 	flusher.Flush()
 }
 
+// Status returns the HTTP status code that was written, or 0 if not yet written.
 func (w *responseWriter) Status() int {
 	if w.status == 0 {
 		return http.StatusOK
@@ -316,6 +332,7 @@ func (w *responseWriter) Status() int {
 	return w.status
 }
 
+// Written returns true if the response headers and body have been written.
 func (w *responseWriter) Written() bool {
 	return w.written
 }

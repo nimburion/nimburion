@@ -89,6 +89,7 @@ func NewElasticsearchSDKAdapter(cfg Config, log logger.Logger) (*ElasticsearchSD
 	return adapter, nil
 }
 
+// Ping performs a basic connectivity check to verify the service is reachable.
 func (a *ElasticsearchSDKAdapter) Ping(ctx context.Context) error {
 	resp, err := a.perform(ctx, http.MethodGet, "/", nil)
 	if err != nil {
@@ -102,6 +103,7 @@ func (a *ElasticsearchSDKAdapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// HealthCheck verifies the component is operational and can perform its intended function.
 func (a *ElasticsearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	resp, err := a.perform(ctx, http.MethodGet, "/_cluster/health?local=true", nil)
 	if err != nil {
@@ -115,6 +117,7 @@ func (a *ElasticsearchSDKAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// IndexDocument indexes a document with the given ID.
 func (a *ElasticsearchSDKAdapter) IndexDocument(ctx context.Context, index, id string, document interface{}) error {
 	payload, err := json.Marshal(document)
 	if err != nil {
@@ -132,6 +135,7 @@ func (a *ElasticsearchSDKAdapter) IndexDocument(ctx context.Context, index, id s
 	return nil
 }
 
+// DeleteDocument deletes a document by ID.
 func (a *ElasticsearchSDKAdapter) DeleteDocument(ctx context.Context, index, id string) error {
 	resp, err := a.perform(ctx, http.MethodDelete, fmt.Sprintf("/%s/_doc/%s", index, id), nil)
 	if err != nil {
@@ -148,6 +152,7 @@ func (a *ElasticsearchSDKAdapter) DeleteDocument(ctx context.Context, index, id 
 	return nil
 }
 
+// Search executes a search query and returns matching documents.
 func (a *ElasticsearchSDKAdapter) Search(ctx context.Context, index string, query interface{}) (json.RawMessage, error) {
 	payload, err := json.Marshal(query)
 	if err != nil {
@@ -168,6 +173,7 @@ func (a *ElasticsearchSDKAdapter) Search(ctx context.Context, index string, quer
 	return json.RawMessage(body), nil
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (a *ElasticsearchSDKAdapter) Close() error {
 	if a.transport != nil {
 		a.transport.CloseIdleConnections()
@@ -203,6 +209,7 @@ type awsSigningRoundTripper struct {
 	service string
 }
 
+// RoundTrip signs the HTTP request with AWS SigV4 before sending.
 func (rt *awsSigningRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	clonedReq := req.Clone(req.Context())
 	payload, err := readRequestBody(clonedReq)

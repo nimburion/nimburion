@@ -13,6 +13,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
+// MailerSendConfig configures the MailerSend email provider.
 type MailerSendConfig struct {
 	APIKey           string
 	From             string
@@ -21,12 +22,14 @@ type MailerSendConfig struct {
 	HTTPClient       *http.Client
 }
 
+// MailerSendProvider sends emails via the MailerSend API.
 type MailerSendProvider struct {
 	cfg        MailerSendConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewMailerSendProvider creates a new MailerSendProvider instance.
 func NewMailerSendProvider(cfg MailerSendConfig, log logger.Logger) (*MailerSendProvider, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
 		return nil, fmt.Errorf("mailersend api key is required")
@@ -40,6 +43,7 @@ func NewMailerSendProvider(cfg MailerSendConfig, log logger.Logger) (*MailerSend
 	return &MailerSendProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *MailerSendProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -65,8 +69,10 @@ func (p *MailerSendProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *MailerSendProvider) Close() error { return nil }
 
+// PostmarkConfig configures the Postmark email provider.
 type PostmarkConfig struct {
 	ServerToken      string
 	From             string
@@ -75,12 +81,14 @@ type PostmarkConfig struct {
 	HTTPClient       *http.Client
 }
 
+// PostmarkProvider sends emails via the Postmark API.
 type PostmarkProvider struct {
 	cfg        PostmarkConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewPostmarkProvider creates a new PostmarkProvider instance.
 func NewPostmarkProvider(cfg PostmarkConfig, log logger.Logger) (*PostmarkProvider, error) {
 	if strings.TrimSpace(cfg.ServerToken) == "" {
 		return nil, fmt.Errorf("postmark server token is required")
@@ -94,6 +102,7 @@ func NewPostmarkProvider(cfg PostmarkConfig, log logger.Logger) (*PostmarkProvid
 	return &PostmarkProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *PostmarkProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -117,8 +126,10 @@ func (p *PostmarkProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *PostmarkProvider) Close() error { return nil }
 
+// MailtrapConfig configures the Mailtrap email provider.
 type MailtrapConfig struct {
 	Token            string
 	From             string
@@ -127,12 +138,14 @@ type MailtrapConfig struct {
 	HTTPClient       *http.Client
 }
 
+// MailtrapProvider sends emails via the Mailtrap API.
 type MailtrapProvider struct {
 	cfg        MailtrapConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewMailtrapProvider creates a new MailtrapProvider instance.
 func NewMailtrapProvider(cfg MailtrapConfig, log logger.Logger) (*MailtrapProvider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("mailtrap token is required")
@@ -146,6 +159,7 @@ func NewMailtrapProvider(cfg MailtrapConfig, log logger.Logger) (*MailtrapProvid
 	return &MailtrapProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *MailtrapProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -168,8 +182,10 @@ func (p *MailtrapProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *MailtrapProvider) Close() error { return nil }
 
+// SMTP2GOConfig configures the SMTP2GO email provider.
 type SMTP2GOConfig struct {
 	APIKey           string
 	From             string
@@ -178,12 +194,14 @@ type SMTP2GOConfig struct {
 	HTTPClient       *http.Client
 }
 
+// SMTP2GOProvider sends emails via the SMTP2GO API.
 type SMTP2GOProvider struct {
 	cfg        SMTP2GOConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewSMTP2GOProvider creates a new SMTP2GOProvider instance.
 func NewSMTP2GOProvider(cfg SMTP2GOConfig, log logger.Logger) (*SMTP2GOProvider, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
 		return nil, fmt.Errorf("smtp2go api key is required")
@@ -197,6 +215,7 @@ func NewSMTP2GOProvider(cfg SMTP2GOConfig, log logger.Logger) (*SMTP2GOProvider,
 	return &SMTP2GOProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *SMTP2GOProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -218,8 +237,10 @@ func (p *SMTP2GOProvider) Send(ctx context.Context, message Message) error {
 	return sendJSONWithAuth(ctx, p.httpClient, p.cfg.OperationTimeout, http.MethodPost, strings.TrimRight(p.cfg.BaseURL, "/")+"/v3/email/send", payload, nil)
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *SMTP2GOProvider) Close() error { return nil }
 
+// SendPulseConfig configures the SendPulse email provider.
 type SendPulseConfig struct {
 	Token            string
 	From             string
@@ -228,12 +249,14 @@ type SendPulseConfig struct {
 	HTTPClient       *http.Client
 }
 
+// SendPulseProvider sends emails via the SendPulse API.
 type SendPulseProvider struct {
 	cfg        SendPulseConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewSendPulseProvider creates a new SendPulseProvider instance.
 func NewSendPulseProvider(cfg SendPulseConfig, log logger.Logger) (*SendPulseProvider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, fmt.Errorf("sendpulse token is required")
@@ -247,6 +270,7 @@ func NewSendPulseProvider(cfg SendPulseConfig, log logger.Logger) (*SendPulsePro
 	return &SendPulseProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *SendPulseProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -271,8 +295,10 @@ func (p *SendPulseProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *SendPulseProvider) Close() error { return nil }
 
+// BrevoConfig configures the Brevo (formerly Sendinblue) email provider.
 type BrevoConfig struct {
 	APIKey           string
 	From             string
@@ -281,12 +307,14 @@ type BrevoConfig struct {
 	HTTPClient       *http.Client
 }
 
+// BrevoProvider sends emails via the Brevo API.
 type BrevoProvider struct {
 	cfg        BrevoConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewBrevoProvider creates a new BrevoProvider instance.
 func NewBrevoProvider(cfg BrevoConfig, log logger.Logger) (*BrevoProvider, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
 		return nil, fmt.Errorf("brevo api key is required")
@@ -300,6 +328,7 @@ func NewBrevoProvider(cfg BrevoConfig, log logger.Logger) (*BrevoProvider, error
 	return &BrevoProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *BrevoProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -322,8 +351,10 @@ func (p *BrevoProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *BrevoProvider) Close() error { return nil }
 
+// MailjetConfig configures the Mailjet email provider.
 type MailjetConfig struct {
 	APIKey           string
 	APISecret        string
@@ -333,12 +364,14 @@ type MailjetConfig struct {
 	HTTPClient       *http.Client
 }
 
+// MailjetProvider sends emails via the Mailjet API.
 type MailjetProvider struct {
 	cfg        MailjetConfig
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// NewMailjetProvider creates a new MailjetProvider instance.
 func NewMailjetProvider(cfg MailjetConfig, log logger.Logger) (*MailjetProvider, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
 		return nil, fmt.Errorf("mailjet api key is required")
@@ -355,6 +388,7 @@ func NewMailjetProvider(cfg MailjetConfig, log logger.Logger) (*MailjetProvider,
 	return &MailjetProvider{cfg: cfg, httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send sends an email message via the provider API.
 func (p *MailjetProvider) Send(ctx context.Context, message Message) error {
 	msg, err := applyDefaultSender(message.normalized(), p.cfg.From)
 	if err != nil {
@@ -382,6 +416,7 @@ func (p *MailjetProvider) Send(ctx context.Context, message Message) error {
 	})
 }
 
+// Close releases all resources held by this instance. Should be called when the instance is no longer needed.
 func (p *MailjetProvider) Close() error { return nil }
 
 func sendJSONWithAuth(ctx context.Context, client *http.Client, timeout time.Duration, method, endpoint string, payload interface{}, headers map[string]string) error {
