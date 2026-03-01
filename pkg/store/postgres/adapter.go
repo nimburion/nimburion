@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -51,7 +52,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping database: %w", err),
+				fmt.Errorf("failed to close database after ping failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

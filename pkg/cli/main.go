@@ -185,7 +185,9 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 
 	for _, ext := range opts.ConfigExtensions {
 		if err := config.RegisterFlagsFromStruct(rootCmd.PersistentFlags(), ext); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to register config flags: %v\n", err)
+			if _, writeErr := fmt.Fprintf(os.Stderr, "failed to register config flags: %v\n", err); writeErr != nil {
+				os.Exit(1)
+			}
 			os.Exit(1)
 		}
 	}
@@ -236,9 +238,8 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			Use:   "up",
 			Short: "Run pending migrations",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if migrationsPath != "" {
-					_ = os.Setenv("APP_MIGRATIONS_PATH", migrationsPath)
-					_ = os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath)
+				if err := setMigrationPathEnv(migrationsPath); err != nil {
+					return err
 				}
 				cfg, log, err := loadConfig(cmd.Flags())
 				if err != nil {
@@ -254,9 +255,8 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			Use:   "down",
 			Short: "Rollback last migration",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if migrationsPath != "" {
-					_ = os.Setenv("APP_MIGRATIONS_PATH", migrationsPath)
-					_ = os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath)
+				if err := setMigrationPathEnv(migrationsPath); err != nil {
+					return err
 				}
 				cfg, log, err := loadConfig(cmd.Flags())
 				if err != nil {
@@ -272,9 +272,8 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			Use:   "status",
 			Short: "Show migration status",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if migrationsPath != "" {
-					_ = os.Setenv("APP_MIGRATIONS_PATH", migrationsPath)
-					_ = os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath)
+				if err := setMigrationPathEnv(migrationsPath); err != nil {
+					return err
 				}
 				cfg, log, err := loadConfig(cmd.Flags())
 				if err != nil {
@@ -548,7 +547,9 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			if err := jobsRuntime.Enqueue(cmd.Context(), job); err != nil {
 				return fmt.Errorf("enqueue job: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "enqueued job %s on queue %s\n", job.ID, job.Queue)
+			if err := writeCommandf(cmd, "enqueued job %s on queue %s\n", job.ID, job.Queue); err != nil {
+				return fmt.Errorf("write enqueue output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -562,7 +563,7 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 	enqueueCmd.Flags().StringVar(&enqueueRunAt, "run-at", "", "schedule run time in RFC3339 format")
 	enqueueCmd.Flags().IntVar(&enqueueMaxAttempts, "max-attempts", 0, "max attempts override for this job")
 	enqueueCmd.Flags().StringSliceVar(&enqueueHeaders, "header", []string{}, "job header in key=value format (repeatable)")
-	_ = enqueueCmd.MarkFlagRequired("name")
+	mustMarkFlagRequired(enqueueCmd, "name")
 	jobsCmd.AddCommand(enqueueCmd)
 
 	dlqCmd := &cobra.Command{
@@ -607,14 +608,16 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("marshal dlq entries: %w", err)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			if err := writeCommandln(cmd, string(data)); err != nil {
+				return fmt.Errorf("write dlq list output: %w", err)
+			}
 			return nil
 		},
 	}
 	SetCommandPolicies(dlqListCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
 	dlqListCmd.Flags().StringVar(&dlqListQueue, "queue", "", "original queue name")
 	dlqListCmd.Flags().IntVar(&dlqListLimit, "limit", 50, "max number of entries to list")
-	_ = dlqListCmd.MarkFlagRequired("queue")
+	mustMarkFlagRequired(dlqListCmd, "queue")
 	dlqCmd.AddCommand(dlqListCmd)
 
 	var (
@@ -652,14 +655,16 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("replay dlq entries: %w", err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "replayed %d entries from queue %s\n", replayed, dlqReplayQueue)
+			if err := writeCommandf(cmd, "replayed %d entries from queue %s\n", replayed, dlqReplayQueue); err != nil {
+				return fmt.Errorf("write dlq replay output: %w", err)
+			}
 			return nil
 		},
 	}
 	SetCommandPolicies(dlqReplayCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyManual})
 	dlqReplayCmd.Flags().StringVar(&dlqReplayQueue, "queue", "", "original queue name")
 	dlqReplayCmd.Flags().StringSliceVar(&dlqReplayIDs, "id", []string{}, "DLQ entry id to replay (repeatable)")
-	_ = dlqReplayCmd.MarkFlagRequired("queue")
+	mustMarkFlagRequired(dlqReplayCmd, "queue")
 	dlqCmd.AddCommand(dlqReplayCmd)
 
 	jobsCmd.AddCommand(dlqCmd)
@@ -757,7 +762,9 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 					return fmt.Errorf("invalid scheduler task %q: %w", task.Name, err)
 				}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "scheduler configuration is valid (%d task(s))\n", len(tasks))
+			if err := writeCommandf(cmd, "scheduler configuration is valid (%d task(s))\n", len(tasks)); err != nil {
+				return fmt.Errorf("write scheduler validation output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -836,7 +843,9 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 			if err := runtime.Trigger(triggerCtx, taskName); err != nil {
 				return fmt.Errorf("trigger scheduler task %q: %w", taskName, err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "triggered scheduler task %s\n", taskName)
+			if err := writeCommandf(cmd, "triggered scheduler task %s\n", taskName); err != nil {
+				return fmt.Errorf("write scheduler trigger output: %w", err)
+			}
 			return nil
 		},
 	}
@@ -844,7 +853,7 @@ func NewServiceCommand(opts ServiceCommandOptions) *cobra.Command {
 	triggerCmd.Flags().StringVar(&triggerTaskName, "task", "", "task name to trigger")
 	triggerCmd.Flags().DurationVar(&triggerDispatchTO, "dispatch-timeout", scheduler.DefaultDispatchTimeout, "max duration for task dispatch")
 	triggerCmd.Flags().DurationVar(&triggerDefaultLock, "default-lock-ttl", scheduler.DefaultLockTTL, "default distributed lock TTL")
-	_ = triggerCmd.MarkFlagRequired("task")
+	mustMarkFlagRequired(triggerCmd, "task")
 	schedulerCmd.AddCommand(triggerCmd)
 	rootCmd.AddCommand(schedulerCmd)
 
@@ -1352,6 +1361,35 @@ func applySecretFileFlag(envPrefix, secretFilePath string) error {
 	return os.Setenv(resolveEnvPrefix(envPrefix)+"_SECRETS_FILE", filepath.Clean(secretFilePath))
 }
 
+func setMigrationPathEnv(migrationsPath string) error {
+	if migrationsPath == "" {
+		return nil
+	}
+	if err := os.Setenv("APP_MIGRATIONS_PATH", migrationsPath); err != nil {
+		return fmt.Errorf("set APP_MIGRATIONS_PATH: %w", err)
+	}
+	if err := os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath); err != nil {
+		return fmt.Errorf("set APP_PLATFORM_MIGRATIONS_PATH: %w", err)
+	}
+	return nil
+}
+
+func writeCommandf(cmd *cobra.Command, format string, args ...interface{}) error {
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), format, args...)
+	return err
+}
+
+func writeCommandln(cmd *cobra.Command, args ...interface{}) error {
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), args...)
+	return err
+}
+
+func mustMarkFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("mark flag %q required for %s: %v", name, cmd.Name(), err))
+	}
+}
+
 func formatSettings(settings map[string]interface{}) (string, error) {
 	if settings == nil {
 		return "{}\n", nil
@@ -1451,7 +1489,9 @@ func shouldRedactSetting(mask interface{}) bool {
 // Execute runs the command and exits with appropriate code.
 func Execute(cmd *cobra.Command) {
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 }

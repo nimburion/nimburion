@@ -113,8 +113,12 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 
 	p.v.SetEnvPrefix(p.loader.envPrefix)
-	p.loader.bindLegacyEnvVars()
-	p.loader.bindEnvVars(p.v)
+	if err := p.loader.bindLegacyEnvVars(); err != nil {
+		return nil, fmt.Errorf("failed to bind legacy environment variables: %w", err)
+	}
+	if err := p.loader.bindEnvVars(p.v); err != nil {
+		return nil, fmt.Errorf("failed to bind environment variables: %w", err)
+	}
 
 	for _, extension := range extensions {
 		if err := bindExtensionEnv(p.v, extension); err != nil {
@@ -176,18 +180,38 @@ func RegisterFlagsFromStruct(flags *pflag.FlagSet, target interface{}) error {
 
 		switch field.Type.Kind() {
 		case reflect.String:
-			flags.String(field.Flag, defaultValue.(string), usage)
+			value, ok := defaultValue.(string)
+			if !ok {
+				return fmt.Errorf("invalid default value type for flag %q: got %T, want string", field.Flag, defaultValue)
+			}
+			flags.String(field.Flag, value, usage)
 		case reflect.Bool:
-			flags.Bool(field.Flag, defaultValue.(bool), usage)
+			value, ok := defaultValue.(bool)
+			if !ok {
+				return fmt.Errorf("invalid default value type for flag %q: got %T, want bool", field.Flag, defaultValue)
+			}
+			flags.Bool(field.Flag, value, usage)
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			if field.Type.PkgPath() == "time" && field.Type.Name() == "Duration" {
-				flags.Duration(field.Flag, defaultValue.(time.Duration), usage)
+				value, ok := defaultValue.(time.Duration)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want time.Duration", field.Flag, defaultValue)
+				}
+				flags.Duration(field.Flag, value, usage)
 			} else {
-				flags.Int64(field.Flag, defaultValue.(int64), usage)
+				value, ok := defaultValue.(int64)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want int64", field.Flag, defaultValue)
+				}
+				flags.Int64(field.Flag, value, usage)
 			}
 		case reflect.Slice:
 			if field.Type.Elem().Kind() == reflect.String {
-				flags.StringSlice(field.Flag, defaultValue.([]string), usage)
+				value, ok := defaultValue.([]string)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want []string", field.Flag, defaultValue)
+				}
+				flags.StringSlice(field.Flag, value, usage)
 			}
 		}
 	}

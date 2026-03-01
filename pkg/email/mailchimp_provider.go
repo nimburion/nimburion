@@ -69,7 +69,14 @@ func (p *MailchimpProvider) Send(ctx context.Context, message Message) error {
 		},
 	}
 	if msg.ReplyTo != "" {
-		headers := payload["message"].(map[string]interface{})["headers"].(map[string]string)
+		message, ok := payload["message"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid mailchimp payload: message must be an object")
+		}
+		headers, ok := message["headers"].(map[string]string)
+		if !ok {
+			return fmt.Errorf("invalid mailchimp payload: headers must be a string map")
+		}
 		headers["Reply-To"] = msg.ReplyTo
 	}
 	raw, err := json.Marshal(payload)

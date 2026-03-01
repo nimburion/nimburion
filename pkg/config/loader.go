@@ -63,7 +63,9 @@ func (l *ViperLoader) Load() (*Config, error) {
 	v.SetEnvPrefix(l.envPrefix)
 
 	// Map legacy env names to standard abbreviated keys when needed.
-	l.bindLegacyEnvVars()
+	if err := l.bindLegacyEnvVars(); err != nil {
+		return nil, fmt.Errorf("failed to bind legacy environment variables: %w", err)
+	}
 
 	// Bind all environment variables explicitly for nested structs
 	if err := l.bindEnvVars(v); err != nil {
@@ -448,7 +450,7 @@ func (l *ViperLoader) bindEnvVars(v *viper.Viper) error {
 }
 
 // bindLegacyEnvVars maps legacy env vars to current abbreviated names when abbreviated vars are absent.
-func (l *ViperLoader) bindLegacyEnvVars() {
+func (l *ViperLoader) bindLegacyEnvVars() error {
 	aliases := []struct {
 		abbrevSuffix string
 		legacySuffix string
@@ -479,9 +481,13 @@ func (l *ViperLoader) bindLegacyEnvVars() {
 			continue
 		}
 		if legacyValue, hasLegacy := os.LookupEnv(l.prefixedEnv(alias.legacySuffix)); hasLegacy {
-			_ = os.Setenv(abbrevEnv, legacyValue)
+			if err := os.Setenv(abbrevEnv, legacyValue); err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
 
 func (l *ViperLoader) prefixedEnv(suffix string) string {

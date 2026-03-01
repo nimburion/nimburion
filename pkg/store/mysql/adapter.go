@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,7 +49,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping mysql database: %w", err),
+				fmt.Errorf("failed to close mysql database after ping failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to ping mysql database: %w", err)
 	}
 

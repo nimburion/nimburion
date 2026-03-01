@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,7 +101,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := adapter.Ping(ctx); err != nil {
-		adapter.Close()
+		if closeErr := adapter.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping opensearch/elasticsearch: %w", err),
+				fmt.Errorf("failed to close search adapter after ping failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to ping opensearch/elasticsearch: %w", err)
 	}
 
@@ -122,7 +128,10 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("search ping failed with status %d and response read error: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("search ping failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return nil
@@ -141,7 +150,12 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			err := fmt.Errorf("search health check failed with status %d and response read error: %w", resp.StatusCode, readErr)
+			a.logger.Error("Search health check failed", "error", err)
+			return err
+		}
 		err := fmt.Errorf("search health check failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 		a.logger.Error("Search health check failed", "error", err)
 		return err
@@ -171,7 +185,10 @@ func (a *Adapter) IndexDocument(ctx context.Context, index, id string, document 
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to index document: status %d and response read error: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("failed to index document: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return nil
@@ -198,7 +215,10 @@ func (a *Adapter) DeleteDocument(ctx context.Context, index, id string) error {
 		return nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("failed to delete document: status %d and response read error: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("failed to delete document: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return nil
@@ -260,8 +280,22 @@ func (a *Adapter) request(ctx context.Context, method, path string, body []byte)
 		}
 
 		if shouldRetryOnStatus(resp.StatusCode) && attempt < len(a.baseURLs)-1 {
-			_, _ = io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			if _, copyErr := io.Copy(io.Discard, resp.Body); copyErr != nil {
+				closeErr := resp.Body.Close()
+				if closeErr != nil {
+					lastErr = errors.Join(
+						fmt.Errorf("discard retryable response body from %s failed: %w", baseURL.String(), copyErr),
+						fmt.Errorf("close retryable response body from %s failed: %w", baseURL.String(), closeErr),
+					)
+				} else {
+					lastErr = fmt.Errorf("discard retryable response body from %s failed: %w", baseURL.String(), copyErr)
+				}
+				continue
+			}
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				lastErr = fmt.Errorf("close retryable response body from %s failed: %w", baseURL.String(), closeErr)
+				continue
+			}
 			lastErr = fmt.Errorf("node %s returned retryable status %d", baseURL.String(), resp.StatusCode)
 			continue
 		}

@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -150,7 +151,9 @@ func (b *RedisBus) Publish(ctx context.Context, event Event) error {
 func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(Event)) (Subscription, error) {
 	pubsub := b.client.Subscribe(ctx, b.key(channel))
 	if _, err := pubsub.Receive(ctx); err != nil {
-		_ = pubsub.Close()
+		if closeErr := pubsub.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 

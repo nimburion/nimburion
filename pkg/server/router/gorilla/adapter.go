@@ -126,7 +126,9 @@ func (r *Router) ensureOptionsRoute(muxPath string) {
 		for i := len(r.middleware) - 1; i >= 0; i-- {
 			handler = r.middleware[i](handler)
 		}
-		_ = handler(ctx)
+		if err := handler(ctx); err != nil && !ctx.Response().Written() {
+			ctx.Response().WriteHeader(http.StatusInternalServerError)
+		}
 	}).Methods(http.MethodOptions)
 }
 

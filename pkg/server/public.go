@@ -440,7 +440,9 @@ func createSSEManager(
 		})
 		if err != nil {
 			log.Error("failed to initialize sse redis bus; sse disabled", "error", err)
-			_ = store.Close()
+			if closeErr := store.Close(); closeErr != nil {
+				log.Error("failed to close sse store after redis bus init failure", "error", closeErr)
+			}
 			return nil
 		}
 		bus = redisBus
@@ -448,7 +450,9 @@ func createSSEManager(
 		frameworkBus, err := eventbusfactory.NewEventBusAdapterWithValidation(eventBusCfg, kafkaValidationCfg, log)
 		if err != nil {
 			log.Error("failed to initialize framework eventbus for sse; sse disabled", "error", err)
-			_ = store.Close()
+			if closeErr := store.Close(); closeErr != nil {
+				log.Error("failed to close sse store after framework eventbus init failure", "error", closeErr)
+			}
 			return nil
 		}
 		eventBusBridge, err := sse.NewEventBusAdapter(frameworkBus, sse.EventBusConfig{
@@ -457,14 +461,20 @@ func createSSEManager(
 		})
 		if err != nil {
 			log.Error("failed to initialize sse eventbus bridge; sse disabled", "error", err)
-			_ = frameworkBus.Close()
-			_ = store.Close()
+			if closeErr := frameworkBus.Close(); closeErr != nil {
+				log.Error("failed to close framework eventbus after sse bridge init failure", "error", closeErr)
+			}
+			if closeErr := store.Close(); closeErr != nil {
+				log.Error("failed to close sse store after sse bridge init failure", "error", closeErr)
+			}
 			return nil
 		}
 		bus = eventBusBridge
 	default:
 		log.Warn("unknown sse.bus configured; sse disabled", "bus", sseCfg.Bus)
-		_ = store.Close()
+		if closeErr := store.Close(); closeErr != nil {
+			log.Error("failed to close sse store after unsupported bus configuration", "error", closeErr)
+		}
 		return nil
 	}
 

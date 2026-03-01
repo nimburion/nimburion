@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/smtp"
 	"strings"
@@ -97,13 +98,22 @@ func (p *SMTPProvider) sendMailWithTLS(addr string, auth smtp.Auth, from string,
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	var sendErr error
+	defer func() {
+		if closeErr := conn.Close(); sendErr == nil && closeErr != nil {
+			sendErr = closeErr
+		}
+	}()
 
 	client, err := smtp.NewClient(conn, p.cfg.Host)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			sendErr = errors.Join(sendErr, closeErr)
+		}
+	}()
 
 	if auth != nil {
 		if authErr := client.Auth(auth); authErr != nil {
@@ -128,7 +138,10 @@ func (p *SMTPProvider) sendMailWithTLS(addr string, auth smtp.Auth, from string,
 	if err := w.Close(); err != nil {
 		return err
 	}
-	return client.Quit()
+	if err := client.Quit(); err != nil {
+		return err
+	}
+	return sendErr
 }
 
 // Close releases provider resources.

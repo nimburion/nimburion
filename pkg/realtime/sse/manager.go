@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -130,14 +131,18 @@ func (m *Manager) Subscribe(ctx context.Context, req SubscriptionRequest) (*Clie
 
 	if needSub {
 		if err := m.ensureBusSubscription(ctx, channel); err != nil {
-			_ = m.Disconnect(client.id)
+			if disconnectErr := m.Disconnect(client.id); disconnectErr != nil {
+				return nil, nil, errors.Join(err, disconnectErr)
+			}
 			return nil, nil, err
 		}
 	}
 
 	replay, err := m.store.GetSince(ctx, channel, client.lastEvent, m.cfg.ReplayLimit)
 	if err != nil {
-		_ = m.Disconnect(client.id)
+		if disconnectErr := m.Disconnect(client.id); disconnectErr != nil {
+			return nil, nil, errors.Join(err, disconnectErr)
+		}
 		return nil, nil, err
 	}
 	return client, replay, nil
@@ -193,7 +198,11 @@ func (m *Manager) Disconnect(clientID string) error {
 	if len(channelClients) == 0 {
 		delete(m.byChannel, client.channel)
 		if sub := m.busSubscribers[client.channel]; sub != nil {
-			_ = sub.Close()
+			if err := sub.Close(); err != nil {
+				m.mu.Unlock()
+				client.close()
+				return err
+			}
 			delete(m.busSubscribers, client.channel)
 		}
 	}
@@ -205,9 +214,12 @@ func (m *Manager) Disconnect(clientID string) error {
 
 // Close closes manager, bus and store.
 func (m *Manager) Close() error {
+	var closeErr error
 	m.mu.Lock()
 	for channel, sub := range m.busSubscribers {
-		_ = sub.Close()
+		if err := sub.Close(); err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("close bus subscription %s: %w", channel, err))
+		}
 		delete(m.busSubscribers, channel)
 	}
 	for id, c := range m.connections {
@@ -218,12 +230,16 @@ func (m *Manager) Close() error {
 	m.mu.Unlock()
 
 	if m.bus != nil {
-		_ = m.bus.Close()
+		if err := m.bus.Close(); err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("close bus: %w", err))
+		}
 	}
 	if m.store != nil {
-		_ = m.store.Close()
+		if err := m.store.Close(); err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("close store: %w", err))
+		}
 	}
-	return nil
+	return closeErr
 }
 
 func (m *Manager) ensureBusSubscription(ctx context.Context, channel string) error {
@@ -247,7 +263,9 @@ func (m *Manager) ensureBusSubscription(ctx context.Context, channel string) err
 		m.busSubscribers[channel] = sub
 		return nil
 	}
-	_ = sub.Close()
+	if err := sub.Close(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -266,7 +284,9 @@ func (m *Manager) deliver(event Event) {
 		}
 		if !m.enqueue(c, event) {
 			if m.cfg.DropOnBackpressure {
-				_ = m.Disconnect(c.id)
+				if err := m.Disconnect(c.id); err != nil {
+					_ = err.Error()
+				}
 			}
 		}
 	}

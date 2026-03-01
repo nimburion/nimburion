@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -57,7 +58,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	}
 
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
-		_ = client.Disconnect(context.Background())
+		if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping mongodb: %w", err),
+				fmt.Errorf("failed to disconnect mongodb client after ping failure: %w", disconnectErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to ping mongodb: %w", err)
 	}
 

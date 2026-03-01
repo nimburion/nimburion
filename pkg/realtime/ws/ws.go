@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -97,11 +98,15 @@ func Upgrade(w http.ResponseWriter, r *http.Request, cfg Config) (*Conn, []strin
 		"Connection: Upgrade\r\n" +
 		"Sec-WebSocket-Accept: " + accept + "\r\n\r\n"
 	if _, err := rw.WriteString(response); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, nil, errors.Join(err, closeErr)
+		}
 		return nil, nil, err
 	}
 	if err := rw.Flush(); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, nil, errors.Join(err, closeErr)
+		}
 		return nil, nil, err
 	}
 
@@ -132,7 +137,9 @@ func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	_ = c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
+	if err := c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout)); err != nil {
+		return err
+	}
 
 	header := make([]byte, 0, 14)
 	header = append(header, 0x80|opcode)
