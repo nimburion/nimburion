@@ -1,45 +1,4 @@
-linters-settings:
-  errcheck:
-    # Ignore these functions where errors are typically not critical
-    exclude-functions:
-      - (io.Closer).Close
-      - (*database/sql.Rows).Close
-      - (*go.uber.org/zap.Logger).Sync
-    # Check type assertions
-    check-type-assertions: true
-    # Check blank assignments
-    check-blank: true
-
-  gosec:
-    excludes:
-      # Allow InsecureSkipVerify when explicitly documented
-      - G402
-    config:
-      G101:
-        # Ignore false positives for struct field names
-        pattern: "(?i)(password|secret|token|key|api_key)"
-        ignore_entropy: false
-        entropy_threshold: "80.0"
-        per_char_threshold: "3.0"
-        truncate: "32"
-
-  govet:
-    enable:
-      - shadow
-      - nilness
-
-  revive:
-    rules:
-      # Disable some noisy rules
-      - name: exported
-        disabled: false
-        arguments:
-          - "disableStutteringCheck"
-      - name: package-comments
-        disabled: true
-
-  staticcheck:
-    checks: ["all", "-SA1029"] # Temporarily disable context key check while migrating
+version: "2"
 
 linters:
   enable:
@@ -51,38 +10,79 @@ linters:
     - gocritic
     - ineffassign
     - unused
+  settings:
+    errcheck:
+      # Ignore these functions where errors are typically not critical
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*go.uber.org/zap.Logger).Sync
+      # Check type assertions
+      check-type-assertions: true
+      # Check blank assignments
+      check-blank: true
+
+    gosec:
+      excludes:
+        # Allow InsecureSkipVerify when explicitly documented
+        - G402
+      config:
+        G101:
+          # Ignore false positives for struct field names
+          pattern: "(?i)(password|secret|token|key|api_key)"
+          ignore_entropy: false
+          entropy_threshold: "80.0"
+          per_char_threshold: "3.0"
+          truncate: "32"
+
+    govet:
+      enable:
+        - shadow
+        - nilness
+
+    revive:
+      rules:
+        # Disable some noisy rules
+        - name: exported
+          disabled: false
+          arguments:
+            - "disableStutteringCheck"
+        - name: package-comments
+          disabled: true
+
+    staticcheck:
+      checks: ["all", "-SA1029"] # Temporarily disable context key check while migrating
+  exclusions:
+    # Exclude test files from some checks
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - govet
+
+      # Exclude generated files
+      - path: ".*\\.pb\\.go$"
+        linters:
+          - all
+
+      # Specific exclusions
+      - text: "G101.*test" # Ignore hardcoded credentials in tests
+        linters:
+          - gosec
+
+      - text: "SA1029.*test" # Ignore context keys in tests
+        linters:
+          - staticcheck
+    paths:
+      - vendor
+      - testdata
+      - ".*\\.pb\\.go$"
 
 issues:
-  # Exclude test files from some checks
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - govet
-    
-    # Exclude generated files
-    - path: ".*\\.pb\\.go$"
-      linters:
-        - all
-    
-    # Specific exclusions
-    - text: "G101.*test" # Ignore hardcoded credentials in tests
-      linters:
-        - gosec
-    
-    - text: "SA1029.*test" # Ignore context keys in tests
-      linters:
-        - staticcheck
-
   max-issues-per-linter: 0
   max-same-issues: 0
 
 run:
   timeout: 5m
   tests: true
-  skip-dirs:
-    - vendor
-    - testdata
-  skip-files:
-    - ".*\\.pb\\.go$"
