@@ -109,7 +109,9 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 			c.Set(ContextKey, s)
 
 			if s.id != "" && cfg.IdleTimeout > 0 {
-				_ = cfg.Store.Touch(c.Request().Context(), s.id, cfg.IdleTimeout)
+				if err := cfg.Store.Touch(c.Request().Context(), s.id, cfg.IdleTimeout); err != nil {
+					_ = err.Error()
+				}
 			}
 			if s.id != "" {
 				writeSessionCookie(c.Response(), cfg, s.id)
@@ -232,7 +234,9 @@ func commit(c router.Context, cfg Config, previousID string, s *Session) error {
 
 	if s.destroyed {
 		if previousID != "" {
-			_ = cfg.Store.Delete(c.Request().Context(), previousID)
+			if err := cfg.Store.Delete(c.Request().Context(), previousID); err != nil {
+				_ = err.Error()
+			}
 		}
 		if !c.Response().Written() {
 			clearSessionCookie(c.Response(), cfg)
@@ -256,7 +260,9 @@ func commit(c router.Context, cfg Config, previousID string, s *Session) error {
 	}
 
 	if s.renewed && previousID != "" && previousID != targetID {
-		_ = cfg.Store.Delete(c.Request().Context(), previousID)
+		if err := cfg.Store.Delete(c.Request().Context(), previousID); err != nil {
+			_ = err.Error()
+		}
 	}
 
 	if !c.Response().Written() {

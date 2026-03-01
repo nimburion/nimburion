@@ -81,7 +81,9 @@ func (l *TokenBucketLimiter) Allow(key string) bool {
 func (l *TokenBucketLimiter) getLimiter(key string) *rate.Limiter {
 	// Try to load existing limiter
 	if limiter, ok := l.limiters.Load(key); ok {
-		return limiter.(*rate.Limiter)
+		if typedLimiter, ok := limiter.(*rate.Limiter); ok {
+			return typedLimiter
+		}
 	}
 
 	// Create new limiter for this key

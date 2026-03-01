@@ -3,6 +3,7 @@ package migrate
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"regexp"
@@ -70,12 +71,22 @@ func (m *SQLManager) Up(ctx context.Context) (int, error) {
 		}
 
 		if _, err := tx.ExecContext(ctx, migration.UpSQL); err != nil {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return appliedCount, errors.Join(
+					fmt.Errorf("apply migration %d_%s: %w", migration.Version, migration.Name, err),
+					fmt.Errorf("rollback migration %d_%s: %w", migration.Version, migration.Name, rollbackErr),
+				)
+			}
 			return appliedCount, fmt.Errorf("apply migration %d_%s: %w", migration.Version, migration.Name, err)
 		}
 
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())`, migration.Version); err != nil {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return appliedCount, errors.Join(
+					fmt.Errorf("record migration %d: %w", migration.Version, err),
+					fmt.Errorf("rollback migration %d_%s after record failure: %w", migration.Version, migration.Name, rollbackErr),
+				)
+			}
 			return appliedCount, fmt.Errorf("record migration %d: %w", migration.Version, err)
 		}
 
@@ -123,17 +134,32 @@ func (m *SQLManager) Down(ctx context.Context, steps int) (int, error) {
 		}
 
 		if strings.TrimSpace(migration.DownSQL) == "" {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return reverted, errors.Join(
+					fmt.Errorf("down migration missing for version %d", version),
+					fmt.Errorf("rollback empty down migration %d: %w", version, rollbackErr),
+				)
+			}
 			return reverted, fmt.Errorf("down migration missing for version %d", version)
 		}
 
 		if _, err := tx.ExecContext(ctx, migration.DownSQL); err != nil {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return reverted, errors.Join(
+					fmt.Errorf("rollback migration %d_%s: %w", migration.Version, migration.Name, err),
+					fmt.Errorf("rollback transaction for migration %d_%s: %w", migration.Version, migration.Name, rollbackErr),
+				)
+			}
 			return reverted, fmt.Errorf("rollback migration %d_%s: %w", migration.Version, migration.Name, err)
 		}
 
 		if _, err := tx.ExecContext(ctx, `DELETE FROM schema_migrations WHERE version = $1`, version); err != nil {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return reverted, errors.Join(
+					fmt.Errorf("delete migration record %d: %w", version, err),
+					fmt.Errorf("rollback delete migration record %d: %w", version, rollbackErr),
+				)
+			}
 			return reverted, fmt.Errorf("delete migration record %d: %w", version, err)
 		}
 

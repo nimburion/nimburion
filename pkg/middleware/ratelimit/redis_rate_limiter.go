@@ -68,7 +68,12 @@ func NewRedisRateLimiter(
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("redis rate limiter ping failed: %w", err),
+				fmt.Errorf("redis rate limiter close after ping failure failed: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("redis rate limiter ping failed: %w", err)
 	}
 

@@ -84,7 +84,11 @@ func (h *Handler) Stream() router.HandlerFunc {
 			}
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "subscribe failed"})
 		}
-		defer func() { _ = h.cfg.Manager.Disconnect(client.ID()) }()
+		defer func() {
+			if err := h.cfg.Manager.Disconnect(client.ID()); err != nil {
+				_ = err.Error()
+			}
+		}()
 
 		header := c.Response().Header()
 		header.Set("Content-Type", "text/event-stream")

@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -344,12 +345,20 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to kafka broker: %w", err)
 	}
-	defer conn.Close()
 
 	// Try to fetch broker metadata
 	_, err = conn.Brokers()
 	if err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to fetch broker metadata: %w", err),
+				fmt.Errorf("failed to close kafka health check connection: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to fetch broker metadata: %w", err)
+	}
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("failed to close kafka health check connection: %w", err)
 	}
 
 	return nil

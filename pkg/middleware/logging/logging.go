@@ -71,7 +71,7 @@ const (
 	// FieldArgs is the request arguments
 	FieldArgs = "args"
 	// FieldQueryString is the URL query string
-	FieldQueryString = "query_string"
+	FieldQueryString   = "query_string"
 	FieldRequestTime   = "request_time"
 	FieldTimeLocal     = "time_local"
 	FieldHost          = "host"
@@ -438,7 +438,9 @@ func (e *eventEmitter) emit(level, msg string, args ...any) {
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	_, _ = e.writer.Write(append(payload, '\n'))
+	if _, err := e.writer.Write(append(payload, '\n')); err != nil && e.logger != nil {
+		e.logger.Error("failed to write request log", "error", err)
+	}
 }
 
 func argsToMap(args []any) map[string]any {

@@ -79,7 +79,11 @@ func TestRouterContract(t *testing.T, createRouter func() router.Router) {
 			}
 		})
 		secured.GET("/hello", func(c router.Context) error {
-			return c.String(http.StatusOK, c.Get("group_mw").(string))
+			value, ok := c.Get("group_mw").(string)
+			if !ok {
+				return c.String(http.StatusInternalServerError, "")
+			}
+			return c.String(http.StatusOK, value)
 		})
 
 		res = performRequest(r, http.MethodGet, "/secured/hello", nil, "")
@@ -203,7 +207,10 @@ func TestRouterContract(t *testing.T, createRouter func() router.Router) {
 			return c.String(http.StatusOK, payload.Name)
 		})
 
-		body, _ := json.Marshal(in{Name: "alice"})
+		body, err := json.Marshal(in{Name: "alice"})
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
 		if res := performRequest(r, http.MethodPost, "/bind", bytes.NewReader(body), "application/json"); res.Body.String() != "alice" {
 			t.Fatalf("expected alice, got %q", res.Body.String())
 		}

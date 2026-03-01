@@ -59,13 +59,17 @@ func (c *Conn) HandlePingPong(ctx context.Context) <-chan struct{} {
 				}
 				switch opcode {
 				case OpClose:
-					_ = c.WriteFrame(OpClose, nil)
+					if err := c.WriteFrame(OpClose, nil); err != nil {
+						return
+					}
 					return
 				case OpPing:
 					if len(payload) > c.readLimit {
 						return
 					}
-					_ = c.WriteFrame(OpPong, payload)
+					if err := c.WriteFrame(OpPong, payload); err != nil {
+						return
+					}
 				}
 			}
 		}

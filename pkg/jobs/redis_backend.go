@@ -147,7 +147,9 @@ func NewRedisBackend(cfg RedisBackendConfig, log logger.Logger) (*RedisBackend, 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			return nil, errors.Join(jobsError(ErrRetryable, "ping redis failed"), err, closeErr)
+		}
 		return nil, errors.Join(jobsError(ErrRetryable, "ping redis failed"), err)
 	}
 
@@ -270,11 +272,15 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		var envelope redisJobEnvelope
 		if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
 			b.log.Warn("discarding malformed queued job payload", "queue", queue, "error", err)
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge malformed queued job payload", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 		if envelope.Job == nil {
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge empty queued job payload", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 		if strings.TrimSpace(envelope.Job.Queue) == "" {
@@ -282,7 +288,9 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		}
 		if err := envelope.Job.Validate(); err != nil {
 			b.log.Warn("discarding invalid queued job", "queue", queue, "error", err)
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge invalid queued job", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 

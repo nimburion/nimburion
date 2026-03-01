@@ -63,7 +63,9 @@ func NewPostgresLockProvider(cfg PostgresLockProviderConfig, log logger.Logger) 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(schedulerError(ErrRetryable, "ping postgres failed"), err, closeErr)
+		}
 		return nil, errors.Join(schedulerError(ErrRetryable, "ping postgres failed"), err)
 	}
 
@@ -73,7 +75,9 @@ func NewPostgresLockProvider(cfg PostgresLockProviderConfig, log logger.Logger) 
 		config: cfg,
 	}
 	if err := provider.ensureTable(ctx); err != nil {
-		_ = db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 	return provider, nil

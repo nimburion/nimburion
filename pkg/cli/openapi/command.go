@@ -88,6 +88,8 @@ func runGenerate(
 	if stdout == nil {
 		stdout = os.Stdout
 	}
-	_, _ = fmt.Fprintf(stdout, "✓ OpenAPI spec generated at %s (%d routes)\n", outputPath, len(routes))
+	if _, err := fmt.Fprintf(stdout, "✓ OpenAPI spec generated at %s (%d routes)\n", outputPath, len(routes)); err != nil {
+		return fmt.Errorf("write openapi generation output: %w", err)
+	}
 	return nil
 }

@@ -50,12 +50,16 @@ func NewMemcachedAdapter(addresses []string, timeout time.Duration) (*Adapter, e
 }
 
 // Get fetches a value by key.
-func (c *Adapter) Get(ctx context.Context, key string) ([]byte, error) {
+func (c *Adapter) Get(ctx context.Context, key string) (data []byte, err error) {
 	conn, err := c.connect(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	reader := bufio.NewReader(conn)
 	if _, writeErr := io.WriteString(conn, fmt.Sprintf("get %s\r\n", key)); writeErr != nil {
@@ -94,12 +98,16 @@ func (c *Adapter) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 // Set stores a value with TTL.
-func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Duration) (err error) {
 	conn, err := c.connect(ctx, key)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	exptime := ttlToSeconds(ttl)
 	cmd := fmt.Sprintf("set %s 0 %d %d\r\n", key, exptime, len(value))
@@ -125,12 +133,16 @@ func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Du
 }
 
 // Delete removes a value by key.
-func (c *Adapter) Delete(ctx context.Context, key string) error {
+func (c *Adapter) Delete(ctx context.Context, key string) (err error) {
 	conn, err := c.connect(ctx, key)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	if _, writeErr := io.WriteString(conn, fmt.Sprintf("delete %s\r\n", key)); writeErr != nil {
 		return writeErr
@@ -151,12 +163,16 @@ func (c *Adapter) Delete(ctx context.Context, key string) error {
 }
 
 // Touch refreshes TTL for an existing key.
-func (c *Adapter) Touch(ctx context.Context, key string, ttl time.Duration) error {
+func (c *Adapter) Touch(ctx context.Context, key string, ttl time.Duration) (err error) {
 	conn, err := c.connect(ctx, key)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	exptime := ttlToSeconds(ttl)
 	if _, writeErr := io.WriteString(conn, fmt.Sprintf("touch %s %d\r\n", key, exptime)); writeErr != nil {
@@ -192,7 +208,12 @@ func (c *Adapter) connect(ctx context.Context, key string) (net.Conn, error) {
 	if deadlineFromCtx, ok := ctx.Deadline(); ok && deadlineFromCtx.Before(deadline) {
 		deadline = deadlineFromCtx
 	}
-	_ = conn.SetDeadline(deadline)
+	if err := conn.SetDeadline(deadline); err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
+		return nil, err
+	}
 	return conn, nil
 }
 

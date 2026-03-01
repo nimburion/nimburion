@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,7 +51,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping redis: %w", err),
+				fmt.Errorf("failed to close redis client after ping failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to ping redis: %w", err)
 	}
 
@@ -109,7 +115,7 @@ func (a *Adapter) Delete(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
 		return nil
 	}
-	
+
 	if err := a.client.Del(ctx, keys...).Err(); err != nil {
 		return fmt.Errorf("failed to delete keys: %w", err)
 	}
@@ -168,7 +174,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 // Close gracefully closes the Redis connection
 func (a *Adapter) Close() error {
 	a.logger.Info("closing Redis connection")
-	
+
 	if err := a.client.Close(); err != nil {
 		a.logger.Error("failed to close Redis connection", "error", err)
 		return fmt.Errorf("failed to close redis connection: %w", err)

@@ -264,7 +264,10 @@ func marshalDefault(schema *jsonschema.Schema, value reflect.Value) (json.RawMes
 	}
 
 	if value.Type() == reflect.TypeOf(time.Duration(0)) && schemaAllowsString(schema) {
-		dur := value.Interface().(time.Duration)
+		dur, ok := value.Interface().(time.Duration)
+		if !ok {
+			return nil, false
+		}
 		payload, err := json.Marshal(dur.String())
 		if err != nil {
 			return nil, false

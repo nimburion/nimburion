@@ -76,7 +76,9 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			return nil, errors.Join(schedulerError(ErrRetryable, "ping redis failed"), err, closeErr)
+		}
 		return nil, errors.Join(schedulerError(ErrRetryable, "ping redis failed"), err)
 	}
 

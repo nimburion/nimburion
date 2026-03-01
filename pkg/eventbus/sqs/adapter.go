@@ -204,7 +204,9 @@ func (a *Adapter) pollLoop(ctx context.Context, queueURL string, handler eventbu
 					continue
 				}
 				if m.ReceiptHandle != nil {
-					_, _ = a.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
+					if _, err := a.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle}); err != nil {
+						a.logger.Error("failed to delete sqs message", "error", err)
+					}
 				}
 			}
 		}

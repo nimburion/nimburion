@@ -68,7 +68,7 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 	excludeRegex := compileRegexes(cfg.ExcludedPathRegex)
 
 	return func(next router.HandlerFunc) router.HandlerFunc {
-		return func(c router.Context) error {
+		return func(c router.Context) (err error) {
 			if !cfg.Enabled || c.Request() == nil {
 				return next(c)
 			}
@@ -97,7 +97,11 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 
 			wrapped := newCompressResponseWriter(c.Response(), encoding, cfg)
 			c.SetResponse(wrapped)
-			defer wrapped.Close()
+			defer func() {
+				if closeErr := wrapped.Close(); err == nil && closeErr != nil {
+					err = closeErr
+				}
+			}()
 
 			return next(c)
 		}
@@ -497,7 +501,9 @@ func (w *compressResponseWriter) Written() bool {
 // Flush sends any buffered data to the client immediately.
 func (w *compressResponseWriter) Flush() {
 	if flusher, ok := w.compressedWriter.(interface{ Flush() error }); ok {
-		_ = flusher.Flush()
+		if err := flusher.Flush(); err != nil {
+			_ = err.Error()
+		}
 	}
 	if f, ok := w.base.(http.Flusher); ok {
 		f.Flush()

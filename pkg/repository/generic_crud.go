@@ -29,13 +29,13 @@ type GenericCrudRepository[T any, ID comparable] struct {
 type EntityMapper[T any, ID comparable] interface {
 	// ToRow converts an entity to column names and values for INSERT/UPDATE
 	ToRow(entity *T) (columns []string, values []interface{}, err error)
-	
+
 	// FromRow scans a database row into an entity
 	FromRow(rows *sql.Rows) (*T, error)
-	
+
 	// GetID extracts the ID from an entity
 	GetID(entity *T) ID
-	
+
 	// SetID sets the ID on an entity
 	SetID(entity *T, id ID)
 }
@@ -353,13 +353,13 @@ func (m *ReflectionMapper[T, ID]) ToRow(entity *T) ([]string, []interface{}, err
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		
+
 		// Get column name from db tag or use lowercase field name
 		columnName := field.Tag.Get("db")
 		if columnName == "" {
 			columnName = strings.ToLower(field.Name)
 		}
-		
+
 		// Skip fields marked with db:"-"
 		if columnName == "-" {
 			continue
@@ -387,7 +387,7 @@ func (m *ReflectionMapper[T, ID]) FromRow(rows *sql.Rows) (*T, error) {
 	// Create a slice of pointers to scan into
 	scanDest := make([]interface{}, len(columns))
 	columnMap := make(map[string]int)
-	
+
 	for i, col := range columns {
 		columnMap[col] = i
 		scanDest[i] = new(interface{})
@@ -401,18 +401,22 @@ func (m *ReflectionMapper[T, ID]) FromRow(rows *sql.Rows) (*T, error) {
 	// Map scanned values to struct fields
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		
+
 		columnName := field.Tag.Get("db")
 		if columnName == "" {
 			columnName = strings.ToLower(field.Name)
 		}
-		
+
 		if columnName == "-" {
 			continue
 		}
 
 		if colIndex, ok := columnMap[columnName]; ok {
-			value := *(scanDest[colIndex].(*interface{}))
+			scannedValue, ok := scanDest[colIndex].(*interface{})
+			if !ok {
+				return nil, fmt.Errorf("failed to map column %q: unexpected scan destination type %T", columnName, scanDest[colIndex])
+			}
+			value := *scannedValue
 			if value != nil {
 				v.Field(i).Set(reflect.ValueOf(value).Convert(v.Field(i).Type()))
 			}
@@ -430,7 +434,11 @@ func (m *ReflectionMapper[T, ID]) GetID(entity *T) ID {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if field.Name == m.idField {
-			return v.Field(i).Interface().(ID)
+			id, ok := v.Field(i).Interface().(ID)
+			if ok {
+				return id
+			}
+			break
 		}
 	}
 
