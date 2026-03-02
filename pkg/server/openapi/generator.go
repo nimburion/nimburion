@@ -172,7 +172,7 @@ func WriteSpec(path string, spec *Spec) error {
 	}
 
 	if dir := filepath.Dir(outputPath); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return fmt.Errorf("create output directory: %w", err)
 		}
 	}
@@ -190,7 +190,7 @@ func WriteSpec(path string, spec *Spec) error {
 	if err != nil {
 		return fmt.Errorf("marshal openapi spec: %w", err)
 	}
-	if err := os.WriteFile(outputPath, data, 0o644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0o600); err != nil {
 		return fmt.Errorf("write openapi spec: %w", err)
 	}
 	return nil

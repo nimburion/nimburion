@@ -89,6 +89,10 @@ func (c *JWKSClient) GetKey(ctx context.Context, kid string) (interface{}, error
 
 // refreshJWKS fetches the JWKS from the configured URL and updates the cache.
 func (c *JWKSClient) refreshJWKS(ctx context.Context) error {
+	if err := validateHTTPURL(c.jwksURL); err != nil {
+		return fmt.Errorf("invalid jwks url: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.jwksURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -96,6 +100,7 @@ func (c *JWKSClient) refreshJWKS(ctx context.Context) error {
 
 	c.logger.Info("fetching JWKS", "url", c.jwksURL)
 
+	// #nosec G704 -- jwksURL is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to fetch JWKS: %w", err)

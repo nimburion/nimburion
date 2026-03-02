@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	ValidationModeStrict   = "strict"
+	// ValidationModeStrict rejects requests that do not match the OpenAPI spec.
+	ValidationModeStrict = "strict"
+	// ValidationModeWarnOnly logs validation failures and lets the request continue.
 	ValidationModeWarnOnly = "warn-only"
 )
 

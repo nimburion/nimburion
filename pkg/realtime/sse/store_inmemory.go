@@ -28,7 +28,8 @@ func (s *InMemoryStore) Append(_ context.Context, event Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	events := append(s.events[event.Channel], event)
+	events := s.events[event.Channel]
+	events = append(events, event)
 	if len(events) > s.maxSize {
 		events = events[len(events)-s.maxSize:]
 	}

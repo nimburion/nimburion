@@ -1,4 +1,4 @@
-// Package middleware provides HTTP middleware components for the framework.
+// Package logging provides HTTP request logging middleware.
 package logging
 
 import (

@@ -13,8 +13,10 @@ import (
 )
 
 const (
+	// BackendEventBus selects the event bus backed jobs runtime.
 	BackendEventBus = config.JobsBackendEventBus
-	BackendRedis    = config.JobsBackendRedis
+	// BackendRedis selects the Redis backed jobs runtime.
+	BackendRedis = config.JobsBackendRedis
 )
 
 // Config configures jobs runtime adapter selection.

@@ -160,10 +160,8 @@ func TestValidateDTO(t *testing.T) {
 						t.Errorf("expected error message to contain %q, got %q", tt.errorMsg, err.Error())
 					}
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}
@@ -190,8 +188,6 @@ func TestValidateDTO_ErrorWrapping(t *testing.T) {
 
 func TestValidateDTO_AppErrorPreserved(t *testing.T) {
 	// Test that if Validate() returns an AppError, it's preserved
-	type AppErrorDTO struct{}
-
 	dto := struct {
 		Validator
 	}{

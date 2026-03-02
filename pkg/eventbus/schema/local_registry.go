@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nimburion/nimburion/pkg/security"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -31,6 +32,10 @@ func NewLocalRegistry(descriptorPath string) (*LocalRegistry, error) {
 	if descriptorPath == "" {
 		return nil, errors.New("descriptor path is required")
 	}
+	if err := security.ValidateFilePath(descriptorPath, ""); err != nil {
+		return nil, fmt.Errorf("invalid descriptor path: %w", err)
+	}
+	// #nosec G304 -- descriptorPath is validated before being read.
 	raw, err := os.ReadFile(descriptorPath)
 	if err != nil {
 		return nil, fmt.Errorf("read descriptor set: %w", err)

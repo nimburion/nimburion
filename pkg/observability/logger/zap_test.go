@@ -2,7 +2,6 @@ package logger
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 )
 
@@ -227,7 +226,7 @@ func TestZapLogger_WithContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			contextLogger := logger.WithContext(tt.ctx)
 			contextLogger.Info("test message with context")
-			
+
 			// Verify logger was created
 			if contextLogger == nil {
 				t.Error("WithContext returned nil logger")
@@ -383,23 +382,6 @@ func TestZapLogger_RequestIDPropagation(t *testing.T) {
 	ctxLogger.Debug("debug information")
 	ctxLogger.Warn("warning message")
 	ctxLogger.Error("error occurred")
-}
-
-// Helper function to verify JSON structure (would be used with captured output)
-func verifyJSONStructure(t *testing.T, jsonStr string) {
-	var logEntry map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &logEntry); err != nil {
-		t.Errorf("Failed to parse JSON log entry: %v", err)
-		return
-	}
-
-	// Verify required fields
-	requiredFields := []string{"timestamp", "level", "message"}
-	for _, field := range requiredFields {
-		if _, ok := logEntry[field]; !ok {
-			t.Errorf("Missing required field: %s", field)
-		}
-	}
 }
 
 func TestGetRequestIDFromContext(t *testing.T) {

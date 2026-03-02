@@ -88,12 +88,16 @@ func (p *MailchimpProvider) Send(ctx context.Context, message Message) error {
 	defer cancel()
 
 	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/messages/send.json"
+	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
+		return validateErr
+	}
 	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err

@@ -14,9 +14,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// Cosa fa: seleziona e inizializza l'event bus adapter in base alla config.
-// Cosa NON fa: non supporta multipli bus attivi nella stessa factory call.
-// Esempio minimo: bus, err := eventbus.NewEventBusAdapter(cfg.EventBus, log)
+// NewEventBusAdapter selects and initializes the event bus adapter from config.
 func NewEventBusAdapter(cfg config.EventBusConfig, log logger.Logger) (eventbus.EventBus, error) {
 	return NewEventBusAdapterWithValidation(cfg, config.KafkaValidationConfig{}, log)
 }

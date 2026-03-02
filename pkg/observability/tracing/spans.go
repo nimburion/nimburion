@@ -48,27 +48,27 @@ const (
 // Requirements: 14.4
 func StartDatabaseSpan(ctx context.Context, operation SpanOperation, opts ...DatabaseSpanOption) (context.Context, trace.Span) {
 	tracer := otel.Tracer("database")
-	
+
 	spanOpts := &databaseSpanOptions{
 		attributes: []attribute.KeyValue{
 			attribute.String("db.operation", string(operation)),
 		},
 	}
-	
+
 	for _, opt := range opts {
 		opt(spanOpts)
 	}
-	
+
 	spanName := fmt.Sprintf("DB %s", operation)
 	if spanOpts.table != "" {
 		spanName = fmt.Sprintf("DB %s %s", operation, spanOpts.table)
 	}
-	
+
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	
+
 	// Add all attributes to span
 	span.SetAttributes(spanOpts.attributes...)
-	
+
 	return ctx, span
 }
 
@@ -115,35 +115,36 @@ func WithDBName(name string) DatabaseSpanOption {
 // Requirements: 14.5
 func StartMessagingSpan(ctx context.Context, operation SpanOperation, opts ...MessagingSpanOption) (context.Context, trace.Span) {
 	tracer := otel.Tracer("messaging")
-	
+
 	spanOpts := &messagingSpanOptions{
 		attributes: []attribute.KeyValue{
 			attribute.String("messaging.operation", string(operation)),
 		},
 	}
-	
+
 	for _, opt := range opts {
 		opt(spanOpts)
 	}
-	
+
 	spanName := fmt.Sprintf("MSG %s", operation)
 	if spanOpts.destination != "" {
 		spanName = fmt.Sprintf("MSG %s %s", operation, spanOpts.destination)
 	}
-	
+
 	// Determine span kind based on operation
 	spanKind := trace.SpanKindClient
-	if operation == SpanOperationMsgConsume || operation == SpanOperationMsgProcess {
+	switch operation {
+	case SpanOperationMsgConsume, SpanOperationMsgProcess:
 		spanKind = trace.SpanKindConsumer
-	} else if operation == SpanOperationMsgPublish {
+	case SpanOperationMsgPublish:
 		spanKind = trace.SpanKindProducer
 	}
-	
+
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(spanKind))
-	
+
 	// Add all attributes to span
 	span.SetAttributes(spanOpts.attributes...)
-	
+
 	return ctx, span
 }
 
@@ -188,27 +189,27 @@ func WithMessagingPayloadSize(size int) MessagingSpanOption {
 // It includes cache-specific attributes like operation type and key.
 func StartCacheSpan(ctx context.Context, operation SpanOperation, opts ...CacheSpanOption) (context.Context, trace.Span) {
 	tracer := otel.Tracer("cache")
-	
+
 	spanOpts := &cacheSpanOptions{
 		attributes: []attribute.KeyValue{
 			attribute.String("cache.operation", string(operation)),
 		},
 	}
-	
+
 	for _, opt := range opts {
 		opt(spanOpts)
 	}
-	
+
 	spanName := fmt.Sprintf("CACHE %s", operation)
 	if spanOpts.key != "" {
 		spanName = fmt.Sprintf("CACHE %s %s", operation, spanOpts.key)
 	}
-	
+
 	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
-	
+
 	// Add all attributes to span
 	span.SetAttributes(spanOpts.attributes...)
-	
+
 	return ctx, span
 }
 

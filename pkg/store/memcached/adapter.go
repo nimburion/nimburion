@@ -223,8 +223,13 @@ func (c *Adapter) pickAddress(key string) string {
 	}
 	hash := fnv.New32a()
 	_, _ = hash.Write([]byte(key))
-	index := int(hash.Sum32() % uint32(len(c.addresses)))
-	return c.addresses[index]
+	target := uint64(hash.Sum32()) % uint64(len(c.addresses))
+	for index := range c.addresses {
+		if uint64(index) == target {
+			return c.addresses[index]
+		}
+	}
+	return c.addresses[0]
 }
 
 func ttlToSeconds(ttl time.Duration) int {

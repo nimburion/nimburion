@@ -32,10 +32,10 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 
 	// Generator for valid connection pool configurations
 	genPoolConfig := gopter.CombineGens(
-		gen.IntRange(1, 50),  // MaxOpenConns
-		gen.IntRange(1, 25),  // MaxIdleConns
-		gen.IntRange(1, 10),  // ConnMaxLifetime in minutes
-		gen.IntRange(1, 30),  // QueryTimeout in seconds
+		gen.IntRange(1, 50), // MaxOpenConns
+		gen.IntRange(1, 25), // MaxIdleConns
+		gen.IntRange(1, 10), // ConnMaxLifetime in minutes
+		gen.IntRange(1, 30), // QueryTimeout in seconds
 	).Map(func(values []interface{}) Config {
 		maxOpen := values[0].(int)
 		maxIdle := values[1].(int)
@@ -78,10 +78,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 			defer adapter.Close()
 
@@ -97,10 +94,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 			defer adapter.Close()
 
@@ -116,10 +110,7 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 
 			// Close the adapter
@@ -142,15 +133,12 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 			defer adapter.Close()
 
 			ctx := context.Background()
-			
+
 			// Create a test table
 			_, err = adapter.DB().ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS test_tx_commit (
@@ -195,15 +183,12 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 			defer adapter.Close()
 
 			ctx := context.Background()
-			
+
 			// Create a test table
 			_, err = adapter.DB().ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS test_tx_rollback (
@@ -250,15 +235,12 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			adapter, err := NewAdapter(cfg, log)
 			if err != nil {
-				if isConnectionError(err) {
-					return true
-				}
-				return false
+				return isConnectionError(err)
 			}
 			defer adapter.Close()
 
 			ctx := context.Background()
-			
+
 			// Create a test table
 			_, err = adapter.DB().ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS test_nested_tx (
@@ -330,9 +312,9 @@ func isConnectionError(err error) bool {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && 
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		containsMiddle(s, substr)))
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			containsMiddle(s, substr)))
 }
 
 func containsMiddle(s, substr string) bool {

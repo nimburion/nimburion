@@ -12,22 +12,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// mockJWKSClient is a mock implementation of JWKSClient for testing.
-type mockJWKSClient struct {
-	keys map[string]interface{}
-	err  error
-}
-
-func (m *mockJWKSClient) GetKey(ctx context.Context, kid string) (interface{}, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	if key, ok := m.keys[kid]; ok {
-		return key, nil
-	}
-	return nil, jwt.ErrTokenInvalidId
-}
-
 // generateTestKeyPair generates an RSA key pair for testing.
 func generateTestKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -461,11 +445,11 @@ func TestExtractClaims_NamespacedPermissionsMergedIntoScopes(t *testing.T) {
 	validator := NewJWKSValidator(nil, "", "", nil)
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"sub":   "user123",
-		"iss":   "https://issuer.example.com",
-		"aud":   "api-gateway",
-		"exp":   now.Add(1 * time.Hour).Unix(),
-		"scope": "openid",
+		"sub":                                   "user123",
+		"iss":                                   "https://issuer.example.com",
+		"aud":                                   "api-gateway",
+		"exp":                                   now.Add(1 * time.Hour).Unix(),
+		"scope":                                 "openid",
 		"https://example.localhost/permissions": []interface{}{"platform:tenant:read"},
 	})
 
@@ -600,13 +584,13 @@ func TestExtractClaims_NamespacedTenantID(t *testing.T) {
 
 	now := time.Now()
 	claims := jwt.MapClaims{
-		"sub": "user123",
-		"iss": "https://issuer.example.com",
-		"aud": "test-audience",
-		"exp": jwt.NewNumericDate(now.Add(1 * time.Hour)),
-		"iat": jwt.NewNumericDate(now),
+		"sub":                                 "user123",
+		"iss":                                 "https://issuer.example.com",
+		"aud":                                 "test-audience",
+		"exp":                                 jwt.NewNumericDate(now.Add(1 * time.Hour)),
+		"iat":                                 jwt.NewNumericDate(now),
 		"https://example.localhost/tenant_id": "tenant-dev",
-		"roles": []interface{}{"operator"},
+		"roles":                               []interface{}{"operator"},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

@@ -1,4 +1,4 @@
-// Package middleware provides HTTP middleware components for the framework.
+// Package metrics provides HTTP metrics middleware.
 package metrics
 
 import (

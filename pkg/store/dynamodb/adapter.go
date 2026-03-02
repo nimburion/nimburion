@@ -34,9 +34,7 @@ type Config struct {
 	OperationTimeout time.Duration
 }
 
-// Cosa fa: costruisce client DynamoDB (AWS SDK v2) con supporto endpoint custom.
-// Cosa NON fa: non crea tabelle o throughput policy.
-// Esempio minimo: adapter, err := dynamodb.NewAdapter(cfg, log)
+// NewAdapter creates a DynamoDB storage adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("aws region is required")
@@ -77,10 +75,12 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	return adapter, nil
 }
 
+// Client returns the underlying DynamoDB client.
 func (a *Adapter) Client() *dynamodb.Client {
 	return a.client
 }
 
+// Ping checks basic connectivity to DynamoDB.
 func (a *Adapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
@@ -98,6 +98,7 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	return nil
 }
 
+// HealthCheck verifies the adapter is operational.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -108,6 +109,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close marks the adapter as closed.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -115,30 +117,35 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
+// PutItem proxies a PutItem request to DynamoDB.
 func (a *Adapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.PutItem(opCtx, input)
 }
 
+// GetItem proxies a GetItem request to DynamoDB.
 func (a *Adapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.GetItem(opCtx, input)
 }
 
+// UpdateItem proxies an UpdateItem request to DynamoDB.
 func (a *Adapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.UpdateItem(opCtx, input)
 }
 
+// DeleteItem proxies a DeleteItem request to DynamoDB.
 func (a *Adapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.DeleteItem(opCtx, input)
 }
 
+// Query proxies a Query request to DynamoDB.
 func (a *Adapter) Query(ctx context.Context, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
@@ -155,6 +162,7 @@ func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, co
 	return context.WithTimeout(ctx, a.timeout)
 }
 
+// IsThrottlingError reports whether err is a DynamoDB throttling error.
 func IsThrottlingError(err error) bool {
 	if err == nil {
 		return false

@@ -77,13 +77,18 @@ func (p *SendGridProvider) Send(ctx context.Context, message Message) error {
 	cctx, cancel := withTimeout(ctx, p.cfg.OperationTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(cctx, http.MethodPost, strings.TrimRight(p.cfg.BaseURL, "/")+"/v3/mail/send", bytes.NewReader(raw))
+	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/v3/mail/send"
+	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
+		return validateErr
+	}
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
+	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err

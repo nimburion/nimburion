@@ -42,7 +42,7 @@ func ExampleStartDatabaseSpan() {
 	ctx := context.Background()
 
 	// Start a database span
-	ctx, span := tracing.StartDatabaseSpan(ctx, tracing.SpanOperationDBQuery,
+	_, span := tracing.StartDatabaseSpan(ctx, tracing.SpanOperationDBQuery,
 		tracing.WithDBSystem("postgresql"),
 		tracing.WithDBTable("users"),
 		tracing.WithDBStatement("SELECT * FROM users WHERE id = $1"),
@@ -64,7 +64,7 @@ func ExampleStartMessagingSpan() {
 	ctx := context.Background()
 
 	// Start a messaging span for publishing
-	ctx, span := tracing.StartMessagingSpan(ctx, tracing.SpanOperationMsgPublish,
+	_, span := tracing.StartMessagingSpan(ctx, tracing.SpanOperationMsgPublish,
 		tracing.WithMessagingSystem("kafka"),
 		tracing.WithMessagingDestination("user.events"),
 		tracing.WithMessagingMessageID("msg-123"),
@@ -87,7 +87,7 @@ func ExampleStartCacheSpan() {
 	ctx := context.Background()
 
 	// Start a cache span
-	ctx, span := tracing.StartCacheSpan(ctx, tracing.SpanOperationCacheGet,
+	_, span := tracing.StartCacheSpan(ctx, tracing.SpanOperationCacheGet,
 		tracing.WithCacheSystem("redis"),
 		tracing.WithCacheKey("user:123"),
 	)
@@ -109,7 +109,7 @@ func ExampleRecordError() {
 	ctx := context.Background()
 
 	// Create a span
-	ctx, span := tracing.StartDatabaseSpan(ctx, tracing.SpanOperationDBQuery,
+	_, span := tracing.StartDatabaseSpan(ctx, tracing.SpanOperationDBQuery,
 		tracing.WithDBTable("users"),
 	)
 	defer span.End()

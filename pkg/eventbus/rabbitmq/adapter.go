@@ -40,9 +40,7 @@ type Config struct {
 	ConsumerTag      string
 }
 
-// Cosa fa: crea connessione/channel RabbitMQ e prepara publish/subscribe.
-// Cosa NON fa: non crea policy broker o dead-letter exchange.
-// Esempio minimo: adapter, err := rabbitmq.NewAdapter(cfg, log)
+// NewAdapter creates a RabbitMQ-backed event bus adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("rabbitmq URL is required")
@@ -102,6 +100,7 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	return a, nil
 }
 
+// Publish sends a message to the configured exchange.
 func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -136,6 +135,7 @@ func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.M
 	return nil
 }
 
+// PublishBatch sends multiple messages sequentially.
 func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	for _, msg := range messages {
 		if err := a.Publish(ctx, topic, msg); err != nil {
@@ -145,6 +145,7 @@ func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*ev
 	return nil
 }
 
+// Subscribe registers a consumer for the given topic.
 func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -249,6 +250,7 @@ func (a *Adapter) consumeLoop(ctx context.Context, topic string, deliveries <-ch
 	}
 }
 
+// Unsubscribe removes the consumer for the given topic.
 func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -265,6 +267,7 @@ func (a *Adapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies the RabbitMQ connection is usable.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -303,6 +306,7 @@ func (a *Adapter) logBackgroundError(msg string, err error) {
 	a.logger.Error(msg, "error", err)
 }
 
+// Close stops subscriptions and releases RabbitMQ resources.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -33,22 +33,27 @@ func NewRouter() *Router {
 	}
 }
 
+// GET registers a GET route.
 func (r *Router) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodGet, path, handler, middleware)
 }
 
+// POST registers a POST route.
 func (r *Router) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPost, path, handler, middleware)
 }
 
+// PUT registers a PUT route.
 func (r *Router) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPut, path, handler, middleware)
 }
 
+// DELETE registers a DELETE route.
 func (r *Router) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodDelete, path, handler, middleware)
 }
 
+// PATCH registers a PATCH route.
 func (r *Router) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
 	r.handle(http.MethodPatch, path, handler, middleware)
 }

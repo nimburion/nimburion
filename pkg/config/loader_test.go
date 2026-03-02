@@ -1197,10 +1197,17 @@ func writeYAML(w *strings.Builder, data map[string]interface{}, indent int) {
 	for key, value := range data {
 		switch v := value.(type) {
 		case map[string]interface{}:
-			w.WriteString(fmt.Sprintf("%s%s:\n", indentStr, key))
+			w.WriteString(indentStr)
+			w.WriteString(key)
+			w.WriteString(":\n")
 			writeYAML(w, v, indent+1)
 		default:
-			w.WriteString(fmt.Sprintf("%s%s: %v\n", indentStr, key, v))
+			w.WriteString(indentStr)
+			w.WriteString(key)
+			w.WriteString(": ")
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
+			w.WriteString("\n")
 		}
 	}
 }
@@ -1804,21 +1811,32 @@ func writeJSON(w *strings.Builder, data map[string]interface{}, indent int) {
 
 	for i, key := range keys {
 		value := data[key]
-		w.WriteString(fmt.Sprintf("%s  \"%s\": ", indentStr, key))
+		w.WriteString(indentStr)
+		w.WriteString("  \"")
+		w.WriteString(key)
+		w.WriteString("\": ")
 
 		switch v := value.(type) {
 		case map[string]interface{}:
 			writeJSON(w, v, indent+1)
 		case string:
-			w.WriteString(fmt.Sprintf("\"%s\"", v))
+			w.WriteString("\"")
+			w.WriteString(v)
+			w.WriteString("\"")
 		case bool:
-			w.WriteString(fmt.Sprintf("%t", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		case int:
-			w.WriteString(fmt.Sprintf("%d", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		case float64:
-			w.WriteString(fmt.Sprintf("%f", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		default:
-			w.WriteString(fmt.Sprintf("\"%v\"", v))
+			w.WriteString("\"")
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
+			w.WriteString("\"")
 		}
 
 		if i < len(keys)-1 {
@@ -1827,7 +1845,8 @@ func writeJSON(w *strings.Builder, data map[string]interface{}, indent int) {
 		w.WriteString("\n")
 	}
 
-	w.WriteString(fmt.Sprintf("%s}", indentStr))
+	w.WriteString(indentStr)
+	w.WriteString("}")
 }
 
 // Helper function to write TOML content recursively
@@ -1837,15 +1856,34 @@ func writeTOML(w *strings.Builder, data map[string]interface{}, prefix string) {
 		if _, isMap := value.(map[string]interface{}); !isMap {
 			switch v := value.(type) {
 			case string:
-				w.WriteString(fmt.Sprintf("%s = \"%s\"\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = \"")
+				w.WriteString(v)
+				w.WriteString("\"\n")
 			case bool:
-				w.WriteString(fmt.Sprintf("%s = %t\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			case int:
-				w.WriteString(fmt.Sprintf("%s = %d\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			case float64:
-				w.WriteString(fmt.Sprintf("%s = %f\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			default:
-				w.WriteString(fmt.Sprintf("%s = \"%v\"\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = \"")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\"\n")
 			}
 		}
 	}
@@ -1857,7 +1895,9 @@ func writeTOML(w *strings.Builder, data map[string]interface{}, prefix string) {
 			if prefix != "" {
 				sectionName = prefix + "." + key
 			}
-			w.WriteString(fmt.Sprintf("\n[%s]\n", sectionName))
+			w.WriteString("\n[")
+			w.WriteString(sectionName)
+			w.WriteString("]\n")
 			writeTOML(w, subMap, sectionName)
 		}
 	}

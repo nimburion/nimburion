@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -266,7 +267,11 @@ func (a *Adapter) request(ctx context.Context, method, path string, body []byte)
 		return nil, fmt.Errorf("no search nodes configured")
 	}
 
-	start := int(atomic.AddUint64(&a.nextNode, 1)-1) % len(a.baseURLs)
+	startOffset, err := uint64ToInt((atomic.AddUint64(&a.nextNode, 1) - 1) % uint64(len(a.baseURLs)))
+	if err != nil {
+		return nil, err
+	}
+	start := startOffset % len(a.baseURLs)
 	var lastErr error
 
 	for attempt := 0; attempt < len(a.baseURLs); attempt++ {
@@ -342,6 +347,7 @@ func (a *Adapter) requestNode(ctx context.Context, baseURL url.URL, method, path
 		}
 	}
 
+	// #nosec G704 -- endpoint is derived from validated base URLs parsed by parseBaseURLs.
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request to %s failed: %w", endpoint, err)
@@ -411,7 +417,7 @@ func parseBaseURLs(cfg Config) ([]url.URL, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse search URL %q: %w", item, err)
 		}
-		if u.Scheme == "" || u.Host == "" {
+		if u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 			return nil, fmt.Errorf("invalid search URL: %s", item)
 		}
 		key := u.String()
@@ -442,4 +448,11 @@ func shouldRetryOnStatus(status int) bool {
 	default:
 		return false
 	}
+}
+
+func uint64ToInt(v uint64) (int, error) {
+	if v > uint64(math.MaxInt) {
+		return 0, fmt.Errorf("value %d overflows int", v)
+	}
+	return int(v), nil
 }

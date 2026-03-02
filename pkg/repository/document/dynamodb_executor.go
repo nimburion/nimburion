@@ -39,6 +39,7 @@ type DynamoDBExecutor struct {
 	adapter *dynamostore.Adapter
 }
 
+// NewDynamoDBExecutor wraps a DynamoDB adapter as a document executor.
 func NewDynamoDBExecutor(adapter *dynamostore.Adapter) (*DynamoDBExecutor, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("dynamodb adapter is required")
@@ -46,6 +47,7 @@ func NewDynamoDBExecutor(adapter *dynamostore.Adapter) (*DynamoDBExecutor, error
 	return &DynamoDBExecutor{adapter: adapter}, nil
 }
 
+// PutItem writes a document to the target table.
 func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[string]types.AttributeValue) error {
 	_, err := e.adapter.PutItem(ctx, &awsdynamodb.PutItemInput{
 		TableName: &table,
@@ -54,6 +56,7 @@ func (e *DynamoDBExecutor) PutItem(ctx context.Context, table string, item map[s
 	return err
 }
 
+// GetItem reads a document from the target table by key.
 func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[string]types.AttributeValue, consistentRead bool) (map[string]types.AttributeValue, error) {
 	out, err := e.adapter.GetItem(ctx, &awsdynamodb.GetItemInput{
 		TableName:      &table,
@@ -66,6 +69,7 @@ func (e *DynamoDBExecutor) GetItem(ctx context.Context, table string, key map[st
 	return out.Item, nil
 }
 
+// UpdateItem updates a document and returns the modified attributes.
 func (e *DynamoDBExecutor) UpdateItem(
 	ctx context.Context,
 	table string,
@@ -88,6 +92,7 @@ func (e *DynamoDBExecutor) UpdateItem(
 	return out.Attributes, nil
 }
 
+// DeleteItem removes a document from the target table by key.
 func (e *DynamoDBExecutor) DeleteItem(ctx context.Context, table string, key map[string]types.AttributeValue) error {
 	_, err := e.adapter.DeleteItem(ctx, &awsdynamodb.DeleteItemInput{
 		TableName: &table,
@@ -96,6 +101,7 @@ func (e *DynamoDBExecutor) DeleteItem(ctx context.Context, table string, key map
 	return err
 }
 
+// Query executes a key-based query against the target table.
 func (e *DynamoDBExecutor) Query(
 	ctx context.Context,
 	table string,

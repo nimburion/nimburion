@@ -84,6 +84,9 @@ func (p *MailgunProvider) Send(ctx context.Context, message Message) error {
 	defer cancel()
 
 	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/v3/" + p.cfg.Domain + "/messages"
+	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
+		return validateErr
+	}
 	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
@@ -91,6 +94,7 @@ func (p *MailgunProvider) Send(ctx context.Context, message Message) error {
 	req.SetBasicAuth("api", p.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
+	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err
