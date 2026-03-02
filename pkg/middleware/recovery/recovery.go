@@ -1,4 +1,4 @@
-// Package middleware provides HTTP middleware components for the framework.
+// Package recovery provides panic recovery middleware.
 package recovery
 
 import (
@@ -22,17 +22,17 @@ func Recovery(log logger.Logger) router.MiddlewareFunc {
 				if r := recover(); r != nil {
 					// Extract request ID from context for correlation
 					requestID := requestid.GetRequestID(c.Request().Context())
-					
+
 					// Get stack trace
 					stackTrace := string(debug.Stack())
-					
+
 					// Log the panic with full context
 					log.Error("panic recovered",
 						"request_id", requestID,
 						"panic", r,
 						"stack", stackTrace,
 					)
-					
+
 					// Return HTTP 500 with error response
 					// Only write response if not already written
 					if !c.Response().Written() {
@@ -41,7 +41,7 @@ func Recovery(log logger.Logger) router.MiddlewareFunc {
 							"message":    "an unexpected error occurred",
 							"request_id": requestID,
 						}
-						
+
 						// Attempt to send JSON response
 						if err := c.JSON(http.StatusInternalServerError, errorResponse); err != nil {
 							// If JSON encoding fails, fall back to plain text
@@ -53,7 +53,7 @@ func Recovery(log logger.Logger) router.MiddlewareFunc {
 					}
 				}
 			}()
-			
+
 			return next(c)
 		}
 	}

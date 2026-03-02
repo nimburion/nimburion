@@ -40,7 +40,7 @@ func createTestJWKS(t *testing.T) (JWKSResponse, *rsa.PrivateKey) {
 	}
 
 	// Encode public key components
-	nBytes := privateKey.PublicKey.N.Bytes()
+	nBytes := privateKey.N.Bytes()
 	eBytes := big.NewInt(int64(privateKey.PublicKey.E)).Bytes()
 
 	jwk := JWK{

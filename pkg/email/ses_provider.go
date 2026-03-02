@@ -106,11 +106,15 @@ func (p *SESProvider) Send(ctx context.Context, message Message) error {
 	if endpoint == "" {
 		endpoint = fmt.Sprintf("https://email.%s.amazonaws.com", p.cfg.Region)
 	}
+	endpoint = strings.TrimRight(endpoint, "/") + "/v2/email/outbound-emails"
+	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
+		return validateErr
+	}
 
 	cctx, cancel := withTimeout(ctx, p.cfg.OperationTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(cctx, http.MethodPost, strings.TrimRight(endpoint, "/")+"/v2/email/outbound-emails", bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
@@ -128,6 +132,7 @@ func (p *SESProvider) Send(ctx context.Context, message Message) error {
 		return signErr
 	}
 
+	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err

@@ -7,11 +7,13 @@ import (
 )
 
 var (
+	// ErrPathTraversal reports an attempt to escape the allowed base path.
 	ErrPathTraversal = errors.New("path traversal detected")
-	ErrInvalidPath   = errors.New("invalid file path")
+	// ErrInvalidPath reports an empty or malformed file path.
+	ErrInvalidPath = errors.New("invalid file path")
 )
 
-// ValidateFilePath checks if a file path is safe to use
+// ValidateFilePath checks whether a file path is safe to use.
 func ValidateFilePath(path, baseDir string) error {
 	if path == "" {
 		return ErrInvalidPath

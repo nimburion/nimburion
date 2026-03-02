@@ -32,9 +32,7 @@ type Config struct {
 	OperationTimeout time.Duration
 }
 
-// Cosa fa: inizializza un adapter MongoDB e verifica connettività via ping.
-// Cosa NON fa: non crea indici o collezioni automaticamente.
-// Esempio minimo: adapter, err := mongodb.NewAdapter(cfg, log)
+// NewAdapter creates a MongoDB storage adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("mongodb URL is required")
@@ -76,18 +74,22 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	}, nil
 }
 
+// Client returns the underlying MongoDB client.
 func (a *Adapter) Client() *mongo.Client {
 	return a.client
 }
 
+// Database returns the configured MongoDB database handle.
 func (a *Adapter) Database() *mongo.Database {
 	return a.client.Database(a.database)
 }
 
+// Collection returns a collection handle from the configured database.
 func (a *Adapter) Collection(name string) *mongo.Collection {
 	return a.Database().Collection(name)
 }
 
+// Ping checks basic connectivity to MongoDB.
 func (a *Adapter) Ping(ctx context.Context) error {
 	a.mu.RLock()
 	closed := a.closed
@@ -98,6 +100,7 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	return a.client.Ping(ctx, readpref.Primary())
 }
 
+// HealthCheck verifies the adapter is operational.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -108,6 +111,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close disconnects the MongoDB client.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	if a.closed {
@@ -125,33 +129,35 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-// Cosa fa: inserisce un documento nella collection target.
-// Cosa NON fa: non valida lo schema del documento.
-// Esempio minimo: _, err := adapter.InsertOne(ctx, "users", doc)
+// InsertOne inserts a document into the target collection.
 func (a *Adapter) InsertOne(ctx context.Context, collection string, doc interface{}) (*mongo.InsertOneResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).InsertOne(opCtx, doc)
 }
 
+// FindOne decodes a single document from the target collection.
 func (a *Adapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)
 }
 
+// UpdateOne updates a single document in the target collection.
 func (a *Adapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).UpdateOne(opCtx, filter, update)
 }
 
+// DeleteOne deletes a single document from the target collection.
 func (a *Adapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).DeleteOne(opCtx, filter)
 }
 
+// EnsureCollection checks that the target collection is reachable.
 func (a *Adapter) EnsureCollection(ctx context.Context, name string) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()

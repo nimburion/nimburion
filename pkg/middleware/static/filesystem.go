@@ -60,7 +60,9 @@ func (l *localFileSystem) Exists(prefix, requestPath string) bool {
 		if err != nil {
 			return false
 		}
-		index.Close()
+		if closeErr := index.Close(); closeErr != nil {
+			return false
+		}
 	}
 
 	return true
@@ -81,6 +83,5 @@ func (e *embedFileSystem) Exists(prefix, requestPath string) bool {
 	if err != nil {
 		return false
 	}
-	f.Close()
-	return true
+	return f.Close() == nil
 }

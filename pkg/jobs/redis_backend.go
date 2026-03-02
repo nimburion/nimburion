@@ -597,7 +597,7 @@ func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string,
 	if envelope.Job == nil {
 		return "", nil, jobsError(ErrValidation, "lease payload does not contain a job")
 	}
-	if strings.TrimSpace(envelope.Job.Queue) == "" && lease != nil {
+	if strings.TrimSpace(envelope.Job.Queue) == "" {
 		envelope.Job.Queue = strings.TrimSpace(lease.Queue)
 	}
 	if err := envelope.Job.Validate(); err != nil {

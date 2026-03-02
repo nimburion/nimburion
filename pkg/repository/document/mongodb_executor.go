@@ -21,6 +21,7 @@ type MongoDBExecutor struct {
 	adapter *mongostore.Adapter
 }
 
+// NewMongoDBExecutor wraps a MongoDB adapter as a document executor.
 func NewMongoDBExecutor(adapter *mongostore.Adapter) (*MongoDBExecutor, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("mongodb adapter is required")
@@ -28,6 +29,7 @@ func NewMongoDBExecutor(adapter *mongostore.Adapter) (*MongoDBExecutor, error) {
 	return &MongoDBExecutor{adapter: adapter}, nil
 }
 
+// InsertOne inserts a document into the target collection.
 func (e *MongoDBExecutor) InsertOne(ctx context.Context, collection string, document map[string]interface{}) (interface{}, error) {
 	result, err := e.adapter.InsertOne(ctx, collection, bson.M(document))
 	if err != nil {
@@ -36,6 +38,7 @@ func (e *MongoDBExecutor) InsertOne(ctx context.Context, collection string, docu
 	return result.InsertedID, nil
 }
 
+// FindOne finds a single document in the target collection.
 func (e *MongoDBExecutor) FindOne(ctx context.Context, collection string, filter Filter) (map[string]interface{}, error) {
 	out := bson.M{}
 	if err := e.adapter.FindOne(ctx, collection, bson.M(filter), &out); err != nil {
@@ -44,6 +47,7 @@ func (e *MongoDBExecutor) FindOne(ctx context.Context, collection string, filter
 	return map[string]interface{}(out), nil
 }
 
+// UpdateOne updates a single document in the target collection.
 func (e *MongoDBExecutor) UpdateOne(ctx context.Context, collection string, filter Filter, update map[string]interface{}) (int64, error) {
 	result, err := e.adapter.UpdateOne(ctx, collection, bson.M(filter), bson.M(update))
 	if err != nil {
@@ -52,6 +56,7 @@ func (e *MongoDBExecutor) UpdateOne(ctx context.Context, collection string, filt
 	return result.ModifiedCount, nil
 }
 
+// DeleteOne deletes a single document from the target collection.
 func (e *MongoDBExecutor) DeleteOne(ctx context.Context, collection string, filter Filter) (int64, error) {
 	result, err := e.adapter.DeleteOne(ctx, collection, bson.M(filter))
 	if err != nil {

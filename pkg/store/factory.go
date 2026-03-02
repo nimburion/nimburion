@@ -14,9 +14,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/store/s3"
 )
 
-// Cosa fa: seleziona e inizializza lo storage adapter in base alla config.
-// Cosa NON fa: non gestisce fallback tra provider diversi.
-// Esempio minimo: adp, err := store.NewStorageAdapter(cfg.Database, log)
+// NewStorageAdapter selects and initializes a storage adapter from config.
 func NewStorageAdapter(cfg config.DatabaseConfig, log logger.Logger) (Adapter, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Type)) {
 	case "postgres":

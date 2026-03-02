@@ -15,7 +15,9 @@ type Sort struct {
 type SortOrder string
 
 const (
-	SortAsc  SortOrder = "asc"
+	// SortAsc sorts results in ascending order.
+	SortAsc SortOrder = "asc"
+	// SortDesc sorts results in descending order.
 	SortDesc SortOrder = "desc"
 )
 

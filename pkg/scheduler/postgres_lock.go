@@ -118,7 +118,12 @@ func (p *PostgresLockProvider) Acquire(ctx context.Context, key string, ttl time
 	opCtx, cancel := p.operationContext(ctx)
 	defer cancel()
 	expiresAt := time.Now().UTC().Add(ttl)
+	tableName, err := p.validatedTableName()
+	if err != nil {
+		return nil, false, err
+	}
 
+	// #nosec G201 -- tableName is constrained by validatedTableName.
 	query := fmt.Sprintf(`
 WITH upsert AS (
 	INSERT INTO %s(lock_key, token, expires_at, updated_at)
@@ -131,7 +136,7 @@ WITH upsert AS (
 	RETURNING 1
 )
 SELECT EXISTS(SELECT 1 FROM upsert)
-`, p.config.Table, p.config.Table)
+`, tableName, tableName)
 
 	var acquired bool
 	if err := p.db.QueryRowContext(opCtx, query, key, token, expiresAt).Scan(&acquired); err != nil {
@@ -166,7 +171,12 @@ func (p *PostgresLockProvider) Renew(ctx context.Context, lease *LockLease, ttl 
 
 	opCtx, cancel := p.operationContext(ctx)
 	defer cancel()
-	query := fmt.Sprintf(`UPDATE %s SET expires_at=$3, updated_at=NOW() WHERE lock_key=$1 AND token=$2 AND expires_at > NOW()`, p.config.Table)
+	tableName, err := p.validatedTableName()
+	if err != nil {
+		return err
+	}
+	// #nosec G201 -- tableName is constrained by validatedTableName.
+	query := fmt.Sprintf(`UPDATE %s SET expires_at=$3, updated_at=NOW() WHERE lock_key=$1 AND token=$2 AND expires_at > NOW()`, tableName)
 	result, err := p.db.ExecContext(opCtx, query, key, token, time.Now().UTC().Add(ttl))
 	if err != nil {
 		return errors.Join(schedulerError(ErrRetryable, "renew lock failed"), err)
@@ -198,7 +208,12 @@ func (p *PostgresLockProvider) Release(ctx context.Context, lease *LockLease) er
 
 	opCtx, cancel := p.operationContext(ctx)
 	defer cancel()
-	query := fmt.Sprintf(`DELETE FROM %s WHERE lock_key=$1 AND token=$2`, p.config.Table)
+	tableName, err := p.validatedTableName()
+	if err != nil {
+		return err
+	}
+	// #nosec G201 -- tableName is constrained by validatedTableName.
+	query := fmt.Sprintf(`DELETE FROM %s WHERE lock_key=$1 AND token=$2`, tableName)
 	result, err := p.db.ExecContext(opCtx, query, key, token)
 	if err != nil {
 		return errors.Join(schedulerError(ErrRetryable, "release lock failed"), err)
@@ -235,17 +250,29 @@ func (p *PostgresLockProvider) Close() error {
 }
 
 func (p *PostgresLockProvider) ensureTable(ctx context.Context) error {
+	tableName, err := p.validatedTableName()
+	if err != nil {
+		return err
+	}
+	// #nosec G201 -- tableName is constrained by validatedTableName.
 	query := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
 	lock_key TEXT PRIMARY KEY,
 	token TEXT NOT NULL,
 	expires_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-)`, p.config.Table)
+)`, tableName)
 	if _, err := p.db.ExecContext(ctx, query); err != nil {
 		return errors.Join(schedulerError(ErrRetryable, "ensure lock table failed"), err)
 	}
 	return nil
+}
+
+func (p *PostgresLockProvider) validatedTableName() (string, error) {
+	if !validTableName.MatchString(p.config.Table) {
+		return "", schedulerError(ErrValidation, fmt.Sprintf("invalid scheduler postgres table name %q", p.config.Table))
+	}
+	return p.config.Table, nil
 }
 
 func (p *PostgresLockProvider) operationContext(ctx context.Context) (context.Context, context.CancelFunc) {

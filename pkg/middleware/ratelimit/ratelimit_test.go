@@ -542,9 +542,7 @@ func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             2,
-		KeyFunc: func(c router.Context) string {
-			return ExtractUserIDFromContext(c)
-		},
+		KeyFunc:           ExtractUserIDFromContext,
 	}
 
 	middleware := RateLimit(limiter, cfg)

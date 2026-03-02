@@ -424,6 +424,9 @@ func sendJSONWithAuth(ctx context.Context, client *http.Client, timeout time.Dur
 	if err != nil {
 		return err
 	}
+	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
+		return validateErr
+	}
 	cctx, cancel := withTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(cctx, method, endpoint, bytes.NewReader(raw))
@@ -439,6 +442,7 @@ func sendJSONWithAuth(ctx context.Context, client *http.Client, timeout time.Dur
 		}
 		req.Header.Set(key, value)
 	}
+	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

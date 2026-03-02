@@ -2,13 +2,14 @@ package ws
 
 import (
 	"bufio"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // RFC 6455 requires SHA-1 for Sec-WebSocket-Accept.
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -19,10 +20,14 @@ import (
 )
 
 const (
-	OpText  byte = 0x1
+	// OpText identifies a text frame.
+	OpText byte = 0x1
+	// OpClose identifies a close control frame.
 	OpClose byte = 0x8
-	OpPing  byte = 0x9
-	OpPong  byte = 0xA
+	// OpPing identifies a ping control frame.
+	OpPing byte = 0x9
+	// OpPong identifies a pong control frame.
+	OpPong byte = 0xA
 
 	websocketMagicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 )
@@ -173,6 +178,10 @@ func (c *Conn) WriteFrame(opcode byte, payload []byte) error {
 
 // ReadFrame reads the next WebSocket frame and returns opcode and payload.
 func (c *Conn) ReadFrame() (byte, []byte, error) {
+	if c.readLimit < 0 {
+		return 0, nil, fmt.Errorf("invalid websocket read limit")
+	}
+
 	var header [2]byte
 	if _, err := io.ReadFull(c.rw, header[:]); err != nil {
 		return 0, nil, err
@@ -195,7 +204,7 @@ func (c *Conn) ReadFrame() (byte, []byte, error) {
 			return 0, nil, err
 		}
 		size := binary.BigEndian.Uint64(ext[:])
-		if size > uint64(c.readLimit) {
+		if size > uint64(c.readLimit) || size > uint64(math.MaxInt) {
 			return 0, nil, fmt.Errorf("websocket frame too large")
 		}
 		payloadLen = int(size)
@@ -345,6 +354,7 @@ func headerHasToken(headers http.Header, key, expected string) bool {
 }
 
 func computeWebSocketAccept(secKey string) string {
+	// #nosec G401 -- RFC 6455 mandates SHA-1 for the WebSocket handshake accept key.
 	sum := sha1.Sum([]byte(secKey + websocketMagicGUID))
 	return base64.StdEncoding.EncodeToString(sum[:])
 }

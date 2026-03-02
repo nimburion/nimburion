@@ -2,7 +2,9 @@ package email
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -21,4 +23,18 @@ func defaultHTTPClient(client *http.Client, timeout time.Duration) *http.Client 
 		timeout = 10 * time.Second
 	}
 	return &http.Client{Timeout: timeout}
+}
+
+func validateEndpointURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("endpoint must use http or https")
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("endpoint host is required")
+	}
+	return nil
 }

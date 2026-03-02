@@ -40,9 +40,7 @@ type Config struct {
 	VisibilityTimeout int32
 }
 
-// Cosa fa: crea adapter SQS con supporto endpoint custom e long polling.
-// Cosa NON fa: non crea code o policy IAM.
-// Esempio minimo: adapter, err := sqs.NewAdapter(cfg, log)
+// NewAdapter creates an SQS-backed event bus adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("aws region is required")
@@ -92,6 +90,7 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	return adapter, nil
 }
 
+// Publish sends a message to the resolved queue.
 func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -118,6 +117,7 @@ func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.M
 	return nil
 }
 
+// PublishBatch sends multiple messages in SQS batches.
 func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -156,6 +156,7 @@ func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*ev
 	return nil
 }
 
+// Subscribe starts polling the resolved queue for messages.
 func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -213,6 +214,7 @@ func (a *Adapter) pollLoop(ctx context.Context, queueURL string, handler eventbu
 	}
 }
 
+// Unsubscribe stops polling for the given topic.
 func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -225,6 +227,7 @@ func (a *Adapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies that the configured queue is reachable.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -247,6 +250,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close stops active polling loops.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -28,9 +28,7 @@ type Config struct {
 	QueryTimeout    time.Duration
 }
 
-// Cosa fa: inizializza un adapter MySQL con validazione e ping iniziale.
-// Cosa NON fa: non esegue migrazioni schema né provisioning database.
-// Esempio minimo: adapter, err := mysql.NewAdapter(cfg, log)
+// NewAdapter creates a MySQL storage adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("database URL is required")
@@ -68,14 +66,17 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	return &Adapter{db: db, logger: log, config: cfg}, nil
 }
 
+// DB returns the underlying sql.DB handle.
 func (a *Adapter) DB() *sql.DB {
 	return a.db
 }
 
+// Ping checks basic connectivity to MySQL.
 func (a *Adapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
 }
 
+// HealthCheck verifies the adapter is operational.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -86,6 +87,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close closes the database connection pool.
 func (a *Adapter) Close() error {
 	a.logger.Info("closing MySQL connection")
 	if err := a.db.Close(); err != nil {
@@ -100,14 +102,13 @@ type contextKey string
 
 const txContextKey contextKey = "mysql_tx"
 
+// GetTx returns the transaction stored in ctx, if any.
 func GetTx(ctx context.Context) (*sql.Tx, bool) {
 	tx, ok := ctx.Value(txContextKey).(*sql.Tx)
 	return tx, ok
 }
 
-// Cosa fa: esegue fn in transazione con commit/rollback automatici.
-// Cosa NON fa: non gestisce retry applicativi su deadlock o timeout.
-// Esempio minimo: err := adapter.WithTransaction(ctx, func(txCtx context.Context) error { return nil })
+// WithTransaction runs fn inside a database transaction.
 func (a *Adapter) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -137,6 +138,7 @@ func (a *Adapter) WithTransaction(ctx context.Context, fn func(context.Context) 
 	return nil
 }
 
+// ExecContext executes a statement using the active transaction when present.
 func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -146,6 +148,7 @@ func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interfa
 	return a.db.ExecContext(queryCtx, query, args...)
 }
 
+// QueryContext runs a query using the active transaction when present.
 func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()
@@ -155,6 +158,7 @@ func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interf
 	return a.db.QueryContext(queryCtx, query, args...)
 }
 
+// QueryRowContext runs a query that returns at most one row.
 func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	queryCtx, cancel := a.withQueryTimeout(ctx)
 	defer cancel()

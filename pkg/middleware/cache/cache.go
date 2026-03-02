@@ -208,7 +208,9 @@ func (m *middleware) handle(next router.HandlerFunc) router.HandlerFunc {
 		}
 
 		start := time.Now()
-		defer observeCacheLatency("total", time.Since(start))
+		defer func() {
+			observeCacheLatency("total", time.Since(start))
+		}()
 
 		if shouldBypass(c.Request(), m.cfg) {
 			incCacheResult("bypass")
@@ -260,7 +262,9 @@ func (m *middleware) handle(next router.HandlerFunc) router.HandlerFunc {
 
 func (m *middleware) load(key string, now time.Time) (*cacheEntry, bool, string) {
 	lookupStart := time.Now()
-	defer observeCacheLatency("lookup", time.Since(lookupStart))
+	defer func() {
+		observeCacheLatency("lookup", time.Since(lookupStart))
+	}()
 
 	raw, err := m.cfg.Store.Get(key)
 	if err != nil {

@@ -234,30 +234,56 @@ func formatStruct(v reflect.Value, prefix string) string {
 
 		switch value.Kind() {
 		case reflect.Struct:
-			sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+			sb.WriteString(prefix)
+			sb.WriteString(fieldName)
+			sb.WriteString(":\n")
 			sb.WriteString(formatStruct(value, prefix+"  "))
 		case reflect.Slice:
 			if value.Len() == 0 {
-				sb.WriteString(fmt.Sprintf("%s%s: []\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(": []\n")
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(":\n")
 				for j := 0; j < value.Len(); j++ {
 					elem := value.Index(j)
-					sb.WriteString(fmt.Sprintf("%s  - %v\n", prefix, elem.Interface()))
+					sb.WriteString(prefix)
+					sb.WriteString("  - ")
+					rendered := fmt.Sprint(elem.Interface())
+					sb.WriteString(rendered)
+					sb.WriteString("\n")
 				}
 			}
 		case reflect.Map:
 			if value.Len() == 0 {
-				sb.WriteString(fmt.Sprintf("%s%s: {}\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(": {}\n")
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(":\n")
 				for _, key := range value.MapKeys() {
 					mapValue := value.MapIndex(key)
-					sb.WriteString(fmt.Sprintf("%s  %v: %v\n", prefix, key.Interface(), mapValue.Interface()))
+					sb.WriteString(prefix)
+					sb.WriteString("  ")
+					renderedKey := fmt.Sprint(key.Interface())
+					sb.WriteString(renderedKey)
+					sb.WriteString(": ")
+					renderedValue := fmt.Sprint(mapValue.Interface())
+					sb.WriteString(renderedValue)
+					sb.WriteString("\n")
 				}
 			}
 		default:
-			sb.WriteString(fmt.Sprintf("%s%s: %v\n", prefix, fieldName, value.Interface()))
+			sb.WriteString(prefix)
+			sb.WriteString(fieldName)
+			sb.WriteString(": ")
+			rendered := fmt.Sprint(value.Interface())
+			sb.WriteString(rendered)
+			sb.WriteString("\n")
 		}
 	}
 
@@ -284,26 +310,47 @@ func formatStructWithMask(v, mask reflect.Value, prefix string) string {
 
 		switch value.Kind() {
 		case reflect.Struct:
-			sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+			sb.WriteString(prefix)
+			sb.WriteString(fieldName)
+			sb.WriteString(":\n")
 			sb.WriteString(formatStructWithMask(value, maskValue, prefix+"  "))
 		case reflect.Slice:
 			if value.Len() == 0 {
-				sb.WriteString(fmt.Sprintf("%s%s: []\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(": []\n")
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(":\n")
 				for j := 0; j < value.Len(); j++ {
 					elem := value.Index(j)
-					sb.WriteString(fmt.Sprintf("%s  - %v\n", prefix, elem.Interface()))
+					sb.WriteString(prefix)
+					sb.WriteString("  - ")
+					rendered := fmt.Sprint(elem.Interface())
+					sb.WriteString(rendered)
+					sb.WriteString("\n")
 				}
 			}
 		case reflect.Map:
 			if value.Len() == 0 {
-				sb.WriteString(fmt.Sprintf("%s%s: {}\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(": {}\n")
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, fieldName))
+				sb.WriteString(prefix)
+				sb.WriteString(fieldName)
+				sb.WriteString(":\n")
 				for _, key := range value.MapKeys() {
 					mapValue := value.MapIndex(key)
-					sb.WriteString(fmt.Sprintf("%s  %v: %v\n", prefix, key.Interface(), mapValue.Interface()))
+					sb.WriteString(prefix)
+					sb.WriteString("  ")
+					renderedKey := fmt.Sprint(key.Interface())
+					sb.WriteString(renderedKey)
+					sb.WriteString(": ")
+					renderedValue := fmt.Sprint(mapValue.Interface())
+					sb.WriteString(renderedValue)
+					sb.WriteString("\n")
 				}
 			}
 		default:
@@ -312,7 +359,12 @@ func formatStructWithMask(v, mask reflect.Value, prefix string) string {
 			if shouldRedact(maskValue) {
 				displayValue = "***"
 			}
-			sb.WriteString(fmt.Sprintf("%s%s: %v\n", prefix, fieldName, displayValue))
+			sb.WriteString(prefix)
+			sb.WriteString(fieldName)
+			sb.WriteString(": ")
+			rendered := fmt.Sprint(displayValue)
+			sb.WriteString(rendered)
+			sb.WriteString("\n")
 		}
 	}
 

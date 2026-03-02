@@ -238,7 +238,9 @@ func TestServerShutdownTimeout(t *testing.T) {
 
 	// Trigger shutdown
 	start := time.Now()
-	err = srv.Shutdown(context.Background())
+	if shutdownErr := srv.Shutdown(context.Background()); shutdownErr != nil {
+		t.Logf("shutdown returned error (expected during timeout path): %v", shutdownErr)
+	}
 	duration := time.Since(start)
 
 	// Shutdown should complete within ~30 seconds (the timeout)
