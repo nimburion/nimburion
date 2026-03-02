@@ -71,6 +71,15 @@ linters:
         linters:
           - gosec
 
+      - text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/(i18n/context|jobs/contract|middleware/session/oauth_tokens)\\.go$"
+        text: "G101: Potential hardcoded credentials"
+        linters:
+          - gosec
+
       - text: "SA1029.*test" # Ignore context keys in tests
         linters:
           - staticcheck
