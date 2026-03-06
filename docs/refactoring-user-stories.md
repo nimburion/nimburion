@@ -151,6 +151,78 @@ Acceptance criteria:
 - `Contract suite`: provider implementations satisfy a shared request-contract-validation contract without changing router or server APIs.
 - `Failure mode`: changing contract-validation provider does not require transport-specific handler rewrites.
 
+## Epic 3B: gRPC Applications
+
+### Story 3B.1
+
+As a `service developer`, I want gRPC to be an opt-in transport family so that applications can use gRPC without making it the default runtime assumption for the framework.
+
+Acceptance criteria:
+
+- `Observable output`: gRPC-related commands and runtime metadata appear only when the gRPC family is included.
+- `Integration behavior`: gRPC lives under `pkg/grpc`, and an application that does not use it can ignore the entire family.
+- `Failure mode`: `Run` does not require importing gRPC runtime packages unless the application explicitly includes gRPC.
+
+### Story 3B.2
+
+As a `service developer`, I want unary and streaming RPCs to be modeled explicitly so that I can build gRPC services without collapsing all interaction patterns into one generic handler shape.
+
+Acceptance criteria:
+
+- `Contract suite`: unary, client-streaming, server-streaming, and bidirectional-streaming are distinct supported interaction forms in the shared gRPC family contracts.
+- `Integration behavior`: applications that use only unary RPCs are not forced to depend on streaming-only APIs.
+- `Failure mode`: cancellation and deadline propagation remain defined for the supported RPC shapes instead of being left to transport-specific guesswork.
+
+### Story 3B.3
+
+As a `framework maintainer`, I want gRPC interceptors and transport glue to stay inside the gRPC family so that transport-specific concerns do not leak into shared core packages.
+
+Acceptance criteria:
+
+- `Observable output`: gRPC transport capabilities are exposed through `pkg/grpc` packages instead of generic server or controller packages.
+- `Integration behavior`: reflection, transport auth integration, and gRPC-specific middleware stay inside the gRPC family.
+- `Failure mode`: shared concerns such as resilience, observability, and tenant context remain reusable contracts instead of being reimplemented as gRPC-only variants.
+
+### Story 3B.4
+
+As a `service developer`, I want gRPC validation to be layered so that transport errors, contract/schema violations, and domain validation failures remain distinguishable.
+
+Acceptance criteria:
+
+- `State transition`: the gRPC pipeline distinguishes transport decode and metadata errors, contract validation, and domain or input validation.
+- `Integration behavior`: contract validation is provider-driven instead of hardwired into one generated-code path.
+- `Failure mode`: Protobuf-based contract validation does not replace application-level semantic validation.
+
+### Story 3B.5
+
+As an `operations engineer`, I want gRPC health, readiness, and graceful shutdown to integrate with the shared runtime model so that operating a gRPC service follows the same conventions as other framework applications.
+
+Acceptance criteria:
+
+- `State transition`: gRPC startup, readiness, liveness, degraded mode, and graceful shutdown integrate with the shared lifecycle model.
+- `Observable output`: gRPC contributes health only when enabled, and health or reflection exposure can be reported through shared debug or runtime surfaces when supported.
+- `Failure mode`: gRPC runtime participation does not assume HTTP management surfaces or force HTTP runtime packages into gRPC-only applications.
+
+### Story 3B.6
+
+As a `security engineer`, I want gRPC transport security to live inside the gRPC family while tenant identity, policy, and audit context remain transport-reusable so that the framework can support secure RPC services without fragmenting the policy model.
+
+Acceptance criteria:
+
+- `Integration behavior`: mTLS, peer identity, metadata credentials, and gRPC transport auth integration live under `pkg/grpc`.
+- `Contract suite`: authorization providers remain reusable across HTTP, gRPC, and other transport families through shared policy contracts.
+- `Failure mode`: tenant identity and audit context can flow through gRPC handlers and interceptors without becoming gRPC-specific policy models.
+
+### Story 3B.7
+
+As a `platform engineer`, I want service descriptors and CLI tooling to understand gRPC as a first-class transport family so that code generation, runtime inspection, and deployment metadata do not assume HTTP-only services.
+
+Acceptance criteria:
+
+- `Observable output`: descriptor metadata can declare gRPC runtime participation, reflection support, health-service support, and transport security mode.
+- `Integration behavior`: descriptor metadata can declare exposed services and proto/package ownership metadata where useful without requiring HTTP metadata to be present.
+- `Failure mode`: CLI and runtime introspection can report enabled gRPC features when debug is enabled instead of treating gRPC-only apps as incomplete HTTP apps.
+
 ## Epic 4: Eventing, Jobs, Scheduler, And Realtime
 
 ### Story 4.1
