@@ -1,5 +1,7 @@
 # Configuration Management
 
+> Transitional note: this document describes the current pre-refactor configuration model and current environment variable surface. Keep it accurate for the running codebase, but do not treat the monolithic root config, global type selectors, or `pkg/configschema` coupling as the target architecture for new code. For the target direction, see [refactoring-requirements.md](./refactoring-requirements.md).
+
 The Go Microservices Framework uses a hierarchical configuration system built on [Viper](https://github.com/spf13/viper) that supports multiple configuration sources with clear precedence rules.
 
 ## Configuration Precedence

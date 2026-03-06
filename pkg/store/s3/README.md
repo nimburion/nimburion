@@ -1,5 +1,7 @@
 # S3 Adapter
 
+> Transitional note: this README documents the current adapter under the legacy `pkg/store/*` layout. Keep it accurate for the current implementation, but treat `pkg/store` as transitional rather than the target module taxonomy for new code. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 Adapter S3 (AWS SDK v2) per upload/download di documenti e immagini.
 
 Funzioni principali:

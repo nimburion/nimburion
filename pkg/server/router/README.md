@@ -1,5 +1,7 @@
 # Router Package
 
+> Transitional note: this README documents the current `pkg/server/router` package layout. The router contract remains important, but new framework code should avoid expanding factory-based runtime selection or treating `pkg/server` as the long-term module boundary. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 The router package provides an abstraction layer for HTTP routing in the Go microservices framework. It defines interfaces that allow pluggable router implementations (net/http, gin-gonic, gorilla/mux).
 
 ## Design Principles
@@ -162,7 +164,7 @@ import "github.com/nimburion/nimburion/pkg/server/router/gorilla"
 r := gorilla.NewRouter()
 ```
 
-### Factory
+### Factory (Current Implementation)
 
 Use the factory to select a router at runtime:
 
@@ -171,6 +173,8 @@ import "github.com/nimburion/nimburion/pkg/server/router/factory"
 
 r, err := factory.NewRouter("gin") // nethttp | gin | gorilla
 ```
+
+This factory-based selection documents the current implementation. New framework code should prefer direct constructor injection and explicit composition.
 
 ## Selection Guide
 
