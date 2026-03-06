@@ -1,6 +1,7 @@
 #!/bin/sh
 
-# Install pre-commit hook
+set -eu
+
 cp scripts/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
-echo "Pre-commit hook installed successfully"
+echo "Installed scripts/pre-commit into .git/hooks/pre-commit"
