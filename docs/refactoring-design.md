@@ -1377,7 +1377,7 @@ The exact APIs can change during implementation, but the boundaries must remain:
 The following are design violations in the target architecture:
 
 - adding new concrete adapters under `pkg/store`
-- adding new responsibilities to `pkg/controller`
+- recreating `pkg/controller`-style umbrella ownership instead of using `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input`
 - adding new features under `pkg/server` that are not strictly transitional
 - introducing new framework-default string factories when constructor injection is possible
 - making business code depend directly on adapter-specific transport or vendor types

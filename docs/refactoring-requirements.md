@@ -9,7 +9,8 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 
 ## Status
 
-- The packages under `pkg/server`, `pkg/store`, `pkg/configschema`, `pkg/migrate`, and `pkg/controller` describe the current implementation.
+- The packages under `pkg/server`, `pkg/store`, `pkg/configschema`, and `pkg/migrate` describe the current implementation.
+- The former `pkg/controller` responsibilities are already split into `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input` on this branch.
 - They are still valid for the running codebase, but they are not the preferred extension points for new framework code.
 - Until the refactor is complete, current implementation docs must stay accurate and must also be marked as transitional when they would otherwise guide new code in the wrong direction.
 
@@ -26,7 +27,7 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 - Do not add new generic capabilities under `pkg/store`.
 - Do not expand `pkg/configschema`; target package is `pkg/config/schema`.
 - Do not add new string-based factory selection as a framework default when direct constructor injection is possible.
-- Do not add new responsibilities to `pkg/controller`; that package is being dismantled into more specific core and HTTP packages.
+- Do not recreate `pkg/controller`-style umbrella helpers; use `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input`.
 - When a capability is transport-specific, keep it under the transport family instead of a generic umbrella package.
 
 ## Persistence And Roles
@@ -68,7 +69,7 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 - An application that does not use gRPC must be able to ignore the entire `pkg/grpc` family.
 - The primary application entrypoint remains `Run`; any gRPC-specific serve command is a transport concern contributed by the gRPC family, not part of the universal bootstrap.
 - Transport-specific gRPC capabilities must live under `pkg/grpc` instead of generic umbrella packages.
-- New gRPC runtime code must not be added under `pkg/server`, `pkg/controller`, or `pkg/http`.
+- New gRPC runtime code must not be added under `pkg/server` or `pkg/http`.
 - gRPC adapters, interceptors, reflection, health, and transport-specific auth integration belong to the gRPC family.
 - Shared non-transport semantics such as resilience, tenant context, audit contracts, masking, and observability remain in shared families and must not be redefined inside `pkg/grpc`.
 - For gRPC, transport decoding, contract validation, and domain/input validation are separate layers.

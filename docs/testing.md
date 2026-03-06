@@ -5,6 +5,11 @@ This document describes the current testing workflow and the target testing dire
 ## Quick Start
 
 ```bash
+make test-build TEST_PKG=./pkg/core/...
+make test-fast-lane TEST_PKG=./pkg/core/...
+make test-integration-lane TEST_PKG=./pkg/store/redis/...
+make test-contract-lane TEST_PKG=./pkg/server/router/...
+make test-nonfunctional-lane TEST_PKG=./...
 make test
 make test-fast
 make test-integration
@@ -14,13 +19,30 @@ make test-coverage
 
 Use:
 
+- `make test-build TEST_PKG=./path/...` for build-only verification of a touched area
+- `make test-fast-lane TEST_PKG=./path/...` for the canonical fast gate on a touched area
+- `make test-integration-lane TEST_PKG=./path/...` for the canonical integration gate
+- `make test-contract-lane TEST_PKG=./path/...` for the canonical contract gate
+- `make test-nonfunctional-lane TEST_PKG=./path/...` for the canonical non-functional gate
 - `make test` for the default test runner
 - `make test-fast` for fast feedback
 - `make test-integration` when external services are required
 - `make test-parallel` for a full parallel run
 - `make test-coverage` for coverage output
 
+The lane wrappers are the stable task-level entry points for `TASKS.md`. They currently shell out to `go test` with standard selection patterns and can be replaced later by more specialized wrappers without changing task language.
+
 ## Current Test Modes
+
+### Build Gate
+
+Build verification for a touched area should use:
+
+```bash
+make test-build TEST_PKG=./path/...
+```
+
+This maps to `go test ./path/... -run '^$'` and is the canonical no-test compile gate for refactor tasks.
 
 ### Fast Tests
 
@@ -32,6 +54,7 @@ Command:
 
 ```bash
 make test-fast
+make test-fast-lane TEST_PKG=./path/...
 ```
 
 ### Integration Tests
@@ -42,6 +65,7 @@ Command:
 
 ```bash
 make test-integration
+make test-integration-lane TEST_PKG=./path/...
 ```
 
 If you need manual service startup outside the test runner:
@@ -85,6 +109,16 @@ Property tests remain important in this repo, especially for interchangeable con
 
 During the refactor, testing should move away from package-group thinking based on the old layout and toward **contract-oriented suites**.
 
+The default gate vocabulary for all implementation tasks is:
+
+- build
+- fast
+- integration
+- contract
+- non-functional
+
+Task descriptions should reference those names directly and pair them with one of the stable wrapper commands in this document.
+
 Priority test areas:
 
 - `pkg/core`
@@ -110,6 +144,12 @@ The preferred direction is:
 - avoid central giant enumerations of implementations when family-local contract suites are clearer
 
 ## Contract Tests To Preserve Or Expand
+
+Run the contract gate with:
+
+```bash
+make test-contract-lane TEST_PKG=./path/...
+```
 
 The refactor should preserve and expand contract-style tests for:
 
@@ -158,6 +198,12 @@ Add benchmark, load, and soak coverage for:
 - streaming runtime paths
 
 ## Non-Functional Verification Categories
+
+Run the non-functional gate with:
+
+```bash
+make test-nonfunctional-lane TEST_PKG=./path/...
+```
 
 During and after the refactor, the test model should explicitly include:
 
