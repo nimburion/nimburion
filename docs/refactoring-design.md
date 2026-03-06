@@ -71,6 +71,17 @@ pkg/http/
   i18n/
   middleware/
 
+pkg/grpc/
+  server/
+  interceptor/
+  metadata/
+  auth/
+  health/
+  reflection/
+  validation/
+  status/
+  stream/
+
 pkg/persistence/
   relational/
     postgres/
@@ -537,6 +548,140 @@ The HTTP family should own:
 - WebSocket
 - HTTP-specific middleware
 
+## gRPC Family Design
+
+gRPC becomes a family under `pkg/grpc`, not a transport-specific variant of HTTP.
+
+### Package Topology
+
+`pkg/grpc` is the transport family for gRPC applications.
+
+Suggested package space:
+
+- `pkg/grpc/server`
+- `pkg/grpc/interceptor`
+- `pkg/grpc/metadata`
+- `pkg/grpc/auth`
+- `pkg/grpc/health`
+- `pkg/grpc/reflection`
+- `pkg/grpc/validation`
+- `pkg/grpc/status`
+- `pkg/grpc/stream`
+
+Optional provider-oriented or adapter-oriented subpackages may exist, but the family contract should stay centered on application-facing behavior rather than on generated-code layout.
+
+### gRPC Server
+
+`pkg/grpc/server` owns:
+
+- listener and bootstrap integration for gRPC runtime
+- graceful shutdown
+- registration of unary and streaming services
+- optional reflection exposure
+- gRPC health-service integration when enabled
+
+It does not own generic application lifecycle or shared feature composition; those remain in `pkg/core` and `pkg/cli`, just as with HTTP.
+
+### Interceptor Model
+
+`pkg/grpc/interceptor` owns transport-specific interception for:
+
+- unary requests
+- streaming requests
+- metadata extraction
+- transport-level auth glue
+- request-scoped observability propagation
+- deadline and cancellation propagation
+- status mapping
+
+The framework should not collapse gRPC interceptors into generic middleware signatures that erase unary and streaming differences.
+
+### Validation Pipeline
+
+The gRPC pipeline has three distinct layers:
+
+1. transport decode and metadata validation
+2. contract or schema validation
+3. domain or input validation
+
+#### Transport Decode And Metadata Validation
+
+This includes:
+
+- malformed request payloads
+- invalid metadata encoding
+- unsupported compression or content-negotiation issues where relevant
+- method and service resolution failures
+
+#### Contract Validation
+
+This is provider-driven and belongs to the gRPC family.
+
+Providers may include:
+
+- Protobuf descriptor-driven validation
+- Protovalidate-compatible providers
+- Buf ecosystem integrations
+- custom validators
+
+#### Domain/Input Validation
+
+This is application-level semantics and remains distinct from transport decode and schema conformance.
+
+### Status And Error Mapping
+
+`pkg/grpc/status` owns mapping between framework/application errors and gRPC status codes/details.
+
+Rules:
+
+- transport errors remain transport-classified
+- contract violations are distinguishable from domain validation failures
+- secret or sensitive values must not leak through status-detail payloads
+- masking and audit metadata follow the shared field-classification model
+
+### Security
+
+The gRPC family should own:
+
+- mTLS and peer-identity integration
+- metadata credential extraction
+- transport-specific authn/authz glue
+- per-method interceptor-based enforcement
+
+Shared authorization providers, tenant context, and audit contracts remain outside the transport family and are consumed by it rather than redefined inside it.
+
+### Streaming
+
+`pkg/grpc/stream` should make explicit:
+
+- unary vs streaming registration paths
+- message send and receive boundaries
+- cancellation propagation
+- deadline awareness
+- backpressure-related runtime behavior where the framework exposes it
+- ordering guarantees only where they are truly promised
+
+Streaming support must remain opt-in. Applications that only expose unary RPCs should not need to depend on streaming-only APIs.
+
+### Health, Reflection, And Debugging
+
+`pkg/grpc/health` integrates gRPC health-service exposure with the shared health registry.
+`pkg/grpc/reflection` is optional and independently configurable.
+
+Framework introspection may report:
+
+- registered services
+- enabled interceptors
+- reflection status
+
+only when debug is enabled.
+
+### Family Boundary
+
+The gRPC family models service transport, not durable event-bus semantics.
+
+Kafka-style retention, replay, backlog management, and durable consumer-group behavior remain outside `pkg/grpc` and belong to the durable eventing families.
+
 ## Persistence Design
 
 There is no single public `store` abstraction in the target design.
@@ -867,10 +1012,10 @@ Rotation is an operational lifecycle, not only a config concern.
 The design must allow:
 
 - secrets refresh without changing feature-owned config contracts
-- certificate and mTLS material rotation for HTTP transports
+- certificate and mTLS material rotation for HTTP and gRPC transports
 - observable rotation state and last-refresh health data where relevant
 
-This primarily affects `pkg/config`, `pkg/http/server`, and future secret-provider integrations.
+This primarily affects `pkg/config`, `pkg/http/server`, `pkg/grpc/server`, and future secret-provider integrations.
 
 ### Security Events And Audit
 

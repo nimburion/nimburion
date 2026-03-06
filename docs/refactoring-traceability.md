@@ -42,6 +42,18 @@ It complements:
 | `3.3` | Layered request validation | `Validation Model` | `HTTP Family Design` | `Milestone 3: HTTP Family Extraction` |
 | `3.4` | OpenAPI and similar as providers, not family definition | `Validation Model` | `HTTP Family Design` | `Milestone 3: HTTP Family Extraction` |
 
+## Epic 3B: gRPC Applications
+
+| Story | Summary | Requirements | Design | Primary milestone |
+| --- | --- | --- | --- | --- |
+| `3B.1` | gRPC is opt-in | `Architectural Direction`, `Packaging Rules For New Code`, `gRPC Transport Family` | `Target Package Topology`, `gRPC Family Design`, `Runtime Composition Model` | `Milestone 3B: gRPC Family Extraction` |
+| `3B.2` | Unary and streaming RPCs are modeled explicitly | `gRPC Transport Family` | `gRPC Family Design` | `Milestone 3B: gRPC Family Extraction` |
+| `3B.3` | Interceptors and transport glue stay inside the gRPC family | `Packaging Rules For New Code`, `gRPC Transport Family` | `gRPC Family Design`, `Shared Capabilities` | `Milestone 3B: gRPC Family Extraction` |
+| `3B.4` | Layered gRPC validation | `Validation Model`, `gRPC Transport Family` | `gRPC Family Design` | `Milestone 3B: gRPC Family Extraction` |
+| `3B.5` | gRPC runtime integrates with shared health and lifecycle | `Architectural Direction`, `gRPC Transport Family` | `gRPC Family Design`, `Runtime Composition Model`, `CLI Design` | `Milestone 3B: gRPC Family Extraction` |
+| `3B.6` | gRPC transport security stays transport-specific while policy stays reusable | `Enterprise Security Controls`, `gRPC Transport Family` | `gRPC Family Design`, `Security, Policy, Tenant, And Audit Design` | `Milestone 3B: gRPC Family Extraction` and `Milestone 8: Enterprise Security, Policy, Tenancy, And Audit` |
+| `3B.7` | Descriptor and CLI understand gRPC as a first-class family | `Architectural Direction`, `Descriptor And Tooling Alignment`, `gRPC Transport Family` | `CLI Design`, `gRPC Family Design` | `Milestone 3B: gRPC Family Extraction` |
+
 ## Epic 4: Eventing, Jobs, Scheduler, And Realtime
 
 | Story | Summary | Requirements | Design | Primary milestone |

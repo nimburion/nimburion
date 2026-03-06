@@ -32,6 +32,8 @@ The target package model is:
   - schema generation and schema composition
 - `pkg/http`
   - transport-specific HTTP contracts and features
+- `pkg/grpc`
+  - transport-specific gRPC contracts and features
 - `pkg/persistence`
   - explicit persistence families instead of a generic `store`
 - top-level operational or cross-cutting packages that remain public where the naming is already good:
@@ -100,6 +102,8 @@ The target package model is:
 | `pkg/eventbus/factory` | removed | Use explicit constructors for Kafka, RabbitMQ, and SQS adapters. |
 | `pkg/jobs/factory` | removed | Use explicit constructors for jobs runtimes and backends. |
 | `pkg/scheduler` lock-provider implementations | `pkg/coordination/postgres`, `pkg/coordination/redis` | `pkg/scheduler` keeps scheduler runtime/task logic; distributed locks move to coordination. |
+
+Future gRPC runtime work has no legacy source package to migrate. New gRPC transport code must target `pkg/grpc/*` directly instead of `pkg/server`, `pkg/http`, or `pkg/controller`.
 
 ## Milestones
 
@@ -231,6 +235,46 @@ The target package model is:
 - Swapping `nethttp` for `gin` or `gorilla` only changes router construction and wiring.
 - An application that does not use HTTP can ignore the entire `pkg/http` family.
 - HTTP request validation is explicitly layered instead of being implicit utility behavior.
+
+### Milestone 3B: gRPC Family Extraction
+
+### Scope
+
+- Make gRPC a first-class transport family instead of treating it as an HTTP-adjacent or generic server concern.
+- Preserve transport-specific unary and streaming semantics while keeping runtime composition aligned with the shared core model.
+
+### Tasks
+
+- Create `pkg/grpc/server` for gRPC runtime bootstrap and graceful shutdown.
+- Create `pkg/grpc/interceptor` for unary and streaming interceptor contracts and reusable transport integration.
+- Create `pkg/grpc/status` for framework-to-gRPC error and status mapping.
+- Create `pkg/grpc/validation` for contract-validation integration.
+- Create optional packages for:
+  - `pkg/grpc/health`
+  - `pkg/grpc/reflection`
+  - `pkg/grpc/auth`
+  - `pkg/grpc/stream`
+  - `pkg/grpc/metadata`
+- Keep transport-specific auth, reflection, and health under `pkg/grpc` instead of `pkg/core` or `pkg/http`.
+- Define the gRPC validation pipeline:
+  - transport decode and metadata validation
+  - contract or schema validation
+  - domain or input validation
+- Keep gRPC contract validation provider-driven, with Protobuf descriptors as the initial provider and room for Protovalidate, Buf, and custom integrations.
+- Integrate gRPC runtime participation with:
+  - shared lifecycle hooks
+  - shared health registry
+  - shared observability bootstrap
+  - debug-gated framework introspection
+- Add descriptor and CLI support for gRPC feature registration and runtime reporting.
+
+### Done
+
+- An application that does not use gRPC can ignore the entire `pkg/grpc` family.
+- A gRPC service can run through `Run` and feature-contributed commands without importing HTTP runtime packages unless it also uses HTTP.
+- Unary and streaming RPCs are both supported without collapsing them into one generic handler abstraction.
+- gRPC validation is explicitly layered.
+- gRPC health and reflection are optional family capabilities, not universal runtime assumptions.
 
 ### Milestone 4: HTTP Security, Middleware, Cache, And Session
 

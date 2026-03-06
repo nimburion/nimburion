@@ -218,6 +218,137 @@ The framework must define validation failures for unsupported combinations, for 
 - a failover-capable deployment without required durable state dependencies
 - cross-region replay claims without an idempotency or deduplication contract
 
+## gRPC Runtime Minimum Contract
+
+gRPC must have an explicit operational contract, not only a package-level design.
+
+The framework must define:
+
+- listener startup and readiness semantics
+- unary and streaming drain behavior
+- deadline and cancellation behavior
+- degraded-mode participation
+- reflection exposure policy
+- transport-security operational defaults
+- health reporting strategy
+- observability dimensions
+
+### Listener Startup And Readiness
+
+When the gRPC family is enabled, the runtime contract must define at least:
+
+- when the listener is considered started
+- when the listener is considered ready to serve traffic
+- whether readiness depends only on bind success or also on required dependency readiness
+- how gRPC runtime readiness composes with application-level readiness
+
+A valid default is:
+
+- listener bind success moves the transport into `started`
+- readiness remains false until hard dependencies and required startup hooks are healthy
+- optional dependency failures may move the runtime into `degraded` without forcing `not_ready`
+
+### Graceful Drain
+
+Graceful shutdown semantics must distinguish unary and streaming calls.
+
+For unary calls, the minimum contract is:
+
+- stop accepting new calls once shutdown begins
+- allow in-flight calls to complete until deadline or shutdown timeout
+- surface timeout-driven termination explicitly
+
+For streaming calls, the minimum contract is:
+
+- stop accepting new streams once shutdown begins
+- define whether existing streams are allowed to drain, receive a cutoff signal, or are force-closed at timeout
+- make the cutoff policy explicit for server-streaming, client-streaming, and bidirectional-streaming flows
+
+The framework must not imply identical shutdown behavior for unary and streaming RPCs.
+
+### Deadline And Cancellation
+
+The runtime contract must define:
+
+- propagation of client deadlines into request-scoped runtime context
+- propagation of client cancellation into handler context
+- framework behavior when downstream work ignores cancellation
+- transport-classified outcomes for deadline-exceeded vs canceled requests
+
+If the framework exposes helper abstractions around gRPC handlers, those abstractions must preserve deadline and cancellation semantics rather than masking them.
+
+### Degraded Mode
+
+When optional dependencies fail, the gRPC runtime contract must define whether:
+
+- the gRPC listener remains ready
+- the service reports degraded state through health or introspection
+- only a subset of methods are operationally impaired
+
+The framework must distinguish:
+
+- `not_ready` because a hard dependency blocks safe service startup
+- `degraded` because optional capabilities are unavailable
+
+### Reflection Exposure Policy
+
+Reflection is optional and environment-sensitive.
+
+The operational contract must define at least:
+
+- whether reflection is enabled by environment or profile
+- whether reflection is disabled by default in production-oriented profiles
+- whether reflection status is observable through debug or runtime introspection
+
+Reflection must not become a mandatory runtime assumption for gRPC applications.
+
+### Transport Security Defaults
+
+The gRPC family must define minimum operational defaults for:
+
+- `insecure`
+- `tls`
+- `mtls`
+- `external_termination`
+
+Where `mtls` or peer identity is enabled, the contract must define:
+
+- how peer identity is extracted
+- what happens when presented identity is missing or invalid
+- how rotation of trust material affects readiness or degraded status
+
+### Health Reporting Strategy
+
+The health contract must allow management exposure through:
+
+- HTTP only
+- gRPC only
+- both HTTP and gRPC
+
+The shared health registry remains the source of truth. Transport-specific surfaces expose the same health model through different transport contracts.
+
+The operational contract must define:
+
+- when the gRPC health service is exposed
+- how readiness and liveness are represented when gRPC is the only management surface
+- how duplicated HTTP and gRPC health surfaces remain semantically aligned when both exist
+
+### Observability Dimensions
+
+When gRPC is enabled, the minimum observability contract should include dimensions for:
+
+- application or service name
+- gRPC service name
+- gRPC method name
+- status code
+- stream type:
+  - unary
+  - client_stream
+  - server_stream
+  - bidi_stream
+
+If the framework adds latency or error metrics for gRPC, those metrics must use stable labels that do not assume HTTP route semantics.
+
 ## Success Criteria
 
 These operational specs are successful when:
@@ -225,3 +356,4 @@ These operational specs are successful when:
 - audit tamper-awareness means more than "structured logs sent somewhere"
 - supply-chain posture can be checked by release automation rather than inferred informally
 - multi-region and DR posture can be reasoned about from contracts and metadata instead of tribal knowledge
+- gRPC runtime behavior can be operated through explicit listener, drain, health, security, and observability contracts instead of transport-specific folklore

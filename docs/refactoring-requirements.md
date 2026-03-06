@@ -58,6 +58,55 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 - For events:
   - envelope validation, contract validation, and domain validation remain separate
   - contract validation providers can include Avro, Protobuf, JSON Schema, CUE, or custom implementations
+- For gRPC:
+  - transport decode, metadata validation, contract validation, and domain/input validation remain separate
+  - contract validation providers can include Protobuf descriptors, Buf-compatible validators, Protovalidate-style validators, or custom implementations
+
+## gRPC Transport Family
+
+- gRPC is a first-class transport family under `pkg/grpc`, not an extension of `pkg/http`.
+- An application that does not use gRPC must be able to ignore the entire `pkg/grpc` family.
+- The primary application entrypoint remains `Run`; any gRPC-specific serve command is a transport concern contributed by the gRPC family, not part of the universal bootstrap.
+- Transport-specific gRPC capabilities must live under `pkg/grpc` instead of generic umbrella packages.
+- New gRPC runtime code must not be added under `pkg/server`, `pkg/controller`, or `pkg/http`.
+- gRPC adapters, interceptors, reflection, health, and transport-specific auth integration belong to the gRPC family.
+- Shared non-transport semantics such as resilience, tenant context, audit contracts, masking, and observability remain in shared families and must not be redefined inside `pkg/grpc`.
+- For gRPC, transport decoding, contract validation, and domain/input validation are separate layers.
+- Transport decoding includes:
+  - message decoding and framing errors
+  - metadata extraction
+  - method and service resolution
+  - transport-level status mapping
+- Contract validation is provider-driven and belongs to the gRPC family.
+- Initial contract-validation providers may include:
+  - Protobuf descriptors
+  - Buf validation-compatible providers
+  - Protovalidate-style providers
+  - custom validators
+- Domain/input validation remains separate from transport parsing and schema/contract validation.
+- gRPC health must integrate with the shared health model and contribute checks only when the gRPC family is included and enabled.
+- gRPC reflection and framework introspection must be independently controllable and debug-aware.
+- The gRPC family must expose startup, readiness, liveness, graceful shutdown, and degraded-mode behavior through the same runtime model used by other families.
+- The framework must support a management exposure strategy without assuming that gRPC management exposure is identical to HTTP management exposure.
+- gRPC transport security concerns must live inside the gRPC family.
+- gRPC must support authentication and authorization integration without making transport-specific auth logic the only framework policy model.
+- Tenant identity, audit context, masking, and policy decisions must remain reusable across transport families, including gRPC.
+- mTLS, peer identity, and metadata-based credentials are gRPC transport concerns and belong under `pkg/grpc`.
+- Unary, client-streaming, server-streaming, and bidirectional-streaming must be modeled explicitly.
+- Streaming contracts must define cancellation, backpressure interaction, deadline propagation, and message-ordering expectations where the framework promises them.
+- Streaming support must not be forced onto applications that only use unary RPCs.
+- gRPC is the transport family; Protobuf descriptors, Buf integrations, Protovalidate-style validators, and custom validators are contract-validation providers, not the family definition.
+
+## Descriptor And Tooling Alignment
+
+- Service descriptors must be able to declare gRPC as an included transport family.
+- Descriptor metadata must allow declaration of:
+  - exposed services
+  - reflection support
+  - health service support
+  - transport security mode
+  - proto/package ownership metadata where useful
+- CLI and tooling must be able to surface gRPC runtime presence without requiring HTTP to be present.
 
 ## Configuration And Secrets
 
