@@ -141,6 +141,19 @@ type Descriptor struct {
 
 Use these review prompts when a change touches transport or contract packages during the refactor.
 
+### Legacy Root Expansion
+
+Bad direction:
+
+- new framework behavior added under `pkg/store`, `pkg/server`, or `pkg/configschema`
+- new framework behavior reintroduced under a replacement-free legacy root after it has already been split, such as recreating `pkg/controller` responsibilities outside `pkg/http/response`, `pkg/http/input`, or `pkg/core/errors`
+- a refactor keeps extending a transitional package instead of moving the responsibility to the target family
+
+Review questions:
+
+- is this change adding new code to a package root that the refactor has frozen?
+- should this responsibility move to `pkg/persistence/*`, `pkg/http/*`, `pkg/grpc/*`, or `pkg/config/schema` now instead of later?
+
 ### gRPC Placement
 
 Bad direction:
@@ -151,6 +164,17 @@ Bad direction:
 Review question:
 
 - does this code belong under `pkg/grpc` instead of a shared or HTTP-specific package?
+
+### Core Transport Leakage
+
+Bad direction:
+
+- `pkg/core` imports HTTP or gRPC runtime packages
+- app lifecycle code starts owning transport bootstrap details
+
+Review question:
+
+- is `pkg/core` staying transport-agnostic while transport families own their runtime wiring?
 
 ### Shared Policy Leakage
 

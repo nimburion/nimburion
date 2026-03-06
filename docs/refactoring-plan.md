@@ -103,7 +103,7 @@ The target package model is:
 | `pkg/jobs/factory` | removed | Use explicit constructors for jobs runtimes and backends. |
 | `pkg/scheduler` lock-provider implementations | `pkg/coordination/postgres`, `pkg/coordination/redis` | `pkg/scheduler` keeps scheduler runtime/task logic; distributed locks move to coordination. |
 
-Future gRPC runtime work has no legacy source package to migrate. New gRPC transport code must target `pkg/grpc/*` directly instead of `pkg/server`, `pkg/http`, or `pkg/controller`.
+Future gRPC runtime work has no legacy source package to migrate. New gRPC transport code must target `pkg/grpc/*` directly instead of `pkg/server` or `pkg/http`.
 
 ## Milestones
 
@@ -113,7 +113,7 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 
 - Freeze the target architecture in docs.
 - Mark legacy/current-implementation docs that would otherwise guide new code incorrectly.
-- Define package-level no-new-code rules for `pkg/store`, `pkg/server`, `pkg/configschema`, and `pkg/controller`.
+- Define package-level no-new-code rules for `pkg/store`, `pkg/server`, and `pkg/configschema`, and explicitly steer former `pkg/controller` responsibilities into their target-state packages.
 
 ### Tasks
 
@@ -124,7 +124,7 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 ### Done
 
 - New contributors can distinguish current implementation docs from target architecture docs.
-- New framework work no longer uses `pkg/store`, `pkg/configschema`, `pkg/controller`, or factory-based router selection as the default pattern.
+- New framework work no longer uses `pkg/store`, `pkg/configschema`, or factory-based router selection as the default pattern, and former `pkg/controller` responsibilities are handled by `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input`.
 
 ### Milestone 1: Core Runtime And CLI
 
@@ -535,7 +535,7 @@ The refactor is complete when all of the following are true:
 - An API gateway application can use the HTTP family without importing persistence, event bus, jobs, scheduler, or email modules it does not use.
 - `healthcheck` and HTTP management health both run only the checks contributed by included and enabled features.
 - `secrets file` remains supported, and config design is ready for future external secret providers.
-- No new framework code depends on `pkg/store`, `pkg/configschema`, `pkg/controller`, or string-based factory selection as the default extension mechanism.
+- No new framework code depends on `pkg/store`, `pkg/configschema`, or string-based factory selection as the default extension mechanism, and no code reintroduces `pkg/controller`-style umbrella ownership.
 - The core runtime does not import concrete adapters.
 - Scheduler multi-instance behavior remains verified after lock-provider extraction.
 - Distributed reliability semantics are explicit, at-least-once by default, and supported by shared idempotency, deduplication, retry, and poison-handling contracts.

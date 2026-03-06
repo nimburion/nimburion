@@ -2,7 +2,7 @@
 
 Production-ready Go framework for microservices with strong defaults for security, observability, and operations.
 
-> Architecture status: the repository is in an active refactor from the current package layout toward a more modular `core + features/modules` design. The packages under `pkg/server`, `pkg/store`, `pkg/configschema`, `pkg/migrate`, and parts of `pkg/controller` document the current implementation, not the long-term extension points for new code. For new work, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md).
+> Architecture status: the repository is in an active refactor from the current package layout toward a more modular `core + features/modules` design. The packages under `pkg/server`, `pkg/store`, `pkg/configschema`, and `pkg/migrate` document the current implementation, not the long-term extension points for new code. The former `pkg/controller` responsibilities already moved to `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input`. For new work, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md).
 
 ## Value Proposition
 - Build services faster with reusable platform modules.
@@ -25,6 +25,11 @@ The current implementation can be bootstrapped with `pkg/server` + `pkg/config` 
 
 ## Testing
 ```bash
+# Task-scoped verification lanes during the refactor
+make test-build TEST_PKG=./pkg/core/...
+make test-fast-lane TEST_PKG=./pkg/core/...
+make test-contract-lane TEST_PKG=./pkg/server/router/...
+
 # Fast unit tests (no external dependencies)
 make test-fast
 
@@ -32,7 +37,7 @@ make test-fast
 make test-integration
 ```
 
-See [Testing Guide](./docs/testing.md) for details.
+Use the `*-lane` wrappers for task-scoped verification during the refactor and the aggregate targets for broad repo runs. See [Testing Guide](./docs/testing.md) for details.
 
 ## Configuration
 - Priority in the current implementation: `ENV > secrets file > config file > defaults`
@@ -47,6 +52,16 @@ See [Testing Guide](./docs/testing.md) for details.
 - `pkg/eventbus`, `pkg/jobs`, `pkg/realtime`: async messaging, jobs runtime, and realtime channels
 - `pkg/observability`, `pkg/health`, `pkg/resilience`: runtime operations
 - `pkg/cli`, `pkg/migrate`, `pkg/openapi` (via `pkg/server/openapi`): tooling
+
+## Refactor Guardrails
+
+Until the refactor lands, do not add new framework code under:
+
+- `pkg/store`
+- `pkg/server`
+- `pkg/configschema`
+
+`pkg/controller` is already removed on this branch. Place HTTP response/input work in `pkg/http/response` and `pkg/http/input`, keep application errors in `pkg/core/errors`, place new transport code in `pkg/http/*` or `pkg/grpc/*`, keep `pkg/core` transport-agnostic, and prefer target-state families such as `pkg/persistence/*`, `pkg/cache/*`, `pkg/session/*`, and `pkg/config/schema` over legacy package roots.
 
 Target direction for new framework code is tracked in [docs/refactoring-requirements.md](./docs/refactoring-requirements.md), the package design is in [docs/refactoring-design.md](./docs/refactoring-design.md), the execution order is tracked in [docs/refactoring-plan.md](./docs/refactoring-plan.md), the user interactions are tracked in [docs/refactoring-user-stories.md](./docs/refactoring-user-stories.md), and story traceability is tracked in [docs/refactoring-traceability.md](./docs/refactoring-traceability.md).
 

@@ -49,11 +49,21 @@ During the architecture refactor, prefer fixing lint issues in packages that def
 
 During the refactor, lint review should also enforce these package-boundary rules:
 
+- do not add new framework code under `pkg/store`, `pkg/server`, or `pkg/configschema`
+- route new persistence, transport, and config work to their target families instead of extending legacy roots
 - do not place new gRPC runtime code under `pkg/http`
-- `pkg/core` must not import `pkg/grpc`
+- gRPC runtime code must live in `pkg/grpc`
+- `pkg/core` must not import transport families such as `pkg/http` or `pkg/grpc`
 - `pkg/grpc` may depend on shared families such as `pkg/core`, `pkg/health`, `pkg/observability`, `pkg/policy`, `pkg/tenant`, and `pkg/audit`, but it must not redefine their contracts
 - do not put provider-specific validation logic in `pkg/core`
 - do not assume `serve` means HTTP-only once transport families can contribute their own runtime commands
+
+When lint suggests moving code across packages, prefer landing it directly in the target-state family:
+
+- `pkg/config/schema` instead of `pkg/configschema`
+- `pkg/http/*` instead of `pkg/server`; use `pkg/http/response` and `pkg/http/input` for the responsibilities that previously lived in `pkg/controller`
+- `pkg/grpc/*` for gRPC transport runtime, validation, auth, health, reflection, and metadata work
+- `pkg/persistence/*`, `pkg/cache/*`, `pkg/session/*`, `pkg/coordination/*`, or `pkg/pubsub/*` instead of expanding `pkg/store`
 
 ## Review Cues For gRPC
 

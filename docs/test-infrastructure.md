@@ -28,9 +28,16 @@ The current setup should provide:
 
 Use:
 
+- `make test-build TEST_PKG=./path/...` for build-only verification of a touched area
+- `make test-fast-lane TEST_PKG=./path/...` for task-level fast verification
+- `make test-integration-lane TEST_PKG=./path/...` for task-level integration verification
+- `make test-contract-lane TEST_PKG=./path/...` for family contract verification
+- `make test-nonfunctional-lane TEST_PKG=./path/...` for non-functional verification
 - `make test-fast` for quick feedback
 - `make test-integration` for external-service coverage
 - `make test-parallel` for full parallel runs
+
+These wrappers are the current stable lane entry points for `TASKS.md`. They intentionally accept `TEST_PKG=./path/...` so later waves can keep the same task contract while evolving the underlying implementation.
 
 When needed, local services can be started through:
 
@@ -101,3 +108,4 @@ These suites do not imply that every local fast path must start a gRPC stack by 
 - Prefer explicit setup over hidden global test magic.
 - Keep long-running or expensive suites off the default fast path, but give them standard documented entry points and stable environments.
 - Treat race, ordering, migration, and security verification as standard framework quality gates where the framework owns those contracts.
+- Prefer family-scoped lanes over old package-bucket lanes such as `test-group-server` or `test-group-store` when defining new refactor tasks.
