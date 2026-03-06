@@ -239,7 +239,11 @@ func (c *netHTTPContext) Bind(v interface{}) error {
 		return fmt.Errorf("request body is empty")
 	}
 
-	defer c.request.Body.Close()
+	defer func() {
+		if closeErr := c.request.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	contentType := c.request.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
@@ -249,6 +253,8 @@ func (c *netHTTPContext) Bind(v interface{}) error {
 
 	return fmt.Errorf("unsupported content type: %s", contentType)
 }
+
+func ignoreCloseError(err error) {}
 
 // JSON serializes the given value as JSON and writes it to the response with the specified status code.
 func (c *netHTTPContext) JSON(code int, v interface{}) error {

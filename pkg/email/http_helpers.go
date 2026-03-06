@@ -38,3 +38,5 @@ func validateEndpointURL(raw string) error {
 	}
 	return nil
 }
+
+func ignoreCloseError(err error) {}

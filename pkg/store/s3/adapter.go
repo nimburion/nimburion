@@ -194,7 +194,11 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to download object %q: %w", key, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -203,6 +207,8 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 
 	return payload, aws.ToString(resp.ContentType), nil
 }
+
+func ignoreCloseError(err error) {}
 
 // Delete removes an object by key.
 func (a *Adapter) Delete(ctx context.Context, key string) error {
