@@ -1,4 +1,4 @@
-# Lint Workflow
+# Lint Workflow And Architectural Review
 
 Use this document as a short reference for the current lint workflow.
 
@@ -44,3 +44,22 @@ During the architecture refactor, prefer fixing lint issues in packages that def
 - Do not add comments only to silence lint; follow [comment-templates.md](./comment-templates.md).
 - Do not rely on old one-off cleanup scripts; they are no longer part of the repo workflow.
 - Run tests after non-trivial lint-driven refactors, especially when changing control flow, struct layout, or concurrency-sensitive code.
+
+## Architectural Guardrails
+
+During the refactor, lint review should also enforce these package-boundary rules:
+
+- do not place new gRPC runtime code under `pkg/http`
+- `pkg/core` must not import `pkg/grpc`
+- `pkg/grpc` may depend on shared families such as `pkg/core`, `pkg/health`, `pkg/observability`, `pkg/policy`, `pkg/tenant`, and `pkg/audit`, but it must not redefine their contracts
+- do not put provider-specific validation logic in `pkg/core`
+- do not assume `serve` means HTTP-only once transport families can contribute their own runtime commands
+
+## Review Cues For gRPC
+
+Treat these as architecture-review checks even when lint does not automate them yet:
+
+- gRPC remains a first-class family under `pkg/grpc`, not an HTTP variant
+- Protobuf, Buf, and Protovalidate remain contract-validation providers, not the family definition
+- unary and streaming semantics stay explicit instead of being collapsed into generic middleware or handler shapes
+- reflection and gRPC health remain optional capabilities, not mandatory runtime assumptions
