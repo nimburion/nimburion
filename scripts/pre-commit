@@ -1,17 +1,19 @@
 #!/bin/sh
 
-# Run golangci-lint on staged Go files
-STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+set -eu
+
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
 
 if [ -z "$STAGED_GO_FILES" ]; then
   exit 0
 fi
 
-golangci-lint run --new-from-rev=HEAD~ --config=.golangci.yml
-
-if [ $? -ne 0 ]; then
-  echo "golangci-lint failed. Please fix the issues before committing."
+UNFORMATTED=$(gofmt -l $STAGED_GO_FILES)
+if [ -n "$UNFORMATTED" ]; then
+  echo "These staged Go files are not formatted:"
+  echo "$UNFORMATTED"
+  echo "Run: gofmt -w <files>"
   exit 1
 fi
 
-exit 0
+golangci-lint run --config=.golangci.yml
