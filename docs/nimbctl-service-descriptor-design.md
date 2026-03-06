@@ -24,6 +24,7 @@ The descriptor is the primary contract for:
 - default runtime invocation
 - command discovery
 - config render and validate capability discovery
+- transport-family discovery, including gRPC-only applications
 - runtime dependency declarations
 - management endpoint and health semantics
 - deployment capabilities
@@ -100,6 +101,7 @@ The v1 descriptor is a JSON object with this top-level shape:
   "config": {},
   "dependencies": [],
   "management": {},
+  "transports": [],
   "deployment": {},
   "migrations": {},
   "features": [],
@@ -274,6 +276,11 @@ Allowed `kind` values in `v1`:
 - `maintenance`
 - `debug`
 
+Recommended `transport` values in `v1`:
+
+- `http`
+- `grpc`
+
 Allowed `run_policy` values in `v1`:
 
 - `always`
@@ -288,6 +295,7 @@ Rules:
 - `path` is the exact Cobra-style command path that `nimbctl` should invoke
 - one command should have `default: true`, and it should match `runtime.default_command`
 - `serve` is optional and should be represented as an HTTP transport command, not as the universal default
+- gRPC transport commands may be represented with `transport: "grpc"` without implying that HTTP is present
 
 ### `config`
 
@@ -468,7 +476,8 @@ Fields:
 Each endpoint descriptor has:
 
 - `kind`: required, enum
-- `path`: required, string
+- `transport`: optional, string
+- `target`: required, string
 - `authenticated`: optional, boolean
 - `reports`: optional, array of strings
 
@@ -480,6 +489,11 @@ Allowed `kind` values in `v1`:
 - `metrics`
 - `introspection`
 
+Recommended `transport` values in `v1`:
+
+- `http`
+- `grpc`
+
 Recommended `reports` values:
 
 - `hard_dependencies`
@@ -487,6 +501,73 @@ Recommended `reports` values:
 - `degraded`
 - `process_liveness`
 - `feature_health`
+
+Interpretation:
+
+- `target` is transport-shaped, not always an HTTP path
+- for HTTP management it is typically a path such as `/readyz`
+- for gRPC management it is typically a fully-qualified service or service-method identifier such as `grpc.health.v1.Health/Check`
+- `management.transport` provides the default transport for all endpoints in the block
+- `endpoints[].transport`, when present, overrides the block default so one descriptor can model mixed HTTP and gRPC management surfaces
+
+### `transports`
+
+Optional.
+
+Purpose:
+
+- declare included transport families explicitly
+- expose transport-family metadata without forcing `nimbctl` to infer it from commands alone
+- keep gRPC runtime capabilities visible even when HTTP is absent
+
+Each transport descriptor has:
+
+- `family`: required, enum
+- `services`: optional, array of service descriptors
+- `reflection`: optional, object
+- `health_service`: optional, object
+- `security`: optional, object
+- `proto_packages`: optional, array of proto package descriptors
+
+Allowed `family` values in `v1`:
+
+- `http`
+- `grpc`
+
+Each service descriptor has:
+
+- `name`: required, string
+- `package`: optional, string
+
+`reflection` fields:
+
+- `supported`: required, boolean when present
+
+`health_service` fields:
+
+- `supported`: required, boolean when present
+
+`security` fields:
+
+- `mode`: required when present, enum
+
+Allowed `security.mode` values in `v1`:
+
+- `insecure`
+- `tls`
+- `mtls`
+- `external_termination`
+
+Each proto package descriptor has:
+
+- `name`: required, string
+- `ownership`: optional, enum
+
+Allowed `ownership` values in `v1`:
+
+- `owned`
+- `shared`
+- `external`
 
 ### `deployment`
 
@@ -520,6 +601,10 @@ Recommended capability values:
 - `requires_durable_eventbus`
 - `requires_leader_lock`
 - `management_http`
+- `management_grpc`
+- `grpc_reflection`
+- `grpc_public_transport`
+- `mtls_required`
 - `tenant_aware`
 
 ### `migrations`
@@ -580,6 +665,24 @@ Allowed `criticality` values in `v1`:
 - `core`
 - `optional`
 
+Common feature names in `v1` may include:
+
+- `http`
+- `openapi`
+- `auth`
+- `grpc`
+- `grpc_reflection`
+- `grpc_health`
+- `eventbus`
+- `jobs`
+- `scheduler`
+
+Interpretation:
+
+- `features` describes enabled capabilities and their maturity
+- `transports` remains the canonical transport-family registry
+- a gRPC application may expose `grpc_reflection` or `grpc_health` as separate optional capabilities without making them universal runtime assumptions
+
 ### `artifacts`
 
 Optional.
@@ -592,12 +695,22 @@ Purpose:
 Recommended fields:
 
 - `config_schema`: optional object
+- `proto_bundle`: optional object
+- `grpc_descriptor_set`: optional object
+- `grpc_buf_image`: optional object
+- `grpc_contract_manifest`: optional object
 
 `config_schema` fields:
 
 - `format`: required, string
 - `location`: required, string
 - `version`: required, string
+
+`proto_bundle`, `grpc_descriptor_set`, `grpc_buf_image`, and `grpc_contract_manifest` fields:
+
+- `format`: required, string
+- `location`: required, string
+- `version`: optional, string
 
 ## Minimal v1 Example
 
@@ -707,6 +820,7 @@ Recommended fields:
   "management": {
     "supported": false
   },
+  "transports": [],
   "deployment": {
     "mode": "stateless",
     "horizontal_scaling": "safe"
@@ -875,21 +989,26 @@ Recommended fields:
     "endpoints": [
       {
         "kind": "liveness",
-        "path": "/livez",
+        "target": "/livez",
         "reports": ["process_liveness"]
       },
       {
         "kind": "readiness",
-        "path": "/readyz",
+        "target": "/readyz",
         "reports": ["hard_dependencies", "optional_dependencies", "degraded"]
       },
       {
         "kind": "health",
-        "path": "/healthz",
+        "target": "/healthz",
         "reports": ["feature_health", "hard_dependencies", "optional_dependencies"]
       }
     ]
   },
+  "transports": [
+    {
+      "family": "http"
+    }
+  ],
   "deployment": {
     "mode": "stateless",
     "horizontal_scaling": "safe",
@@ -930,6 +1049,170 @@ Recommended fields:
 }
 ```
 
+## gRPC Service Example
+
+```json
+{
+  "descriptor_version": "v1",
+  "application": {
+    "name": "accounts-rpc",
+    "kind": "service",
+    "module": "github.com/example/accounts-rpc",
+    "version": "1.0.0",
+    "tenancy_mode": "tenant_optional"
+  },
+  "compatibility": {
+    "framework": {
+      "name": "nimburion",
+      "version": "0.18.0"
+    },
+    "nimbctl": {
+      "supported_range": ">=1.0.0 <2.0.0"
+    },
+    "policy": "strict"
+  },
+  "runtime": {
+    "default_command": "run",
+    "config_file_flag": "--config-file",
+    "secrets_file_flag": "--secret-file",
+    "supports_graceful_shutdown": true
+  },
+  "commands": [
+    {
+      "name": "run",
+      "path": ["run"],
+      "kind": "runtime",
+      "run_policy": "run",
+      "default": true
+    },
+    {
+      "name": "serve-grpc",
+      "path": ["serve", "grpc"],
+      "kind": "transport",
+      "run_policy": "run",
+      "transport": "grpc"
+    }
+  ],
+  "config": {
+    "render": {
+      "supported": false
+    },
+    "validate": {
+      "supported": true,
+      "path": ["config", "validate"]
+    },
+    "inputs": {
+      "regular": [
+        {
+          "kind": "config_file",
+          "flag": "--config-file",
+          "format": "yaml"
+        }
+      ],
+      "sensitive": [
+        {
+          "kind": "secrets_file",
+          "flag": "--secret-file",
+          "format": "yaml"
+        }
+      ]
+    }
+  },
+  "dependencies": [
+    {
+      "name": "primary-db",
+      "family": "persistence.relational",
+      "role": "primary_store",
+      "required": true,
+      "readiness": "hard",
+      "durability": "durable"
+    }
+  ],
+  "management": {
+    "supported": true,
+    "transport": "grpc",
+    "endpoints": [
+      {
+        "kind": "health",
+        "target": "grpc.health.v1.Health/Check",
+        "authenticated": false,
+        "reports": ["hard_dependencies", "optional_dependencies", "degraded"]
+      }
+    ]
+  },
+  "transports": [
+    {
+      "family": "grpc",
+      "services": [
+        {
+          "name": "AccountsService",
+          "package": "accounts.v1"
+        }
+      ],
+      "reflection": {
+        "supported": true
+      },
+      "health_service": {
+        "supported": true
+      },
+      "security": {
+        "mode": "mtls"
+      },
+      "proto_packages": [
+        {
+          "name": "accounts.v1",
+          "ownership": "owned"
+        }
+      ]
+    }
+  ],
+  "deployment": {
+    "mode": "stateless",
+    "horizontal_scaling": "safe",
+    "capabilities": ["management_grpc", "grpc_reflection", "grpc_public_transport", "mtls_required"]
+  },
+  "migrations": {
+    "supported": false
+  },
+  "features": [
+    {
+      "name": "grpc",
+      "stability": "beta",
+      "criticality": "core"
+    },
+    {
+      "name": "grpc_reflection",
+      "stability": "beta",
+      "criticality": "optional"
+    },
+    {
+      "name": "grpc_health",
+      "stability": "stable",
+      "criticality": "core"
+    }
+  ],
+  "artifacts": {
+    "proto_bundle": {
+      "format": "proto",
+      "location": "api/proto"
+    },
+    "grpc_descriptor_set": {
+      "format": "protobuf-descriptor-set",
+      "location": "artifacts/accounts-rpc.pb"
+    },
+    "grpc_buf_image": {
+      "format": "buf-image",
+      "location": "artifacts/accounts-rpc.binpb"
+    },
+    "grpc_contract_manifest": {
+      "format": "json",
+      "location": "artifacts/grpc-contracts.json",
+      "version": "v1"
+    }
+  }
+}
+```
+
 ## nimbctl Consumption Rules
 
 `nimbctl` should use the descriptor in this order:
@@ -942,8 +1225,9 @@ Recommended fields:
 6. discover supported commands from `commands`
 7. discover config render, validate, input, and environment profile semantics from `config`
 8. discover management semantics from `management`
-9. inspect feature maturity from `features`
-10. inspect optional secondary artifacts from `artifacts`
+9. discover included transport families and gRPC-specific runtime metadata from `transports`
+10. inspect feature maturity from `features`
+11. inspect optional secondary artifacts from `artifacts`
 
 `nimbctl` should not:
 
@@ -970,6 +1254,7 @@ It is weak as the primary `nimbctl` contract because it does not naturally expre
 - compatibility policy
 - runtime dependency declarations
 - management endpoint semantics
+- transport-family metadata such as gRPC service exposure, reflection support, and transport security mode
 - deployment capabilities
 - migration policy
 - sensitive config input handling
@@ -996,8 +1281,10 @@ The descriptor design is successful when:
 - `nimbctl` can reject incompatible descriptors before trying orchestration actions
 - `nimbctl` can classify runtime dependencies as hard or optional without probing application code
 - `nimbctl` can understand management endpoint semantics without scraping route definitions
+- `nimbctl` can understand management targets carried over HTTP paths or gRPC service or method identifiers without assuming HTTP-only management
 - `nimbctl` can infer deployment constraints such as statelessness, leader-lock requirements, durable-store requirements, and migration policy from descriptor metadata
 - `nimbctl` can distinguish config inputs from sensitive inputs and preserve that distinction during config generation flows
 - `nimbctl` can read the service sensitivity model and sanitized provenance policy without receiving raw secret values
 - `nimbctl` can read tenant mode, environment profiles, and feature stability directly from the descriptor
+- `nimbctl` can discover gRPC-only applications and read their service, reflection, health-service, transport-security, and optional gRPC artifact metadata without requiring HTTP metadata
 - JSON Schema remains optional and secondary
