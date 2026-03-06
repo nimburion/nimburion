@@ -12,6 +12,7 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/config"
+	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
@@ -153,6 +154,9 @@ func RunHTTPServers(ctx context.Context, servers *HTTPServers, opts *RunHTTPServ
 	if servers == nil || servers.Public == nil {
 		return errors.New("servers and public server are required")
 	}
+	if opts == nil {
+		return errors.New("options are required")
+	}
 	if opts.Logger == nil {
 		return errors.New("logger is required")
 	}
@@ -172,42 +176,43 @@ func RunHTTPServers(ctx context.Context, servers *HTTPServers, opts *RunHTTPServ
 	if err != nil {
 		return fmt.Errorf("initialize tracing provider: %w", err)
 	}
-	if shouldShutdownTracer {
-		defer shutdownTracerProvider(tracerProvider, opts.Logger)
+
+	lifecycleApp, err := coreapp.New(coreapp.Options{
+		Name:            versionInfo.Service,
+		Config:          opts.Config,
+		Logger:          opts.Logger,
+		HealthRegistry:  opts.HealthRegistry,
+		MetricsRegistry: opts.MetricsRegistry,
+		TracerProvider: func() *tracing.TracerProvider {
+			if shouldShutdownTracer {
+				return tracerProvider
+			}
+			return nil
+		}(),
+		ShutdownTimeout: opts.ShutdownHookTimeout,
+		ObservabilityHooks: []coreapp.Hook{
+			{
+				Name: "version_metadata",
+				Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+					runtime.Logger.Info("application version metadata",
+						"service", versionInfo.Service,
+						"version", versionInfo.Version,
+						"commit", versionInfo.Commit,
+						"build_time", versionInfo.BuildTime,
+					)
+					return nil
+				},
+			},
+		},
+		FeatureRegistrations: toCoreHooks(opts.StartupHooks),
+		Runners:              serverRunners(servers),
+		ShutdownHooks:        toCoreHooks(opts.ShutdownHooks),
+	})
+	if err != nil {
+		return fmt.Errorf("create lifecycle app: %w", err)
 	}
 
-	if err := runStartupHooks(ctx, opts); err != nil {
-		return err
-	}
-	defer func() {
-		if shutdownErr := runShutdownHooks(opts); shutdownErr != nil {
-			opts.Logger.Error("shutdown hooks completed with errors", "error", shutdownErr)
-		}
-	}()
-
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	serverCount := 1
-	if servers.Management != nil {
-		serverCount = 2
-	}
-
-	errCh := make(chan error, serverCount)
-	go func() { errCh <- servers.Public.Start(runCtx) }()
-	if servers.Management != nil {
-		go func() { errCh <- servers.Management.Start(runCtx) }()
-	}
-
-	var firstErr error
-	for idx := 0; idx < serverCount; idx++ {
-		currentErr := <-errCh
-		if currentErr != nil && firstErr == nil {
-			firstErr = currentErr
-			cancel()
-		}
-	}
-	return firstErr
+	return lifecycleApp.Run(ctx)
 }
 
 func registerVersionEndpoint(r router.Router, info version.Info) {
@@ -231,19 +236,6 @@ func initTracerProvider(ctx context.Context, opts *RunHTTPServersOptions, info v
 		return nil, false, err
 	}
 	return provider, true, nil
-}
-
-func shutdownTracerProvider(provider *tracing.TracerProvider, log logger.Logger) {
-	if provider == nil {
-		return
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := provider.Shutdown(shutdownCtx); err != nil {
-		log.Error("failed to shutdown tracing provider", "error", err)
-	}
 }
 
 func normalizeEnvironment(env string) string {
@@ -283,57 +275,76 @@ func resolveTracingServiceName(opts *RunHTTPServersOptions, fallback string) str
 }
 
 func runStartupHooks(ctx context.Context, opts *RunHTTPServersOptions) error {
-	for _, hook := range opts.StartupHooks {
-		if hook.Fn == nil {
-			continue
-		}
-		name := strings.TrimSpace(hook.Name)
-		if name == "" {
-			name = "unnamed"
-		}
-		opts.Logger.Info("startup hook start", "hook", name)
-		if err := hook.Fn(ctx); err != nil {
-			opts.Logger.Error("startup hook failed", "hook", name, "error", err)
-			return fmt.Errorf("startup hook %q failed: %w", name, err)
-		}
-		opts.Logger.Info("startup hook complete", "hook", name)
+	lifecycleApp, err := coreapp.New(coreapp.Options{
+		Logger:               opts.Logger,
+		FeatureRegistrations: toCoreHooks(opts.StartupHooks),
+	})
+	if err != nil {
+		return err
 	}
-	return nil
+	return lifecycleApp.Run(ctx)
 }
 
 func runShutdownHooks(opts *RunHTTPServersOptions) error {
-	if len(opts.ShutdownHooks) == 0 {
-		return nil
-	}
-
 	timeout := opts.ShutdownHookTimeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
 
-	var errs []error
-	for _, hook := range opts.ShutdownHooks {
-		if hook.Fn == nil {
-			continue
-		}
-		name := strings.TrimSpace(hook.Name)
-		if name == "" {
-			name = "unnamed"
-		}
-		opts.Logger.Info("shutdown hook start", "hook", name)
-
-		hookCtx, cancel := context.WithTimeout(context.Background(), timeout)
-		err := hook.Fn(hookCtx)
-		cancel()
-
-		if err != nil {
-			opts.Logger.Error("shutdown hook failed", "hook", name, "error", err)
-			errs = append(errs, fmt.Errorf("shutdown hook %q failed: %w", name, err))
-			continue
-		}
-		opts.Logger.Info("shutdown hook complete", "hook", name)
+	lifecycleApp, err := coreapp.New(coreapp.Options{
+		Logger:          opts.Logger,
+		ShutdownTimeout: timeout,
+		ShutdownHooks:   toCoreHooks(opts.ShutdownHooks),
+	})
+	if err != nil {
+		return err
 	}
-	return errors.Join(errs...)
+	return lifecycleApp.Run(context.Background())
+}
+
+func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {
+	if len(hooks) == 0 {
+		return nil
+	}
+
+	coreHooks := make([]coreapp.Hook, 0, len(hooks))
+	for _, hook := range hooks {
+		currentHook := hook
+		coreHooks = append(coreHooks, coreapp.Hook{
+			Name: currentHook.Name,
+			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				name := strings.TrimSpace(currentHook.Name)
+				if name == "" {
+					name = "unnamed"
+				}
+				if currentHook.Fn == nil {
+					return nil
+				}
+				return currentHook.Fn(ctx)
+			},
+		})
+	}
+	return coreHooks
+}
+
+func serverRunners(servers *HTTPServers) []coreapp.Runner {
+	runners := []coreapp.Runner{
+		{
+			Name: "http_public",
+			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				return servers.Public.Start(ctx)
+			},
+		},
+	}
+	if servers.Management != nil {
+		runners = append(runners, coreapp.Runner{
+			Name: "http_management",
+			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				return servers.Management.Start(ctx)
+			},
+		})
+	}
+	return runners
 }
 
 // RunHTTPServersWithSignals runs servers with centralized signal handling.

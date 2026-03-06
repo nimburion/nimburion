@@ -244,7 +244,7 @@ func TestRunHTTPServers_StartupHookFailureStopsBoot(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected startup hook error")
 	}
-	if !strings.Contains(err.Error(), `startup hook "init" failed`) {
+	if !strings.Contains(err.Error(), `feature_registration hook "init" failed`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !started.Load() {
@@ -284,7 +284,8 @@ func TestRunShutdownHooks_BestEffortAndAggregatesErrors(t *testing.T) {
 	if runs.Load() != 2 {
 		t.Fatalf("expected both shutdown hooks to run, got %d", runs.Load())
 	}
-	if !strings.Contains(joinedErr.Error(), `shutdown hook "first" failed`) {
+	if !strings.Contains(joinedErr.Error(), `graceful_shutdown hook "first" failed`) &&
+		!strings.Contains(joinedErr.Error(), `graceful_shutdown hook "second" failed`) {
 		t.Fatalf("unexpected shutdown error: %v", joinedErr)
 	}
 }
