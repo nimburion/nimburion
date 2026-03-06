@@ -79,7 +79,7 @@ Purpose:
 - expose compatibility policy
 - describe supported commands
 - describe config generation and validation capabilities
-- describe runtime dependencies, management semantics, deployment capabilities, migration policy, and relevant runtime features
+- describe runtime dependencies, management semantics, deployment capabilities, migration policy, transport-family metadata, and relevant runtime features
 
 Possible delivery forms:
 
@@ -119,6 +119,13 @@ The descriptor should include at least:
   - sanitized provenance visibility
 - runtime dependency declarations
 - management endpoint semantics
+- transport family declarations
+  - included transport families
+  - gRPC exposed services
+  - gRPC reflection support
+  - gRPC health-service support
+  - gRPC transport-security mode
+  - proto/package ownership metadata where useful
 - deployment capabilities
 - migration policy metadata
 - feature stability metadata
@@ -191,6 +198,13 @@ The descriptor should publish:
 
 - runtime dependencies with hard vs optional readiness semantics
 - management endpoint availability and semantics
+- transport-family metadata, including:
+  - included transport families
+  - gRPC exposed services
+  - gRPC reflection support
+  - gRPC health-service support
+  - gRPC transport-security mode
+  - proto/package ownership metadata where useful
 - deployment capabilities such as:
   - `stateless`
   - `stateful`
@@ -291,11 +305,18 @@ Tasks:
   - readiness
   - health
   - metrics or introspection where present
+- add transport-family metadata so `nimbctl` can reason about HTTP and gRPC runtimes without assuming they coexist
+- detect gRPC feature presence from descriptor metadata instead of inferring it from command names alone
+- surface gRPC reflection and health-service support in runtime inspection and orchestration flows
+- understand management metadata over gRPC instead of assuming every management surface is HTTP path-based
 - add deployment capabilities such as:
   - stateless vs stateful
   - horizontal scaling posture
   - leader-lock requirements
   - durable-store requirements
+  - gRPC management exposure
+  - gRPC public transport exposure
+  - mTLS requirements where declared
 - add migration policy metadata:
   - command
   - strategy
@@ -305,6 +326,8 @@ Tasks:
 - add sensitivity-model metadata so `nimbctl` can understand classification and redaction policy without reading raw secret values
 - add tenant mode and environment profile semantics
 - add feature stability metadata
+- allow optional transport-contract artifacts such as descriptor sets, Buf images, or generated contract manifests
+- avoid assuming OpenAPI is the only transport-contract artifact that external tooling may consume
 - update `nimbctl` validation to reject incompatible or orchestration-incomplete descriptors when the chosen workflow requires those fields
 
 Done:
@@ -312,6 +335,9 @@ Done:
 - `nimbctl` can determine compatibility before orchestration
 - `nimbctl` can classify hard and optional runtime dependencies without probing app code
 - `nimbctl` can understand management surfaces and deployment posture without route scraping
+- `nimbctl` can understand gRPC management surfaces, reflection support, and health-service support without assuming HTTP is canonical
+- `nimbctl` can discover gRPC runtime participation, exposed services, reflection, health-service support, and transport-security mode from the descriptor
+- `nimbctl` can consume optional gRPC descriptor artifacts when a workflow requires them without making those artifacts mandatory for all services
 - `nimbctl` can reason about migration policy, secret inputs, tenant mode, environment profiles, and feature stability from the descriptor
 - `nimbctl` can understand sensitivity and sanitized provenance policy without becoming a carrier of secret values
 
@@ -400,8 +426,10 @@ The Nimburion refactor and `nimbctl` evolution are aligned when all of the follo
 - `nimbctl` can discover app kind and supported commands without AST parsing
 - `nimbctl` can generate and validate config without JSON Schema as its primary dependency
 - `nimbctl` can reason about dependency criticality, management semantics, deployment posture, and migration policy from the descriptor
+- `nimbctl` can detect gRPC-only applications and reason about their transport and management metadata without requiring HTTP metadata
 - `nimbctl` can distinguish config inputs from sensitive inputs
 - `nimbctl` can understand the service sensitivity model and sanitized provenance policy without receiving raw secret values
 - `nimbctl` can read tenant mode, environment profiles, and feature stability without source-tree heuristics
+- `nimbctl` can consume optional gRPC descriptor artifacts or ignore them cleanly when the chosen workflow does not need them
 - schema publication, if kept, is optional and secondary
 - `nimbctl` no longer depends on Nimburion internal package layout
