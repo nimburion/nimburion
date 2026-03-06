@@ -1,4 +1,5 @@
-package controller
+// Package response provides HTTP response and error-mapping helpers.
+package response
 
 import (
 	"context"
@@ -6,14 +7,19 @@ import (
 	"net/http"
 	"strings"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
+	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
-// AppError is the single application error contract shared across layers.
-type AppError = frameworki18n.AppError
+// SuccessBody represents a successful response with data.
+type SuccessBody struct {
+	Data      interface{} `json:"data"`
+	RequestID string      `json:"request_id,omitempty"`
+}
 
-// ErrorResponse represents the consistent error response format.
-type ErrorResponse struct {
+// ErrorBody represents the consistent HTTP error response format.
+type ErrorBody struct {
 	Error     string                 `json:"error"`
 	Code      string                 `json:"code,omitempty"`
 	Message   string                 `json:"message,omitempty"`
@@ -21,13 +27,42 @@ type ErrorResponse struct {
 	Details   map[string]interface{} `json:"details,omitempty"`
 }
 
+// Success sends a successful JSON response with HTTP 200 OK.
+func Success(c router.Context, data interface{}) error {
+	requestID := getRequestID(c.Request().Context())
+	return c.JSON(http.StatusOK, SuccessBody{
+		Data:      data,
+		RequestID: requestID,
+	})
+}
+
+// Created sends a successful JSON response with HTTP 201 Created.
+func Created(c router.Context, data interface{}) error {
+	requestID := getRequestID(c.Request().Context())
+	return c.JSON(http.StatusCreated, SuccessBody{
+		Data:      data,
+		RequestID: requestID,
+	})
+}
+
+// NoContent sends a successful response with HTTP 204 No Content.
+func NoContent(c router.Context) error {
+	return c.JSON(http.StatusNoContent, nil)
+}
+
+// Error sends an error response using the shared application error mapping.
+func Error(c router.Context, err error) error {
+	statusCode, errorResponse := MapError(c.Request().Context(), err)
+	return c.JSON(statusCode, errorResponse)
+}
+
 // MapError maps application errors to HTTP responses.
-func MapError(ctx context.Context, err error) (int, ErrorResponse) {
+func MapError(ctx context.Context, err error) (int, ErrorBody) {
 	requestID := getRequestID(ctx)
 
-	var appErr *frameworki18n.AppError
+	var appErr *coreerrors.AppError
 	if !errors.As(err, &appErr) {
-		return http.StatusInternalServerError, ErrorResponse{
+		return http.StatusInternalServerError, ErrorBody{
 			Error:     "internal_server_error",
 			Message:   "an unexpected error occurred",
 			RequestID: requestID,
@@ -52,7 +87,7 @@ func MapError(ctx context.Context, err error) (int, ErrorResponse) {
 		message = "an unexpected error occurred"
 	}
 
-	return status, ErrorResponse{
+	return status, ErrorBody{
 		Error:     errorCategory(status, appErr.Code),
 		Code:      appErr.Code,
 		Message:   message,
@@ -61,64 +96,11 @@ func MapError(ctx context.Context, err error) (int, ErrorResponse) {
 	}
 }
 
-// getRequestID extracts the request ID from context.
 func getRequestID(ctx context.Context) string {
 	if id, ok := ctx.Value("request_id").(string); ok {
 		return id
 	}
 	return ""
-}
-
-// NewValidationError creates a new validation error.
-func NewValidationError(message string, details map[string]interface{}) *AppError {
-	return frameworki18n.NewError("validation.failed", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusBadRequest).
-		WithDetails(details)
-}
-
-// NewValidationErrorWithCode creates a validation error that can be localized.
-func NewValidationErrorWithCode(code, fallbackMessage string, params map[string]interface{}, details map[string]interface{}) *AppError {
-	return frameworki18n.NewError(code, frameworki18n.Params(params), nil).
-		WithMessage(fallbackMessage).
-		WithHTTPStatus(inferStatusFromCode(code)).
-		WithDetails(details)
-}
-
-// NewNotFoundError creates a new not found error.
-func NewNotFoundError(message string) *AppError {
-	return frameworki18n.NewError("resource.not_found", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusNotFound)
-}
-
-// NewConflictError creates a new conflict error.
-func NewConflictError(message string, details map[string]interface{}) *AppError {
-	return frameworki18n.NewError("resource.conflict", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusConflict).
-		WithDetails(details)
-}
-
-// NewUnauthorizedError creates a new unauthorized error.
-func NewUnauthorizedError(message string) *AppError {
-	return frameworki18n.NewError("auth.unauthorized", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusUnauthorized)
-}
-
-// NewForbiddenError creates a new forbidden error.
-func NewForbiddenError(message string) *AppError {
-	return frameworki18n.NewError("auth.forbidden", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusForbidden)
-}
-
-// NewInternalError creates a new internal error with optional cause.
-func NewInternalError(message string, cause error) *AppError {
-	return frameworki18n.NewError("internal.error", nil, cause).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusInternalServerError)
 }
 
 func translateMessage(ctx context.Context, code string, params map[string]interface{}) string {
