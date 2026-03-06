@@ -1,15 +1,32 @@
 package cli
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/scheduler"
+	"github.com/spf13/cobra"
 )
+
+type testCLIFeature struct {
+	command *cobra.Command
+}
+
+func (f testCLIFeature) Name() string { return "cli-test" }
+
+func (f testCLIFeature) Contributions() feature.Contributions {
+	return feature.Contributions{
+		CommandRegistrations: []feature.CommandContribution{
+			{Name: "inspect", Command: f.command},
+		},
+	}
+}
 
 func TestResolveServiceNameValue(t *testing.T) {
 	tests := []struct {
@@ -59,8 +76,8 @@ func TestResolveServiceNameValue(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsCompletionByDefault(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
+func TestNewAppCommand_AddsCompletionByDefault(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
@@ -80,11 +97,12 @@ func TestNewServiceCommand_AddsCompletionByDefault(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsJobsWorkerCommand(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
+func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
+		IncludeJobs: true,
 		ConfigureJobsWorker: func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error {
 			return nil
 		},
@@ -103,11 +121,12 @@ func TestNewServiceCommand_AddsJobsWorkerCommand(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsJobsOpsCommands(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
+func TestNewAppCommand_AddsJobsOpsCommands(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
+		IncludeJobs: true,
 	})
 
 	enqueueCmd, _, err := cmd.Find([]string{"jobs", "enqueue"})
@@ -135,11 +154,12 @@ func TestNewServiceCommand_AddsJobsOpsCommands(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsSchedulerRunCommand(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
-		Name:        "testsvc",
-		Description: "test service",
-		ConfigPath:  "",
+func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:             "testsvc",
+		Description:      "test service",
+		ConfigPath:       "",
+		IncludeScheduler: true,
 		ConfigureScheduler: func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error {
 			return nil
 		},
@@ -158,11 +178,12 @@ func TestNewServiceCommand_AddsSchedulerRunCommand(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsSchedulerOpsCommands(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
-		Name:        "testsvc",
-		Description: "test service",
-		ConfigPath:  "",
+func TestNewAppCommand_AddsSchedulerOpsCommands(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:             "testsvc",
+		Description:      "test service",
+		ConfigPath:       "",
+		IncludeScheduler: true,
 	})
 
 	validateCmd, _, err := cmd.Find([]string{"scheduler", "validate"})
@@ -224,8 +245,8 @@ func TestResolveWorkerQueues(t *testing.T) {
 	}
 }
 
-func TestNewServiceCommand_AddsHealthcheckByDefault(t *testing.T) {
-	cmd := NewServiceCommand(ServiceCommandOptions{
+func TestNewAppCommand_AddsHealthcheckByDefault(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
@@ -237,6 +258,64 @@ func TestNewServiceCommand_AddsHealthcheckByDefault(t *testing.T) {
 	}
 	if healthCmd == nil || healthCmd.Name() != "healthcheck" {
 		t.Fatalf("expected healthcheck command, got %#v", healthCmd)
+	}
+}
+
+func TestNewAppCommand_UsesRunAsPrimaryEntrypointAndKeepsServeAlias(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Run: func(ctx context.Context, cfg *config.Config, log logger.Logger) error {
+			return nil
+		},
+	})
+
+	runCmd, _, err := cmd.Find([]string{"run"})
+	if err != nil {
+		t.Fatalf("expected run command, got error: %v", err)
+	}
+	if runCmd == nil || runCmd.Name() != "run" {
+		t.Fatalf("expected run command, got %#v", runCmd)
+	}
+	if !runCmd.HasAlias("serve") {
+		t.Fatalf("expected serve alias on run command, aliases = %v", runCmd.Aliases)
+	}
+}
+
+func TestNewAppCommand_AddsFeatureContributedCommand(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Features: []feature.Feature{
+			testCLIFeature{
+				command: &cobra.Command{
+					Use:   "inspect",
+					Short: "Inspect feature state",
+				},
+			},
+		},
+	})
+
+	inspectCmd, _, err := cmd.Find([]string{"inspect"})
+	if err != nil {
+		t.Fatalf("expected inspect command, got error: %v", err)
+	}
+	if inspectCmd == nil || inspectCmd.Name() != "inspect" {
+		t.Fatalf("expected inspect command, got %#v", inspectCmd)
+	}
+}
+
+func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+	})
+
+	if jobsCmd, _, err := cmd.Find([]string{"jobs"}); err == nil && jobsCmd != nil && jobsCmd.Name() == "jobs" {
+		t.Fatalf("expected jobs command to be omitted by default for app command")
+	}
+	if schedulerCmd, _, err := cmd.Find([]string{"scheduler"}); err == nil && schedulerCmd != nil && schedulerCmd.Name() == "scheduler" {
+		t.Fatalf("expected scheduler command to be omitted by default for app command")
 	}
 }
 
@@ -309,8 +388,8 @@ func TestFormatSettings(t *testing.T) {
 
 func TestRedactSettingsMap(t *testing.T) {
 	settings := map[string]interface{}{
-		"public":  "visible",
-		"secret":  "hidden",
+		"public": "visible",
+		"secret": "hidden",
 		"nested": map[string]interface{}{"password": "secret123"},
 	}
 	secrets := map[string]interface{}{

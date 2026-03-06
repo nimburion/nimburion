@@ -586,7 +586,7 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 #### Observability Configuration
 
 - `APP_SERVICE_NAME` - Service name for the application identity.
-  With `cli.NewServiceCommand`, if not set, the default is `ServiceCommandOptions.Name`.
+  With `cli.NewAppCommand`, if not set, the default is `AppCommandOptions.Name`.
 - `APP_OBSERVABILITY_LOG_LEVEL` - Log level: debug, info, warn, error (default: info)
 - `APP_OBSERVABILITY_LOG_FORMAT` - Log format: json, text (default: json)
 - `APP_OBSERVABILITY_SERVICE_NAME` - Optional tracing service-name override (default: falls back to `service.name`)
@@ -619,7 +619,7 @@ The framework supports YAML, JSON, and TOML configuration files. YAML is recomme
 
 ```yaml
 service:
-  # optional with cli.NewServiceCommand, defaults to ServiceCommandOptions.Name
+  # optional with cli.NewAppCommand, defaults to AppCommandOptions.Name
   name: "my-service"
   environment: "development"
 
