@@ -133,7 +133,11 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -156,6 +160,8 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 func isValidAbsoluteURL(raw string) bool {
 	return validateHTTPURL(raw) == nil
 }
+
+func ignoreCloseError(err error) {}
 
 func validateHTTPURL(raw string) error {
 	parsed, err := url.Parse(raw)

@@ -198,7 +198,11 @@ func (c *ginContext) Bind(v interface{}) error {
 	if c.ctx.Request.Body == nil || c.ctx.Request.Body == http.NoBody {
 		return fmt.Errorf("request body is empty")
 	}
-	defer c.ctx.Request.Body.Close()
+	defer func() {
+		if closeErr := c.ctx.Request.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	contentType := c.ctx.GetHeader("Content-Type")
 	if !strings.Contains(contentType, "application/json") {
@@ -207,6 +211,8 @@ func (c *ginContext) Bind(v interface{}) error {
 
 	return json.NewDecoder(c.ctx.Request.Body).Decode(v)
 }
+
+func ignoreCloseError(err error) {}
 
 func (c *ginContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")

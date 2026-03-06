@@ -126,7 +126,11 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		body, readErr := io.ReadAll(resp.Body)
@@ -148,7 +152,11 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 		a.logger.Error("Search health check failed", "error", err)
 		return fmt.Errorf("search health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		body, readErr := io.ReadAll(resp.Body)
@@ -183,7 +191,11 @@ func (a *Adapter) IndexDocument(ctx context.Context, index, id string, document 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, readErr := io.ReadAll(resp.Body)
@@ -209,7 +221,11 @@ func (a *Adapter) DeleteDocument(ctx context.Context, index, id string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	// DELETE is idempotent: not found is acceptable.
 	if resp.StatusCode == http.StatusNotFound {
@@ -241,7 +257,11 @@ func (a *Adapter) Search(ctx context.Context, index string, query interface{}) (
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -449,6 +469,8 @@ func shouldRetryOnStatus(status int) bool {
 		return false
 	}
 }
+
+func ignoreCloseError(err error) {}
 
 func uint64ToInt(v uint64) (int, error) {
 	if v > uint64(math.MaxInt) {

@@ -102,7 +102,11 @@ func (p *MailchimpProvider) Send(ctx context.Context, message Message) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("mailchimp send failed with status %d", resp.StatusCode)
 	}

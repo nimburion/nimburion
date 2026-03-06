@@ -44,9 +44,11 @@ func (l *localFileSystem) Exists(prefix, requestPath string) bool {
 	if err != nil {
 		return false
 	}
-	defer f.Close()
 
 	info, err := f.Stat()
+	if closeErr := f.Close(); closeErr != nil {
+		return false
+	}
 	if err != nil {
 		return false
 	}

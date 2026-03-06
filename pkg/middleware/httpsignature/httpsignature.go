@@ -99,15 +99,15 @@ type Config struct {
 // DefaultConfig returns explicit middleware defaults.
 func DefaultConfig() Config {
 	return Config{
-		Enabled:          true,
-		KeyIDHeader:      "X-Key-Id",
-		TimestampHeader:  "X-Timestamp",
-		NonceHeader:      "X-Nonce",
-		SignatureHeader:  "X-Signature",
-		MaxClockSkew:     5 * time.Minute,
-		NonceTTL:         10 * time.Minute,
-		RequireNonce:     true,
-		NonceStore:       NewInMemoryNonceStore(),
+		Enabled:         true,
+		KeyIDHeader:     "X-Key-Id",
+		TimestampHeader: "X-Timestamp",
+		NonceHeader:     "X-Nonce",
+		SignatureHeader: "X-Signature",
+		MaxClockSkew:    5 * time.Minute,
+		NonceTTL:        10 * time.Minute,
+		RequireNonce:    true,
+		NonceStore:      NewInMemoryNonceStore(),
 		ExcludedPathPrefixes: []string{
 			"/health",
 			"/metrics",
@@ -253,10 +253,14 @@ func readAndRestoreBody(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = req.Body.Close()
+	if closeErr := req.Body.Close(); closeErr != nil {
+		ignoreCloseError(closeErr)
+	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	return body, nil
 }
+
+func ignoreCloseError(err error) {}
 
 func buildPayload(req *http.Request, timestamp string, nonce string, body []byte) string {
 	requestURI := req.URL.EscapedPath()

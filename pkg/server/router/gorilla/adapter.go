@@ -191,7 +191,11 @@ func (c *gorillaContext) Bind(v interface{}) error {
 	if c.request.Body == nil || c.request.Body == http.NoBody {
 		return fmt.Errorf("request body is empty")
 	}
-	defer c.request.Body.Close()
+	defer func() {
+		if closeErr := c.request.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	contentType := c.request.Header.Get("Content-Type")
 	if !strings.Contains(contentType, "application/json") {
@@ -200,6 +204,8 @@ func (c *gorillaContext) Bind(v interface{}) error {
 
 	return json.NewDecoder(c.request.Body).Decode(v)
 }
+
+func ignoreCloseError(err error) {}
 
 func (c *gorillaContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")
