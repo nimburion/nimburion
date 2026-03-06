@@ -1,5 +1,7 @@
 # Configuration with Secrets Management
 
+> Transitional note: this document describes the current `secrets file` implementation. The refactor keeps `secrets file` as a first-class source, but new code must not assume it is the only secrets source; support for external providers is an evolutive requirement. See [refactoring-requirements.md](./refactoring-requirements.md).
+
 Nimburion supports separating sensitive configuration values into a dedicated secrets file for better security and GitOps workflows.
 
 ## How It Works

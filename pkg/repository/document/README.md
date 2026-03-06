@@ -1,5 +1,7 @@
 # Document Repository Package
 
+> Transitional note: this README documents the current document-repository implementation and its dependency on `pkg/store/*` adapters. The target refactor moves toward explicit persistence families and away from `pkg/store` as the canonical extension point. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 This package defines document-store repository contracts and backend executors.
 
 ## Why this package exists
@@ -21,4 +23,3 @@ without forcing SQL-shaped abstractions.
 These executors are intentionally thin and backend-aware:
 - Mongo uses flexible BSON filters/updates.
 - Dynamo exposes expression-based APIs (key condition/update expressions).
-

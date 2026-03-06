@@ -1,5 +1,7 @@
 # OpenAPI and Swagger UI
 
+> Transitional note: this README documents the current `pkg/server/openapi` packaging. OpenAPI/Swagger support remains valid, but new framework code should treat it as an HTTP capability rather than a stable `pkg/server` extension point. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 This package provides handlers for serving OpenAPI specifications and Swagger UI.
 
 ## Features

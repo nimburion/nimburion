@@ -1,5 +1,7 @@
 # SSE package
 
+> Transitional note: this README documents the current `pkg/realtime/sse` packaging. The SSE runtime remains valid, but the target refactor treats realtime HTTP capabilities as part of the HTTP family rather than a stable standalone top-level package. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 `pkg/realtime/sse` provides a router-agnostic Server-Sent Events runtime with:
 
 - local connection manager (`Manager`)

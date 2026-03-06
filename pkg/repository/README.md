@@ -1,5 +1,7 @@
 # Repository Package
 
+> Transitional note: this README documents the current repository layer. The repository abstraction remains valid, but new framework code should not treat `pkg/store/*` as the stable long-term taxonomy for persistence modules. See [docs/refactoring-requirements.md](../../docs/refactoring-requirements.md).
+
 This package defines generic repository interfaces for data access operations in the Go microservices framework.
 
 ## Overview

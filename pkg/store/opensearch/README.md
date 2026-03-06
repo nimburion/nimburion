@@ -1,5 +1,7 @@
 # OpenSearch/Elasticsearch Store Adapter
 
+> Transitional note: this README documents the current adapter under the legacy `pkg/store/*` layout. Keep it accurate for the current implementation, but treat `pkg/store` as transitional rather than the target module taxonomy for new code. See [docs/refactoring-requirements.md](../../../docs/refactoring-requirements.md).
+
 This package provides a shared store adapter for OpenSearch and Elasticsearch via HTTP APIs.
 It also supports optional SDK-backed adapters (build-tag gated).
 

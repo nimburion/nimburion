@@ -1,55 +1,85 @@
-# Test Infrastructure Improvements
+# Test Infrastructure
 
-## Problem
-Integration tests were trying to connect to real Redis/Postgres instances, causing:
-- Slow test execution
-- Connection errors in CI
-- Flaky tests
+This document describes the current test infrastructure used by the repo and the direction it should follow during the refactor.
 
-## Solution
+## Current Infrastructure
 
-### 1. Test Separation
-- **Unit tests**: Run with `-short` flag (no external dependencies)
-- **Integration tests**: Require Docker services, skipped with `-short`
+The repo currently relies on:
 
-### 2. Docker Compose for Local Testing
-```bash
-# Fast tests (unit only)
-make test-fast
+- `docker-compose.test.yml` for local external services
+- `scripts/test.sh` as the main test runner
+- package-local tests, including unit, integration, and property tests
 
-# Full tests with services
-make test-integration
-```
+Relevant files:
 
-### 3. CI/CD Strategy
-- **PR workflow**: Fast tests only (`-short`)
-- **Release workflow**: Full tests with GitHub Actions services
+- [docker-compose.test.yml](/Users/giuseppe/Workspace/github.com/nimburion/nimburion/docker-compose.test.yml)
+- [scripts/test.sh](/Users/giuseppe/Workspace/github.com/nimburion/nimburion/scripts/test.sh)
+- [Makefile](/Users/giuseppe/Workspace/github.com/nimburion/nimburion/Makefile)
 
-### 4. Files Added
-- `docker-compose.test.yml`: Redis + Postgres for local testing
-- `scripts/test.sh`: Smart test runner
-- `pkg/testutil/skip.go`: Test skip helpers
-- `docs/testing.md`: Complete testing guide
+## Current Goals
 
-### 5. Workflow Updates
-- Added Redis/Postgres services to release workflow
-- Environment variables for connection strings
-- Parallel execution with `-p $(nproc)`
+The current setup should provide:
 
-## Usage
+- fast local feedback for normal development
+- explicit integration coverage for external-service adapters
+- repeatable local execution without depending on random developer machine state
+
+## Operating Model
+
+Use:
+
+- `make test-fast` for quick feedback
+- `make test-integration` for external-service coverage
+- `make test-parallel` for full parallel runs
+
+When needed, local services can be started through:
 
 ```bash
-# Local development (fast)
-make test-fast
-
-# Before PR (with services)
-make test-integration
-
-# CI simulation
-make ci-local
+docker compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml down
 ```
 
-## Performance Impact
-- **PR tests**: ~5-10x faster (unit tests only)
-- **Release tests**: Same coverage, 4-7x faster (parallelization)
-- **Local dev**: No more connection errors
+## Refactor Direction
+
+As the architecture moves away from the old package layout, test infrastructure should also stop being described in terms of old package groups such as:
+
+- server
+- store
+- middleware
+
+The preferred direction is:
+
+- infrastructure by required dependency, not by old package bucket
+- contract suites per family or role
+- adapter-local integration tests
+- explicit non-functional verification harnesses where the framework promises runtime qualities
+- minimal shared orchestration only where it actually reduces duplication
+
+## Priority Infrastructure Areas
+
+The most important infrastructure support during the refactor is for:
+
+- relational adapters
+- Redis-backed roles
+- event bus adapters
+- scheduler lock providers
+
+The most important additional non-functional support is for:
+
+- performance and benchmark harnesses for shared hot paths
+- soak environments for long-running workers, schedulers, and retry-heavy consumers
+- failure-injection harnesses for dependency loss, lock loss, and degraded-mode verification
+- security-focused suites where the framework owns auth, masking, tenant, or secret-handling behavior
+- compatibility and migration suites for descriptor, config, and startup-policy evolution
+- race and ordering verification for concurrent runtimes
+
+These areas are the most likely to need external dependencies and contract verification.
+
+## Guardrails
+
+- Keep the default fast path lightweight.
+- Do not make normal unit feedback depend on Docker by default.
+- Add shared infrastructure only when more than one package family actually benefits from it.
+- Prefer explicit setup over hidden global test magic.
+- Keep long-running or expensive suites off the default fast path, but give them standard documented entry points and stable environments.
+- Treat race, ordering, migration, and security verification as standard framework quality gates where the framework owns those contracts.
