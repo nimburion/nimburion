@@ -61,6 +61,7 @@ The most important infrastructure support during the refactor is for:
 
 - relational adapters
 - Redis-backed roles
+- gRPC runtimes and interceptor chains
 - event bus adapters
 - scheduler lock providers
 
@@ -74,6 +75,23 @@ The most important additional non-functional support is for:
 - race and ordering verification for concurrent runtimes
 
 These areas are the most likely to need external dependencies and contract verification.
+
+## gRPC Testing Additions
+
+The infrastructure plan should explicitly support gRPC verification for:
+
+- contract suites for unary interceptor behavior
+- contract suites for streaming interceptor behavior
+- service registration and lifecycle integration
+- validation-layer distinction tests for transport decode, contract/schema, and domain validation failures
+- deadline and cancellation propagation suites
+- status-mapping suites
+- health and reflection enablement tests
+- race and ordering suites for streaming handlers where ordering or exclusivity is promised
+- security-focused suites for metadata credentials, mTLS or peer identity, and tenant or audit-context propagation
+- benchmark, load, and soak coverage for unary and streaming critical paths
+
+These suites do not imply that every local fast path must start a gRPC stack by default, but they do require stable entry points and repeatable environments when gRPC becomes a main public family.
 
 ## Guardrails
 

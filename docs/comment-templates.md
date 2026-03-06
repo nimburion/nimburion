@@ -137,6 +137,63 @@ type Descriptor struct {
 }
 ```
 
+## Refactor Review Guardrails
+
+Use these review prompts when a change touches transport or contract packages during the refactor.
+
+### gRPC Placement
+
+Bad direction:
+
+- gRPC listener, interceptor, reflection, health, or status code added under `pkg/http`
+- gRPC transport bootstrap added under `pkg/server`
+
+Review question:
+
+- does this code belong under `pkg/grpc` instead of a shared or HTTP-specific package?
+
+### Shared Policy Leakage
+
+Bad direction:
+
+- transport-specific auth details added to shared policy packages
+- gRPC metadata credential handling embedded in reusable authorization contracts
+
+Review question:
+
+- is transport-specific auth glue staying inside the transport family while shared policy contracts remain reusable?
+
+### Family Versus Provider
+
+Bad direction:
+
+- Protobuf treated as the definition of the gRPC family
+- OpenAPI treated as the definition of the HTTP family
+
+Review question:
+
+- is the code modeling a transport family or only one contract-validation provider inside that family?
+
+### Streaming Semantics
+
+Bad direction:
+
+- unary and streaming handlers collapsed into one abstraction that hides cancellation, deadline, or flow-control semantics
+
+Review question:
+
+- does the abstraction preserve the behavior differences the framework explicitly promises?
+
+### Optional Capabilities
+
+Bad direction:
+
+- reflection or health exposure made mandatory for every gRPC application
+
+Review question:
+
+- is this capability optional and debug or environment aware where the framework says it should be?
+
 ## Config Structs
 
 Config comments should state:

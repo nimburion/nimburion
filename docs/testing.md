@@ -92,6 +92,7 @@ Priority test areas:
 - `pkg/config`
 - `pkg/http/router`
 - `pkg/http`
+- `pkg/grpc`
 - `pkg/persistence/*`
 - `pkg/eventbus`
 - `pkg/jobs`
@@ -113,11 +114,48 @@ The preferred direction is:
 The refactor should preserve and expand contract-style tests for:
 
 - router implementations
+- gRPC unary and streaming interceptor chains
+- gRPC service registration and lifecycle integration
 - event bus implementations
 - jobs backends
 - scheduler lock providers
 - cache and session backends
 - persistence family implementations where a common subset is promised
+
+## gRPC Testing Additions
+
+Add contract suites for:
+
+- unary interceptor chains
+- streaming interceptor chains
+- service registration and lifecycle integration
+
+Add validation-focused suites for:
+
+- transport decode failures
+- contract or schema failures
+- domain validation failures
+- status-code and detail mapping
+
+Add runtime behavior suites for:
+
+- deadline propagation
+- cancellation propagation
+- health and reflection enablement
+- streaming backpressure behavior where the framework promises it
+- ordering and exclusivity behavior for streaming handlers where the framework promises it
+
+Add security-focused suites for:
+
+- metadata credential handling
+- mTLS and peer-identity integration
+- tenant-context propagation through interceptors
+- audit-context propagation through interceptors
+
+Add benchmark, load, and soak coverage for:
+
+- unary runtime paths
+- streaming runtime paths
 
 ## Non-Functional Verification Categories
 
