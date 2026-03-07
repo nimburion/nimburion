@@ -12,7 +12,6 @@ The package owns:
 - `NewAppCommand` for application-oriented command trees
 - base commands such as `version`, `config`, and `healthcheck`
 - the debug-gated `introspect` command for framework-owned runtime data
-- framework-managed jobs and scheduler command wiring until those areas become fully feature-driven
 
 ## Composition And Wiring Expectations
 
@@ -27,19 +26,18 @@ The package owns:
 - transport runtime ownership
 - application lifecycle orchestration
 - direct ownership of HTTP bootstrap semantics
-- permanent retention of service-first command naming
+- permanent retention of service-first naming conventions
 
 ## Validation And Runtime Semantics
 
 - config loading remains centralized through the existing config provider path
 - healthcheck builds the shared runtime, registers framework and optional application checks in the shared health registry, and evaluates that registry once
 - `introspect` prints framework introspection data only when `--debug` is enabled
-- scheduler and jobs commands keep explicit signal handling and graceful shutdown behavior
+- family-contributed commands such as `cache`, `migrate`, `openapi`, `jobs`, and `scheduler` are materialized only when their owning features are included
 
 ## Testing Expectations
 
 - fast tests should cover command registration, policy annotations, `run` behavior, and feature-contributed commands
-- later waves should add integration coverage once feature-driven command registration fully replaces hardcoded optional command wiring
 
 ## Status
 

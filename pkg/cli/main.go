@@ -17,12 +17,13 @@ import (
 	coordinationredis "github.com/nimburion/nimburion/pkg/coordination/redis"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
+	"github.com/nimburion/nimburion/pkg/descriptor"
 	"github.com/nimburion/nimburion/pkg/health"
-	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/jobs"
-	jobsconstruct "github.com/nimburion/nimburion/pkg/jobs/construct"
+	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/scheduler"
+	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 	"github.com/nimburion/nimburion/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -42,72 +43,35 @@ type CommandPolicy string
 const (
 	// PolicyAlways executes the command every time
 	PolicyAlways CommandPolicy = "always"
-	// PolicyNever skips command execution
-	PolicyNever CommandPolicy = "never"
-	// PolicyOnce executes the command only once
-	PolicyOnce CommandPolicy = "once"
 	// PolicyMigration executes during migration phase
 	PolicyMigration CommandPolicy = "migration"
 	// PolicyRun executes during normal runtime
 	PolicyRun CommandPolicy = "run"
 	// PolicyManual requires manual execution
 	PolicyManual CommandPolicy = "manual"
-	// PolicyOnDemand executes on demand
-	PolicyOnDemand CommandPolicy = "on_demand"
 	// PolicyScheduled executes on a schedule
 	PolicyScheduled CommandPolicy = "scheduled"
-	// PolicyConditional executes based on conditions
-	PolicyConditional CommandPolicy = "conditional"
 )
-
-// JobsRuntimeFactory creates a jobs runtime from service configuration.
-type JobsRuntimeFactory func(
-	cfg config.JobsConfig,
-	eventBusCfg config.EventBusConfig,
-	validationCfg config.KafkaValidationConfig,
-	log logger.Logger,
-) (jobs.Runtime, error)
-
-// JobsBackendFactory creates a lease-aware jobs backend from service configuration.
-type JobsBackendFactory func(
-	cfg config.JobsConfig,
-	eventBusCfg config.EventBusConfig,
-	validationCfg config.KafkaValidationConfig,
-	log logger.Logger,
-) (jobs.Backend, error)
-
-// SchedulerLockProviderFactory creates the scheduler lock provider.
-type SchedulerLockProviderFactory func(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error)
 
 // AppCommandOptions defines callbacks for application-oriented CLI assembly.
 type AppCommandOptions struct {
 	Name        string
 	Description string
 	ConfigPath  string
+	Descriptor  descriptor.Options
 
 	ConfigPathResolved func(string)
 	EnvPrefix          string
 	ConfigExtensions   []any
 	Features           []corefeature.Feature
-	IncludeJobs        bool
-	IncludeScheduler   bool
-	IncludeOpenAPI     bool
 	Debug              bool
 	HealthRegistry     *health.Registry
 
 	Run func(ctx context.Context, cfg *config.Config, log logger.Logger) error
 
-	RunMigrations                func(ctx context.Context, cfg *config.Config, log logger.Logger, direction string, args []string) error
-	RunCacheClean                func(ctx context.Context, cfg *config.Config, log logger.Logger, pattern string) error
-	CheckDependencies            func(ctx context.Context, cfg *config.Config, log logger.Logger) error
-	ValidateConfig               func(cfg *config.Config) error
-	RegisterRoutes               func(r router.Router, cfg *config.Config)
-	CustomCommands               []*cobra.Command
-	ConfigureJobsWorker          func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error
-	ConfigureScheduler           func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error
-	JobsRuntimeFactory           JobsRuntimeFactory
-	JobsBackendFactory           JobsBackendFactory
-	SchedulerLockProviderFactory SchedulerLockProviderFactory
+	CheckDependencies func(ctx context.Context, cfg *config.Config, log logger.Logger) error
+	ValidateConfig    func(cfg *config.Config) error
+	CustomCommands    []*cobra.Command
 }
 
 // NewAppCommand creates the target-state CLI with `run` as the primary entrypoint.
@@ -128,11 +92,11 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 
 	var cfgPath string
 	var secretFilePath string
-	var serviceNameOverride string
+	var appNameOverride string
 	var debug bool
 	rootCmd.PersistentFlags().StringVarP(&cfgPath, "config-file", "c", opts.ConfigPath, "config file path")
 	rootCmd.PersistentFlags().StringVar(&secretFilePath, "secret-file", "", "path to secrets file (sets APP_SECRETS_FILE)")
-	rootCmd.PersistentFlags().StringVar(&serviceNameOverride, "service-name", "", "service name override")
+	rootCmd.PersistentFlags().StringVar(&appNameOverride, "app-name", "", "application name override")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", opts.Debug, "enable framework debug surfaces such as introspection")
 
 	loadConfig := func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
@@ -147,31 +111,15 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			flags,
 			opts.ConfigExtensions,
 			opts.Name,
-			serviceNameOverride,
+			appNameOverride,
 		)
 	}
 
 	buildJobsRuntime := func(cfg *config.Config, log logger.Logger) (jobs.Runtime, error) {
-		runtimeFactory := opts.JobsRuntimeFactory
-		if runtimeFactory == nil {
-			runtimeFactory = jobsconstruct.NewRuntimeWithValidation
-		}
-		return runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
-	}
-
-	buildJobsBackend := func(cfg *config.Config, log logger.Logger) (jobs.Backend, error) {
-		backendFactory := opts.JobsBackendFactory
-		if backendFactory == nil {
-			backendFactory = jobsconstruct.NewBackendWithValidation
-		}
-		return backendFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
+		return jobs.NewRuntimeFromConfigWithValidation(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
 	}
 
 	buildSchedulerLockProvider := func(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error) {
-		lockFactory := opts.SchedulerLockProviderFactory
-		if lockFactory != nil {
-			return lockFactory(cfg, log)
-		}
 		return defaultSchedulerLockProviderFactory(cfg, log)
 	}
 
@@ -214,33 +162,6 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 		SetCommandPolicies(runCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
 		rootCmd.AddCommand(runCmd)
 		rootCmd.RunE = runCmd.RunE
-	}
-
-	// cache command (optional)
-	if opts.RunCacheClean != nil {
-		cacheCmd := &cobra.Command{
-			Use:   "cache",
-			Short: "Cache management commands",
-		}
-		SetCommandPolicies(cacheCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
-
-		var pattern string
-		cleanCmd := &cobra.Command{
-			Use:   "clean",
-			Short: "Clean cache entries",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, log, err := loadConfig(cmd.Flags())
-				if err != nil {
-					return err
-				}
-				return opts.RunCacheClean(cmd.Context(), cfg, log, pattern)
-			},
-		}
-		SetCommandPolicies(cleanCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyRun})
-		cleanCmd.Flags().StringVarP(&pattern, "pattern", "p", "*", "cache key pattern to clean")
-		cacheCmd.AddCommand(cleanCmd)
-
-		rootCmd.AddCommand(cacheCmd)
 	}
 
 	// healthcheck command
@@ -303,6 +224,34 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	})
 	SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 
+	var descriptorFormat string
+	describeCmd := &cobra.Command{
+		Use:   "describe",
+		Short: "Emit the machine-readable service descriptor",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			descOpts := opts.Descriptor
+			if descOpts.Application.Name == "" {
+				descOpts.Application.Name = opts.Name
+			}
+			descOpts.EnvPrefix = opts.EnvPrefix
+			desc, err := descriptor.Generate(rootCmd, descOpts)
+			if err != nil {
+				return err
+			}
+			raw, err := descriptor.Marshal(desc, descriptorFormat)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw)); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	describeCmd.Flags().StringVar(&descriptorFormat, "format", "json", "descriptor output format: json or yaml")
+	SetCommandPolicies(describeCmd, map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
+	rootCmd.AddCommand(describeCmd)
+
 	// config command
 	configCmd := &cobra.Command{
 		Use:   "config",
@@ -322,18 +271,18 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			}
 			cfg := &config.Config{}
 			provider := config.NewConfigProvider(cfgPath, opts.EnvPrefix).
-				WithServiceNameDefault(opts.Name).
+				WithAppNameDefault(opts.Name).
 				WithFlags(cmd.Flags())
 			if _, err := provider.LoadWithSecrets(cfg, opts.ConfigExtensions...); err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
-			applyResolvedServiceName(cfg, opts.Name, serviceNameOverride)
+			applyResolvedAppName(cfg, opts.Name, appNameOverride)
 			if opts.ValidateConfig != nil {
 				if err := opts.ValidateConfig(cfg); err != nil {
 					return fmt.Errorf("custom validation failed: %w", err)
 				}
 			}
-			if err := cfg.Validate(); err != nil {
+			if err := config.NewViperLoader("", opts.EnvPrefix).Validate(cfg); err != nil {
 				return fmt.Errorf("configuration validation failed: %w", err)
 			}
 			fmt.Println("✓ Configuration is valid")
@@ -355,16 +304,16 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			}
 			cfg := &config.Config{}
 			provider := config.NewConfigProvider(cfgPath, opts.EnvPrefix).
-				WithServiceNameDefault(opts.Name).
+				WithAppNameDefault(opts.Name).
 				WithFlags(cmd.Flags())
 			secrets, err := provider.LoadWithSecrets(cfg, opts.ConfigExtensions...)
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
-			applyResolvedServiceName(cfg, opts.Name, serviceNameOverride)
+			applyResolvedAppName(cfg, opts.Name, appNameOverride)
 
 			settings := provider.AllSettings()
-			settings = setServiceNameSetting(settings, cfg.Service.Name)
+			settings = setAppNameSetting(settings, cfg.App.Name)
 			if !showSecrets {
 				settings = redactSettingsMap(settings, secrets)
 			}
@@ -382,16 +331,8 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 
 	rootCmd.AddCommand(configCmd)
 
-	_, builtInFeatureCommands := collectFeatureCLIContributions(newBuiltInCommandFeatures(
-		opts,
-		loadConfig,
-		buildJobsRuntime,
-		buildJobsBackend,
-		buildSchedulerLockProvider,
-	))
-
 	// Add custom service-specific commands
-	for _, customCmd := range append(builtInFeatureCommands, opts.CustomCommands...) {
+	for _, customCmd := range opts.CustomCommands {
 		ensureDefaultPolicy(customCmd)
 		rootCmd.AddCommand(customCmd)
 	}
@@ -666,7 +607,7 @@ func runHealthcheckWithRegistry(ctx context.Context, opts healthcheckRuntimeOpti
 	}
 
 	result := registry.Check(ctx)
-	if result.IsHealthy() {
+	if result.IsReady() {
 		return nil
 	}
 
@@ -723,9 +664,9 @@ func shouldCheckJobsRuntimeHealth(cfg *config.Config) bool {
 
 	backend := strings.ToLower(strings.TrimSpace(cfg.Jobs.Backend))
 	switch backend {
-	case config.JobsBackendRedis:
+	case jobsconfig.BackendRedis:
 		return strings.TrimSpace(cfg.Jobs.Redis.URL) != ""
-	case config.JobsBackendEventBus:
+	case jobsconfig.BackendEventBus:
 		return strings.TrimSpace(cfg.EventBus.Type) != ""
 	default:
 		return false
@@ -740,7 +681,7 @@ func jobsHealthTimeout(cfg *config.Config) time.Duration {
 	if cfg == nil {
 		return 3 * time.Second
 	}
-	if strings.EqualFold(strings.TrimSpace(cfg.Jobs.Backend), config.JobsBackendRedis) && cfg.Jobs.Redis.OperationTimeout > 0 {
+	if strings.EqualFold(strings.TrimSpace(cfg.Jobs.Backend), jobsconfig.BackendRedis) && cfg.Jobs.Redis.OperationTimeout > 0 {
 		return cfg.Jobs.Redis.OperationTimeout
 	}
 	if cfg.EventBus.OperationTimeout > 0 {
@@ -755,7 +696,7 @@ func schedulerLockHealthTimeout(cfg *config.Config) time.Duration {
 	}
 	lockProvider := strings.ToLower(strings.TrimSpace(cfg.Scheduler.LockProvider))
 	switch lockProvider {
-	case config.SchedulerLockProviderPostgres:
+	case schedulerconfig.LockProviderPostgres:
 		if cfg.Scheduler.Postgres.OperationTimeout > 0 {
 			return cfg.Scheduler.Postgres.OperationTimeout
 		}
@@ -768,7 +709,7 @@ func schedulerLockHealthTimeout(cfg *config.Config) time.Duration {
 }
 
 func healthCheckResultError(result health.CheckResult) error {
-	if result.Status == health.StatusHealthy {
+	if result.Status != health.StatusUnhealthy {
 		return nil
 	}
 	msg := strings.TrimSpace(result.Error)
@@ -854,11 +795,11 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 	}
 	lockProvider := strings.ToLower(strings.TrimSpace(cfg.Scheduler.LockProvider))
 	if lockProvider == "" {
-		lockProvider = config.SchedulerLockProviderRedis
+		lockProvider = schedulerconfig.LockProviderRedis
 	}
 
 	switch lockProvider {
-	case config.SchedulerLockProviderRedis:
+	case schedulerconfig.LockProviderRedis:
 		redisURL := strings.TrimSpace(cfg.Scheduler.Redis.URL)
 		if redisURL == "" {
 			redisURL = strings.TrimSpace(cfg.Cache.URL)
@@ -871,7 +812,7 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 			Prefix:           cfg.Scheduler.Redis.Prefix,
 			OperationTimeout: cfg.Scheduler.Redis.OperationTimeout,
 		}, log)
-	case config.SchedulerLockProviderPostgres:
+	case schedulerconfig.LockProviderPostgres:
 		postgresURL := strings.TrimSpace(cfg.Scheduler.Postgres.URL)
 		if postgresURL == "" {
 			postgresURL = strings.TrimSpace(cfg.Database.URL)
@@ -897,8 +838,8 @@ func LoadConfigAndLogger(
 	customValidator func(*config.Config) error,
 	flags *pflag.FlagSet,
 	extensions []any,
-	defaultServiceName string,
-	serviceNameOverride string,
+	defaultAppName string,
+	appNameOverride string,
 ) (*config.Config, logger.Logger, error) {
 	if envPrefix == "" {
 		envPrefix = "APP"
@@ -908,12 +849,12 @@ func LoadConfigAndLogger(
 	}
 	cfg := &config.Config{}
 	provider := config.NewConfigProvider(cfgPath, envPrefix).
-		WithServiceNameDefault(defaultServiceName).
+		WithAppNameDefault(defaultAppName).
 		WithFlags(flags)
 	if _, err := provider.LoadWithSecrets(cfg, extensions...); err != nil {
 		return nil, nil, fmt.Errorf("load config: %w", err)
 	}
-	applyResolvedServiceName(cfg, defaultServiceName, serviceNameOverride)
+	applyResolvedAppName(cfg, defaultAppName, appNameOverride)
 
 	// Run custom validation if provided (Nimburion's validation already ran in Load())
 	if customValidator != nil {
@@ -947,19 +888,6 @@ func applySecretFileFlag(envPrefix, secretFilePath string) error {
 		return fmt.Errorf("secret file %s must not be a directory", secretFilePath)
 	}
 	return os.Setenv(resolveEnvPrefix(envPrefix)+"_SECRETS_FILE", filepath.Clean(secretFilePath))
-}
-
-func setMigrationPathEnv(migrationsPath string) error {
-	if migrationsPath == "" {
-		return nil
-	}
-	if err := os.Setenv("APP_MIGRATIONS_PATH", migrationsPath); err != nil {
-		return fmt.Errorf("set APP_MIGRATIONS_PATH: %w", err)
-	}
-	if err := os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath); err != nil {
-		return fmt.Errorf("set APP_PLATFORM_MIGRATIONS_PATH: %w", err)
-	}
-	return nil
 }
 
 func writeCommandf(cmd *cobra.Command, format string, args ...interface{}) error {
@@ -1031,35 +959,35 @@ func resolveEnvPrefix(prefix string) string {
 	return strings.ToUpper(trimmed)
 }
 
-func applyResolvedServiceName(cfg *config.Config, defaultServiceName, serviceNameOverride string) {
+func applyResolvedAppName(cfg *config.Config, defaultAppName, appNameOverride string) {
 	if cfg == nil {
 		return
 	}
-	cfg.Service.Name = resolveServiceNameValue(cfg.Service.Name, defaultServiceName, serviceNameOverride)
+	cfg.App.Name = resolveAppNameValue(cfg.App.Name, defaultAppName, appNameOverride)
 }
 
-func resolveServiceNameValue(currentConfigName, defaultServiceName, serviceNameOverride string) string {
-	if override := strings.TrimSpace(serviceNameOverride); override != "" {
+func resolveAppNameValue(currentConfigName, defaultAppName, appNameOverride string) string {
+	if override := strings.TrimSpace(appNameOverride); override != "" {
 		return override
 	}
 	if configured := strings.TrimSpace(currentConfigName); configured != "" {
 		return configured
 	}
-	if fallback := strings.TrimSpace(defaultServiceName); fallback != "" {
+	if fallback := strings.TrimSpace(defaultAppName); fallback != "" {
 		return fallback
 	}
 	return "app"
 }
 
-func setServiceNameSetting(settings map[string]interface{}, serviceName string) map[string]interface{} {
+func setAppNameSetting(settings map[string]interface{}, appName string) map[string]interface{} {
 	if settings == nil {
 		settings = map[string]interface{}{}
 	}
-	service, ok := settings["service"].(map[string]interface{})
-	if !ok || service == nil {
-		service = map[string]interface{}{}
+	app, ok := settings["app"].(map[string]interface{})
+	if !ok || app == nil {
+		app = map[string]interface{}{}
 	}
-	service["name"] = serviceName
-	settings["service"] = service
+	app["name"] = appName
+	settings["app"] = app
 	return settings
 }
