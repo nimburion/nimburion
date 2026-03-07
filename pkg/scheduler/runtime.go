@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/coordination"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/tracing"
@@ -21,9 +22,9 @@ const (
 	// DefaultDispatchTimeout is the default timeout for dispatching scheduled tasks
 	DefaultDispatchTimeout = 10 * time.Second
 	// DefaultLockTTL is the default time-to-live for distributed locks
-	DefaultLockTTL         = 30 * time.Second
-	minRenewInterval       = 100 * time.Millisecond
-	misfireGraceWindow     = 500 * time.Millisecond
+	DefaultLockTTL     = 30 * time.Second
+	minRenewInterval   = 100 * time.Millisecond
+	misfireGraceWindow = 500 * time.Millisecond
 )
 
 // Config controls scheduler runtime behavior.
@@ -44,7 +45,7 @@ func (c *Config) normalize() {
 // Runtime dispatches scheduled tasks into the jobs runtime with distributed locking.
 type Runtime struct {
 	jobs jobs.Runtime
-	lock LockProvider
+	lock coordination.LockProvider
 	log  logger.Logger
 
 	config Config
@@ -57,7 +58,7 @@ type Runtime struct {
 }
 
 // NewRuntime creates a distributed scheduler runtime.
-func NewRuntime(jobsRuntime jobs.Runtime, lockProvider LockProvider, log logger.Logger, cfg Config) (*Runtime, error) {
+func NewRuntime(jobsRuntime jobs.Runtime, lockProvider coordination.LockProvider, log logger.Logger, cfg Config) (*Runtime, error) {
 	if jobsRuntime == nil {
 		return nil, schedulerError(ErrInvalidArgument, "jobs runtime is required")
 	}
@@ -331,7 +332,7 @@ func (r *Runtime) dispatchTask(ctx context.Context, task Task, runAt time.Time) 
 	return nil
 }
 
-func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *LockLease, ttl time.Duration) (func(), <-chan error) {
+func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *coordination.LockLease, ttl time.Duration) (func(), <-chan error) {
 	done := make(chan error, 1)
 	if lease == nil || ttl <= 0 {
 		done <- nil

@@ -1,2 +1,2 @@
-// Package scheduler provides distributed scheduling and locking primitives.
+// Package scheduler provides distributed scheduling primitives built on injected coordination locks.
 package scheduler

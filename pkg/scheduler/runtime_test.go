@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/coordination"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -65,26 +66,26 @@ type fakeLockProvider struct {
 	renews        int
 }
 
-func (p *fakeLockProvider) Acquire(context.Context, string, time.Duration) (*LockLease, bool, error) {
+func (p *fakeLockProvider) Acquire(context.Context, string, time.Duration) (*coordination.LockLease, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.acquireResult {
 		return nil, false, nil
 	}
 	p.leaseCount++
-	return &LockLease{
+	return &coordination.LockLease{
 		Key:      "lock",
 		Token:    "token",
 		ExpireAt: time.Now().UTC().Add(time.Second),
 	}, true, nil
 }
-func (p *fakeLockProvider) Renew(context.Context, *LockLease, time.Duration) error {
+func (p *fakeLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.renews++
 	return nil
 }
-func (p *fakeLockProvider) Release(context.Context, *LockLease) error {
+func (p *fakeLockProvider) Release(context.Context, *coordination.LockLease) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.releases++

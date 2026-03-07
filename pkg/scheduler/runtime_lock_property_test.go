@@ -10,6 +10,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/nimburion/nimburion/pkg/coordination"
 )
 
 type scriptedLockProvider struct {
@@ -26,7 +27,7 @@ func newScriptedLockProvider(outcomes []bool) *scriptedLockProvider {
 	return &scriptedLockProvider{outcomes: copied}
 }
 
-func (p *scriptedLockProvider) Acquire(_ context.Context, key string, ttl time.Duration) (*LockLease, bool, error) {
+func (p *scriptedLockProvider) Acquire(_ context.Context, key string, ttl time.Duration) (*coordination.LockLease, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.acquires++
@@ -40,16 +41,18 @@ func (p *scriptedLockProvider) Acquire(_ context.Context, key string, ttl time.D
 		return nil, false, nil
 	}
 
-	return &LockLease{
+	return &coordination.LockLease{
 		Key:      key,
 		Token:    fmt.Sprintf("lease-%d", p.acquires),
 		ExpireAt: time.Now().UTC().Add(ttl),
 	}, true, nil
 }
 
-func (p *scriptedLockProvider) Renew(context.Context, *LockLease, time.Duration) error { return nil }
+func (p *scriptedLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
+	return nil
+}
 
-func (p *scriptedLockProvider) Release(context.Context, *LockLease) error {
+func (p *scriptedLockProvider) Release(context.Context, *coordination.LockLease) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.releases++

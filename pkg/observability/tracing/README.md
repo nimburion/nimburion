@@ -58,8 +58,8 @@ func main() {
 
 ```go
 import (
-    "github.com/nimburion/nimburion/pkg/middleware"
-    "github.com/nimburion/nimburion/pkg/server/router"
+    "github.com/nimburion/nimburion/pkg/http/middleware"
+    "github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func setupRouter(r router.Router) {
@@ -177,7 +177,7 @@ When making HTTP calls to other services, propagate the trace context:
 import (
     "context"
     "net/http"
-    "github.com/nimburion/nimburion/pkg/middleware"
+    "github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 func callExternalService(ctx context.Context, url string) error {
