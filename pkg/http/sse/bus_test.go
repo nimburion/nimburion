@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -38,18 +39,16 @@ func TestInMemoryBus_PublishAndUnsubscribe(t *testing.T) {
 	}
 }
 
-func TestNewRedisBus_ValidationAndDefaults(t *testing.T) {
+func TestNewRedisBus_ValidationAndConnectivity(t *testing.T) {
 	if _, err := NewRedisBus(RedisBusConfig{}); err == nil {
 		t.Fatal("expected error for empty redis url")
 	}
 
-	bus, err := NewRedisBus(RedisBusConfig{URL: "redis://localhost:6379/0"})
-	if err != nil {
-		t.Fatalf("new redis bus: %v", err)
+	_, err := NewRedisBus(RedisBusConfig{URL: "redis://localhost:6379/0"})
+	if err == nil {
+		t.Fatal("expected connection validation error")
 	}
-	defer bus.Close()
-
-	if bus.prefix != "sse:bus" {
-		t.Fatalf("expected default prefix sse:bus, got %q", bus.prefix)
+	if !strings.Contains(err.Error(), "failed to ping redis") {
+		t.Fatalf("expected ping error, got %v", err)
 	}
 }

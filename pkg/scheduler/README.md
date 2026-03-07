@@ -14,6 +14,7 @@
 
 `pkg/scheduler` depends on `coordination.LockProvider` for distributed singleton behavior.
 Concrete lock implementations are injected from `pkg/coordination/*`.
+The scheduler CLI command tree is contributed by the scheduler family, not assembled as a root-CLI built-in.
 
 ## Non-goals
 

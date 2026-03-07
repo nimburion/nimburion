@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/coordination"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/redis/go-redis/v9"
@@ -22,7 +23,7 @@ func coordinationError(kind error, message string) error {
 }
 
 const (
-	defaultRedisPrefix          = "nimburion:scheduler:lock"
+	defaultRedisPrefix          = "nimburion:coordination:lock"
 	defaultRedisOperationTimout = 3 * time.Second
 )
 
@@ -60,7 +61,7 @@ func (c *RedisLockProviderConfig) normalize() {
 
 // RedisLockProvider is a distributed lock provider using Redis SET NX PX semantics.
 type RedisLockProvider struct {
-	client *redis.Client
+	client *rediskit.Client
 	log    logger.Logger
 	config RedisLockProviderConfig
 }
@@ -75,17 +76,13 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 	}
 	cfg.normalize()
 
-	opts, err := redis.ParseURL(cfg.URL)
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		OperationTimeout: cfg.OperationTimeout,
+	}, log)
 	if err != nil {
-		return nil, errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err)
-	}
-	client := redis.NewClient(opts)
-
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		if closeErr := client.Close(); closeErr != nil {
-			return nil, errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err, closeErr)
+		if strings.Contains(err.Error(), "parse redis URL") {
+			return nil, errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err)
 		}
 		return nil, errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err)
 	}
@@ -115,7 +112,7 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	acquired, err := p.client.SetNX(opCtx, fullKey, token, ttl).Result()
+	acquired, err := p.client.Raw().SetNX(opCtx, fullKey, token, ttl).Result()
 	if err != nil {
 		return nil, false, errors.Join(coordinationError(coordination.ErrRetryable, "acquire lock failed"), err)
 	}
@@ -149,7 +146,7 @@ func (p *RedisLockProvider) Renew(ctx context.Context, lease *coordination.LockL
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	result, err := renewScript.Run(opCtx, p.client, []string{p.fullKey(key)}, token, ttl.Milliseconds()).Int64()
+	result, err := renewScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
 		return errors.Join(coordinationError(coordination.ErrRetryable, "renew lock failed"), err)
 	}
@@ -178,7 +175,7 @@ func (p *RedisLockProvider) Release(ctx context.Context, lease *coordination.Loc
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	result, err := releaseScript.Run(opCtx, p.client, []string{p.fullKey(key)}, token).Int64()
+	result, err := releaseScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token).Int64()
 	if err != nil {
 		return errors.Join(coordinationError(coordination.ErrRetryable, "release lock failed"), err)
 	}
@@ -195,7 +192,7 @@ func (p *RedisLockProvider) HealthCheck(ctx context.Context) error {
 	}
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	if err := p.client.Ping(opCtx).Err(); err != nil {
+	if err := p.client.HealthCheck(opCtx); err != nil {
 		return errors.Join(coordinationError(coordination.ErrRetryable, "redis healthcheck failed"), err)
 	}
 	return nil

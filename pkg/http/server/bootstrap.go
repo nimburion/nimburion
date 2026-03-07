@@ -235,7 +235,7 @@ func normalizeEnvironment(env string) string {
 
 func resolveServiceName(opts *RunHTTPServersOptions) string {
 	if opts.Config != nil {
-		if trimmed := strings.TrimSpace(opts.Config.Service.Name); trimmed != "" {
+		if trimmed := strings.TrimSpace(opts.Config.App.Name); trimmed != "" {
 			return trimmed
 		}
 	}
@@ -244,7 +244,7 @@ func resolveServiceName(opts *RunHTTPServersOptions) string {
 
 func resolveEnvironment(opts *RunHTTPServersOptions) string {
 	if opts.Config != nil {
-		return normalizeEnvironment(opts.Config.Service.Environment)
+		return normalizeEnvironment(opts.Config.App.Environment)
 	}
 	return version.Unknown
 }

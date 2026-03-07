@@ -3,14 +3,25 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/nimburion/nimburion/pkg/config"
-	eventbusconstruct "github.com/nimburion/nimburion/pkg/eventbus/construct"
+	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
+	"github.com/nimburion/nimburion/pkg/eventbus/kafka"
+	"github.com/nimburion/nimburion/pkg/eventbus/rabbitmq"
+	"github.com/nimburion/nimburion/pkg/eventbus/schema"
+	schemavalidationconfig "github.com/nimburion/nimburion/pkg/eventbus/schema/config"
+	"github.com/nimburion/nimburion/pkg/eventbus/sqs"
 	"github.com/nimburion/nimburion/pkg/http/cors"
+	corsconfig "github.com/nimburion/nimburion/pkg/http/cors/config"
 	"github.com/nimburion/nimburion/pkg/http/csrf"
+	csrfconfig "github.com/nimburion/nimburion/pkg/http/csrf/config"
 	httpsignature "github.com/nimburion/nimburion/pkg/http/httpsignature"
+	httpsignatureconfig "github.com/nimburion/nimburion/pkg/http/httpsignature/config"
 	i18nmiddleware "github.com/nimburion/nimburion/pkg/http/i18n"
+	i18nconfig "github.com/nimburion/nimburion/pkg/http/i18n/config"
 	"github.com/nimburion/nimburion/pkg/http/middleware/logging"
 	"github.com/nimburion/nimburion/pkg/http/middleware/metrics"
 	"github.com/nimburion/nimburion/pkg/http/middleware/recovery"
@@ -20,10 +31,15 @@ import (
 	"github.com/nimburion/nimburion/pkg/http/middleware/tracing"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/securityheaders"
+	securityheadersconfig "github.com/nimburion/nimburion/pkg/http/securityheaders/config"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/http/session"
 	"github.com/nimburion/nimburion/pkg/http/sse"
+	sseconfig "github.com/nimburion/nimburion/pkg/http/sse/config"
+	observabilityconfig "github.com/nimburion/nimburion/pkg/observability/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	rolesession "github.com/nimburion/nimburion/pkg/session"
+	sessionconfig "github.com/nimburion/nimburion/pkg/session/config"
 )
 
 // PublicAPIServer wraps Server for application traffic.
@@ -46,7 +62,7 @@ type PublicAPIServer struct {
 // 4. Metrics - records Prometheus metrics for requests
 //
 // Additional middleware (auth, rate limiting) can be added per-route.
-func NewPublicAPIServer(cfg config.HTTPConfig, r router.Router, log logger.Logger) *PublicAPIServer {
+func NewPublicAPIServer(cfg serverconfig.HTTPConfig, r router.Router, log logger.Logger) *PublicAPIServer {
 	defaults := config.DefaultConfig()
 	return NewPublicAPIServerWithConfig(
 		cfg,
@@ -67,8 +83,8 @@ func NewPublicAPIServer(cfg config.HTTPConfig, r router.Router, log logger.Logge
 
 // NewPublicAPIServerWithObservability creates a new PublicAPIServer with observability-aware middleware options.
 func NewPublicAPIServerWithObservability(
-	cfg config.HTTPConfig,
-	obsCfg config.ObservabilityConfig,
+	cfg serverconfig.HTTPConfig,
+	obsCfg observabilityconfig.Config,
 	r router.Router,
 	log logger.Logger,
 ) *PublicAPIServer {
@@ -92,17 +108,17 @@ func NewPublicAPIServerWithObservability(
 
 // NewPublicAPIServerWithConfig creates a new PublicAPIServer with CORS and observability-aware middleware options.
 func NewPublicAPIServerWithConfig(
-	cfg config.HTTPConfig,
-	corsCfg config.CORSConfig,
-	securityHeadersCfg config.SecurityHeadersConfig,
-	securityCfg config.SecurityConfig,
-	i18nCfg config.I18nConfig,
-	sessionCfg config.SessionConfig,
-	csrfCfg config.CSRFConfig,
-	sseCfg config.SSEConfig,
-	eventBusCfg config.EventBusConfig,
-	validationCfg config.ValidationConfig,
-	obsCfg config.ObservabilityConfig,
+	cfg serverconfig.HTTPConfig,
+	corsCfg corsconfig.Config,
+	securityHeadersCfg securityheadersconfig.Config,
+	securityCfg httpsignatureconfig.SecurityConfig,
+	i18nCfg i18nconfig.Config,
+	sessionCfg sessionconfig.Config,
+	csrfCfg csrfconfig.Config,
+	sseCfg sseconfig.Config,
+	eventBusCfg eventbusconfig.Config,
+	validationCfg schemavalidationconfig.ValidationConfig,
+	obsCfg observabilityconfig.Config,
 	r router.Router,
 	log logger.Logger,
 ) *PublicAPIServer {
@@ -354,7 +370,7 @@ func (s *PublicAPIServer) Router() *router.Router {
 	return &s.router
 }
 
-func createSessionStore(cfg config.SessionConfig, log logger.Logger) rolesession.Store {
+func createSessionStore(cfg sessionconfig.Config, log logger.Logger) rolesession.Store {
 	if !cfg.Enabled {
 		return nil
 	}
@@ -393,9 +409,9 @@ func createSessionStore(cfg config.SessionConfig, log logger.Logger) rolesession
 }
 
 func createSSEManager(
-	sseCfg config.SSEConfig,
-	eventBusCfg config.EventBusConfig,
-	kafkaValidationCfg config.KafkaValidationConfig,
+	sseCfg sseconfig.Config,
+	eventBusCfg eventbusconfig.Config,
+	kafkaValidationCfg schemavalidationconfig.KafkaValidationConfig,
 	log logger.Logger,
 ) *sse.Manager {
 	if !sseCfg.Enabled {
@@ -446,7 +462,7 @@ func createSSEManager(
 		}
 		bus = redisBus
 	case "eventbus":
-		frameworkBus, err := eventbusconstruct.NewFromConfigWithValidation(eventBusCfg, kafkaValidationCfg, log)
+		frameworkBus, err := newEventBusFromConfigWithValidation(eventBusCfg, kafkaValidationCfg, log)
 		if err != nil {
 			log.Error("failed to initialize framework eventbus for sse; sse disabled", "error", err)
 			if closeErr := store.Close(); closeErr != nil {
@@ -486,4 +502,31 @@ func createSSEManager(
 		HeartbeatInterval:  sseCfg.HeartbeatInterval,
 		DefaultRetryMS:     sseCfg.DefaultRetryMS,
 	}, store, bus)
+}
+
+func newEventBusFromConfigWithValidation(
+	cfg eventbusconfig.Config,
+	validationCfg schemavalidationconfig.KafkaValidationConfig,
+	log logger.Logger,
+) (eventbus.EventBus, error) {
+	var (
+		base eventbus.EventBus
+		err  error
+	)
+
+	switch strings.ToLower(strings.TrimSpace(cfg.Type)) {
+	case "kafka":
+		base, err = kafka.NewFromEventBusConfig(cfg, log)
+	case "rabbitmq":
+		base, err = rabbitmq.NewFromEventBusConfig(cfg, log)
+	case "sqs":
+		base, err = sqs.NewFromEventBusConfig(cfg, log)
+	default:
+		return nil, fmt.Errorf("unsupported eventbus.type %q (supported: kafka, rabbitmq, sqs)", cfg.Type)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return schema.Wrap(base, validationCfg, log)
 }

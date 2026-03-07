@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/nimburion/nimburion/pkg/config"
+	ratelimitconfig "github.com/nimburion/nimburion/pkg/http/ratelimit/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -32,7 +34,7 @@ type RedisRateLimiter struct {
 
 // NewRedisRateLimiter creates a Redis-backed rate limiter.
 func NewRedisRateLimiter(
-	cfg config.RateLimitRedisConfig,
+	cfg ratelimitconfig.RedisConfig,
 	window time.Duration,
 	requestsPerSecond, burst int,
 	log logger.Logger,
@@ -50,29 +52,18 @@ func NewRedisRateLimiter(
 		window = time.Second
 	}
 
-	opts, err := redis.ParseURL(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse redis URL: %w", err)
-	}
-	if cfg.MaxConns > 0 {
-		opts.PoolSize = cfg.MaxConns
-	}
 	timeout := cfg.OperationTimeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	opts.ReadTimeout = timeout
-	opts.WriteTimeout = timeout
-
-	client := redis.NewClient(opts)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		if closeErr := client.Close(); closeErr != nil {
-			return nil, errors.Join(
-				fmt.Errorf("redis rate limiter ping failed: %w", err),
-				fmt.Errorf("redis rate limiter close after ping failure failed: %w", closeErr),
-			)
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		MaxConns:         cfg.MaxConns,
+		OperationTimeout: timeout,
+	}, log)
+	if err != nil {
+		if strings.Contains(err.Error(), "parse redis URL") {
+			return nil, fmt.Errorf("failed to parse redis URL: %w", err)
 		}
 		return nil, fmt.Errorf("redis rate limiter ping failed: %w", err)
 	}
@@ -89,7 +80,7 @@ func NewRedisRateLimiter(
 		"prefix", prefix,
 	)
 
-	return newRedisRateLimiterFromClient(client, window, requestsPerSecond, burst, timeout, prefix, log), nil
+	return newRedisRateLimiterFromClient(client.Raw(), window, requestsPerSecond, burst, timeout, prefix, log), nil
 }
 
 func newRedisRateLimiterFromClient(

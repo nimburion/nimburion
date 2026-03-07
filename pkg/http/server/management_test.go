@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
 )
@@ -31,7 +31,7 @@ func (v *testJWTValidator) Validate(ctx context.Context, token string) (*auth.Cl
 
 func TestNewManagementServer(t *testing.T) {
 	// Given: Management server configuration
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -80,7 +80,7 @@ func TestNewManagementServer(t *testing.T) {
 // Requirements: 30.1, 30.3
 func TestManagementServer_HealthEndpoint(t *testing.T) {
 	// Given: A management server
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -128,7 +128,7 @@ func TestManagementServer_HealthEndpoint(t *testing.T) {
 // Requirements: 30.2, 30.4
 func TestManagementServer_ReadyEndpoint_AllHealthy(t *testing.T) {
 	// Given: A management server with healthy dependencies
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -179,7 +179,7 @@ func TestManagementServer_ReadyEndpoint_AllHealthy(t *testing.T) {
 // Requirements: 30.5, 30.6
 func TestManagementServer_ReadyEndpoint_Unhealthy(t *testing.T) {
 	// Given: A management server with an unhealthy dependency
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -228,11 +228,55 @@ func TestManagementServer_ReadyEndpoint_Unhealthy(t *testing.T) {
 	}
 }
 
+func TestManagementServer_ReadyEndpoint_DegradedStaysAvailable(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:         9090,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	r := nethttp.NewRouter()
+	log, err := logger.NewZapLogger(logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+	healthRegistry := health.NewRegistry()
+	metricsRegistry := metrics.NewRegistry()
+
+	healthRegistry.Register(health.NewCustomChecker("degraded-cache", func(ctx context.Context) (health.Status, string, error) {
+		return health.StatusDegraded, "cache is degraded", nil
+	}))
+
+	mgmtServer, err := NewManagementServer(cfg, r, log, healthRegistry, metricsRegistry, nil)
+	if err != nil {
+		t.Fatalf("expected no error creating management server, got %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rec := httptest.NewRecorder()
+	mgmtServer.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", rec.Code)
+	}
+
+	var response health.AggregatedResult
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if response.Status != health.StatusDegraded {
+		t.Errorf("Expected status 'degraded', got %v", response.Status)
+	}
+}
+
 // TestManagementServer_MetricsEndpoint tests the /metrics endpoint
 // Requirements: 13.1, 13.7
 func TestManagementServer_MetricsEndpoint(t *testing.T) {
 	// Given: A management server
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -296,7 +340,7 @@ func TestManagementServer_MetricsEndpoint(t *testing.T) {
 // TestManagementServer_MiddlewareStack tests that middleware is applied correctly
 func TestManagementServer_MiddlewareStack(t *testing.T) {
 	// Given: A management server
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -335,7 +379,7 @@ func TestManagementServer_MiddlewareStack(t *testing.T) {
 // Requirements: 2.3, 2.7
 func TestManagementServer_BindsToConfiguredPort(t *testing.T) {
 	// Given: A management server with a specific port
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9091, // Different from default
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -364,7 +408,7 @@ func TestManagementServer_BindsToConfiguredPort(t *testing.T) {
 }
 
 func TestNewManagementServer_AuthEnabledRequiresValidator(t *testing.T) {
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -387,7 +431,7 @@ func TestNewManagementServer_AuthEnabledRequiresValidator(t *testing.T) {
 }
 
 func TestManagementServer_AuthAndScopes(t *testing.T) {
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -479,7 +523,7 @@ func TestManagementServer_AuthAndScopes(t *testing.T) {
 }
 
 func TestNewManagementServer_MTLSEnabledInvalidFiles(t *testing.T) {
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,

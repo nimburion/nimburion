@@ -1,4 +1,4 @@
-package security
+package safepath
 
 import (
 	"errors"
@@ -19,15 +19,11 @@ func ValidateFilePath(path, baseDir string) error {
 		return ErrInvalidPath
 	}
 
-	// Clean the path
 	cleanPath := filepath.Clean(path)
-
-	// Check for path traversal
 	if strings.Contains(cleanPath, "..") {
 		return ErrPathTraversal
 	}
 
-	// If baseDir is provided, ensure path is within it
 	if baseDir != "" {
 		absBase, err := filepath.Abs(baseDir)
 		if err != nil {

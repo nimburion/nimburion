@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/config"
+	authconfig "github.com/nimburion/nimburion/pkg/auth/config"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/policy"
@@ -109,7 +109,7 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 	}
 }
 
-func ClaimsGuardFromConfig(authCfg config.AuthConfig) router.MiddlewareFunc {
+func ClaimsGuardFromConfig(authCfg authconfig.Config) router.MiddlewareFunc {
 	rules := ClaimRulesFromConfig(authCfg)
 	if len(rules) == 0 {
 		return ClaimsGuardWithMappings(authCfg.Claims.Mappings)
@@ -117,7 +117,7 @@ func ClaimsGuardFromConfig(authCfg config.AuthConfig) router.MiddlewareFunc {
 	return ClaimsGuardWithMappings(authCfg.Claims.Mappings, rules...)
 }
 
-func ClaimRulesFromConfig(authCfg config.AuthConfig) []ClaimRule {
+func ClaimRulesFromConfig(authCfg authconfig.Config) []ClaimRule {
 	rules := make([]ClaimRule, 0, len(authCfg.Claims.Rules))
 	for _, rule := range authCfg.Claims.Rules {
 		claim := strings.TrimSpace(rule.Claim)

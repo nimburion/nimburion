@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nimburion/nimburion/pkg/security"
+	"github.com/nimburion/nimburion/internal/safepath"
 )
 
 // LoadTLSConfig creates an mTLS-ready TLS configuration from certificate files.
@@ -16,7 +16,7 @@ func LoadTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to load server certificate/key: %w", err)
 	}
 
-	if validateErr := security.ValidateFilePath(caFile, ""); validateErr != nil {
+	if validateErr := safepath.ValidateFilePath(caFile, ""); validateErr != nil {
 		return nil, fmt.Errorf("invalid CA certificate path: %w", validateErr)
 	}
 	// #nosec G304 -- caFile is validated before being read.

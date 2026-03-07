@@ -9,7 +9,7 @@ func TestRedisLockProviderConfigNormalize(t *testing.T) {
 	cfg := &RedisLockProviderConfig{}
 	cfg.normalize()
 
-	if cfg.Prefix != "nimburion:scheduler:lock" {
+	if cfg.Prefix != "nimburion:coordination:lock" {
 		t.Errorf("expected default prefix, got %s", cfg.Prefix)
 	}
 	if cfg.OperationTimeout != 3*time.Second {

@@ -21,6 +21,7 @@ The package owns:
 - The package depends on `pkg/http/router` for routing and on `pkg/core/app` for lifecycle orchestration.
 - Public and management routers are injected explicitly; this package no longer selects router implementations from config.
 - Management health and metrics surfaces should use the shared registries passed into `RunHTTPServersOptions`.
+- Management `/health` and `/ready` surfaces consume the posture-backed health registry emitted by `pkg/core/app`.
 - Transport-neutral lifecycle ownership remains in `pkg/core/app`; this package contributes HTTP runtime behavior.
 
 ## Non-Goals
@@ -35,6 +36,7 @@ The package owns:
 - public and management servers are built independently and can be started together through the shared runtime model
 - graceful shutdown is coordinated through `pkg/core/app`
 - management routes keep readiness, liveness, metrics, and version exposure separate from the public API surface
+- readiness now preserves explicit degraded runtime posture instead of collapsing every non-healthy state to unavailable
 - TLS configuration is loaded explicitly from HTTP server settings
 
 ## Testing Expectations

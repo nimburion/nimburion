@@ -33,7 +33,7 @@ func TestPostgresLockProvider_Acquire(t *testing.T) {
 	defer db.Close()
 
 	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
-		Table:            "nimburion_scheduler_locks",
+		Table:            "nimburion_coordination_locks",
 		OperationTimeout: time.Second,
 	}, &schedulerTestLogger{})
 	if err != nil {
@@ -67,7 +67,7 @@ func TestPostgresLockProvider_RenewAndRelease(t *testing.T) {
 	defer db.Close()
 
 	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
-		Table:            "nimburion_scheduler_locks",
+		Table:            "nimburion_coordination_locks",
 		OperationTimeout: time.Second,
 	}, &schedulerTestLogger{})
 	if err != nil {
@@ -76,14 +76,14 @@ func TestPostgresLockProvider_RenewAndRelease(t *testing.T) {
 
 	lease := &coordination.LockLease{Key: "task-1", Token: "token-1"}
 
-	mock.ExpectExec("UPDATE nimburion_scheduler_locks SET expires_at=\\$3, updated_at=NOW\\(\\) WHERE lock_key=\\$1 AND token=\\$2 AND expires_at > NOW\\(\\)").
+	mock.ExpectExec("UPDATE nimburion_coordination_locks SET expires_at=\\$3, updated_at=NOW\\(\\) WHERE lock_key=\\$1 AND token=\\$2 AND expires_at > NOW\\(\\)").
 		WithArgs("task-1", "token-1", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := provider.Renew(context.Background(), lease, time.Second); err != nil {
 		t.Fatalf("renew: %v", err)
 	}
 
-	mock.ExpectExec("DELETE FROM nimburion_scheduler_locks WHERE lock_key=\\$1 AND token=\\$2").
+	mock.ExpectExec("DELETE FROM nimburion_coordination_locks WHERE lock_key=\\$1 AND token=\\$2").
 		WithArgs("task-1", "token-1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := provider.Release(context.Background(), lease); err != nil {
@@ -121,7 +121,7 @@ func TestPostgresLockProvider_RenewRejectsMissingLeaseWithTypedConflict(t *testi
 	defer db.Close()
 
 	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
-		Table:            "nimburion_scheduler_locks",
+		Table:            "nimburion_coordination_locks",
 		OperationTimeout: time.Second,
 	}, &schedulerTestLogger{})
 	if err != nil {
@@ -129,7 +129,7 @@ func TestPostgresLockProvider_RenewRejectsMissingLeaseWithTypedConflict(t *testi
 	}
 
 	lease := &coordination.LockLease{Key: "task-1", Token: "token-1"}
-	mock.ExpectExec("UPDATE nimburion_scheduler_locks SET expires_at=\\$3, updated_at=NOW\\(\\) WHERE lock_key=\\$1 AND token=\\$2 AND expires_at > NOW\\(\\)").
+	mock.ExpectExec("UPDATE nimburion_coordination_locks SET expires_at=\\$3, updated_at=NOW\\(\\) WHERE lock_key=\\$1 AND token=\\$2 AND expires_at > NOW\\(\\)").
 		WithArgs("task-1", "token-1", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -150,7 +150,7 @@ func TestPostgresLockProvider_ReleaseRejectsMissingLeaseWithTypedConflict(t *tes
 	defer db.Close()
 
 	provider, err := newPostgresLockProviderWithDB(db, PostgresLockProviderConfig{
-		Table:            "nimburion_scheduler_locks",
+		Table:            "nimburion_coordination_locks",
 		OperationTimeout: time.Second,
 	}, &schedulerTestLogger{})
 	if err != nil {
@@ -158,7 +158,7 @@ func TestPostgresLockProvider_ReleaseRejectsMissingLeaseWithTypedConflict(t *tes
 	}
 
 	lease := &coordination.LockLease{Key: "task-1", Token: "token-1"}
-	mock.ExpectExec("DELETE FROM nimburion_scheduler_locks WHERE lock_key=\\$1 AND token=\\$2").
+	mock.ExpectExec("DELETE FROM nimburion_coordination_locks WHERE lock_key=\\$1 AND token=\\$2").
 		WithArgs("task-1", "token-1").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 

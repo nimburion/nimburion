@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/featureflag"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/authorization"
@@ -16,6 +16,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/http/middleware/recovery"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
 	"github.com/nimburion/nimburion/pkg/http/router"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
 )
@@ -45,7 +46,7 @@ type ManagementServer struct {
 //
 // Requirements: 2.3, 2.4, 2.5, 30.1, 30.2, 30.3, 13.1, 13.7
 func NewManagementServer(
-	cfg config.ManagementConfig,
+	cfg serverconfig.ManagementConfig,
 	r router.Router,
 	log logger.Logger,
 	healthRegistry *health.Registry,
@@ -130,8 +131,19 @@ func managementSecurityMiddleware(authEnabled bool, validator auth.JWTValidator,
 //
 // Requirements: 30.1, 30.3
 func (s *ManagementServer) handleHealth(c router.Context) error {
+	if s.healthRegistry != nil {
+		result, err := s.healthRegistry.CheckOne(c.Request().Context(), featureflag.CheckNameRuntimeLiveness)
+		if err == nil {
+			statusCode := http.StatusOK
+			if result.Status == health.StatusUnhealthy {
+				statusCode = http.StatusServiceUnavailable
+			}
+			return c.JSON(statusCode, result)
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"status": "healthy",
+		"status": health.StatusHealthy,
 	})
 }
 
@@ -148,7 +160,7 @@ func (s *ManagementServer) handleReady(c router.Context) error {
 
 	// Return 503 if any dependency is unhealthy
 	// Requirements: 30.6
-	if !result.IsHealthy() {
+	if !result.IsReady() {
 		return c.JSON(http.StatusServiceUnavailable, result)
 	}
 

@@ -17,9 +17,9 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/nimburion/nimburion/pkg/auth"
-	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
 )
@@ -549,7 +549,7 @@ func newSecurityPropertyServer(t *testing.T, authEnabled bool, validator auth.JW
 	healthRegistry := health.NewRegistry()
 	healthRegistry.Register(health.NewPingChecker("ready-check"))
 	metricsRegistry := metrics.NewRegistry()
-	cfg := config.ManagementConfig{
+	cfg := serverconfig.ManagementConfig{
 		Port:         9090,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
