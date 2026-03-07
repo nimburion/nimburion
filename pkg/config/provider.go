@@ -37,12 +37,12 @@ func (p *ConfigProvider) WithFlags(flags *pflag.FlagSet) *ConfigProvider {
 	return p
 }
 
-// WithServiceNameDefault sets a default service name if not configured
-func (p *ConfigProvider) WithServiceNameDefault(serviceName string) *ConfigProvider {
+// WithAppNameDefault sets a default app name if not configured.
+func (p *ConfigProvider) WithAppNameDefault(appName string) *ConfigProvider {
 	if p == nil || p.loader == nil {
 		return p
 	}
-	p.loader.WithServiceNameDefault(serviceName)
+	p.loader.WithAppNameDefault(appName)
 	return p
 }
 
@@ -81,7 +81,7 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	p.loader.setDefaults(p.v, defaults)
 
 	for _, extension := range extensions {
-		if err := applyExtensionDefaults(p.v, extension); err != nil {
+		if err := applyConfigDefaults(p.v, extension); err != nil {
 			return nil, err
 		}
 	}
@@ -113,15 +113,12 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 
 	p.v.SetEnvPrefix(p.loader.envPrefix)
-	if err := p.loader.bindLegacyEnvVars(); err != nil {
-		return nil, fmt.Errorf("failed to bind legacy environment variables: %w", err)
-	}
 	if err := p.loader.bindEnvVars(p.v); err != nil {
 		return nil, fmt.Errorf("failed to bind environment variables: %w", err)
 	}
 
 	for _, extension := range extensions {
-		if err := bindExtensionEnv(p.v, extension); err != nil {
+		if err := bindConfigEnv(p.v, p.loader.envPrefix, extension); err != nil {
 			return nil, err
 		}
 	}
@@ -142,6 +139,17 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 	if err := p.loader.Validate(core); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
+	for _, extension := range builtInConfigExtensions() {
+		if err := unmarshalCoreExtension(core, extension); err != nil {
+			return nil, err
+		}
+		if validator, ok := extension.(extensionValidator); ok {
+			if err := validator.Validate(); err != nil {
+				return nil, fmt.Errorf("extension config validation failed: %w", err)
+			}
+		}
 	}
 
 	for _, extension := range extensions {
@@ -299,6 +307,13 @@ func collectConfigFields(target interface{}) ([]configField, error) {
 	fields := make([]configField, 0, elem.NumField())
 	collectFieldsRecursive(elem.Type(), "", &fields)
 	return fields, nil
+}
+
+func unmarshalCoreExtension(core *Config, extension interface{}) error {
+	if core == nil || extension == nil {
+		return nil
+	}
+	return remapCoreExtension(core, extension)
 }
 
 func collectFieldsRecursive(structType reflect.Type, prefix string, out *[]configField) {

@@ -1,11 +1,11 @@
-package configschema
+package schema
 
 import "testing"
 
-type nestedServiceExtension struct {
-	Service struct {
+type nestedAppExtension struct {
+	App struct {
 		Foo string `mapstructure:"foo"`
-	} `mapstructure:"service"`
+	} `mapstructure:"app"`
 }
 
 type disableCoreSectionsExtension struct{}
@@ -29,20 +29,20 @@ func TestBuildSchema_UsesEventBusRootKey(t *testing.T) {
 }
 
 func TestBuildSchema_MergesNestedExtensionIntoCoreSection(t *testing.T) {
-	schema, err := BuildSchema(nestedServiceExtension{})
+	schema, err := BuildSchema(nestedAppExtension{})
 	if err != nil {
 		t.Fatalf("build schema: %v", err)
 	}
 
-	serviceSchema := schema.Properties["service"]
-	if serviceSchema == nil {
-		t.Fatal("expected service section in schema")
+	appSchema := schema.Properties["app"]
+	if appSchema == nil {
+		t.Fatal("expected app section in schema")
 	}
-	if _, ok := serviceSchema.Properties["name"]; !ok {
-		t.Fatal("expected core service.name property to be preserved")
+	if _, ok := appSchema.Properties["name"]; !ok {
+		t.Fatal("expected core app.name property to be preserved")
 	}
-	if _, ok := serviceSchema.Properties["foo"]; !ok {
-		t.Fatal("expected extension service.foo property to be merged")
+	if _, ok := appSchema.Properties["foo"]; !ok {
+		t.Fatal("expected extension app.foo property to be merged")
 	}
 }
 

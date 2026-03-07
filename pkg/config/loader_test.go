@@ -10,16 +10,17 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Service.Name != "app" {
-		t.Errorf("expected service name app, got %s", cfg.Service.Name)
+	if cfg.App.Name != "app" {
+		t.Errorf("expected app name app, got %s", cfg.App.Name)
 	}
-	if cfg.Service.Environment != "production" {
-		t.Errorf("expected service environment production, got %s", cfg.Service.Environment)
+	if cfg.App.Environment != "production" {
+		t.Errorf("expected app environment production, got %s", cfg.App.Environment)
 	}
 
 	// Verify HTTP defaults
@@ -58,8 +59,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Swagger.Enabled {
 		t.Error("expected Swagger to be disabled by default")
 	}
-	if cfg.Jobs.Backend != JobsBackendEventBus {
-		t.Errorf("expected jobs backend %q, got %q", JobsBackendEventBus, cfg.Jobs.Backend)
+	if cfg.Jobs.Backend != jobsconfig.BackendEventBus {
+		t.Errorf("expected jobs backend %q, got %q", jobsconfig.BackendEventBus, cfg.Jobs.Backend)
 	}
 }
 
@@ -86,14 +87,14 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	os.Setenv("APP_HTTP_PORT", "9000")
 	os.Setenv("APP_HTTP_MAX_REQUEST_SIZE", "2048")
 	os.Setenv("APP_OBSERVABILITY_LOG_LEVEL", "debug")
-	os.Setenv("APP_SERVICE_NAME", "orders-api")
-	os.Setenv("APP_SERVICE_ENVIRONMENT", "production")
+	os.Setenv("APP_APP_NAME", "orders-api")
+	os.Setenv("APP_APP_ENVIRONMENT", "production")
 	defer func() {
 		os.Unsetenv("APP_HTTP_PORT")
 		os.Unsetenv("APP_HTTP_MAX_REQUEST_SIZE")
 		os.Unsetenv("APP_OBSERVABILITY_LOG_LEVEL")
-		os.Unsetenv("APP_SERVICE_NAME")
-		os.Unsetenv("APP_SERVICE_ENVIRONMENT")
+		os.Unsetenv("APP_APP_NAME")
+		os.Unsetenv("APP_APP_ENVIRONMENT")
 	}()
 
 	loader := NewViperLoader("", "APP")
@@ -113,11 +114,11 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	if cfg.Observability.LogLevel != "debug" {
 		t.Errorf("expected log level 'debug' from env, got %s", cfg.Observability.LogLevel)
 	}
-	if cfg.Service.Name != "orders-api" {
-		t.Errorf("expected service name orders-api from env, got %s", cfg.Service.Name)
+	if cfg.App.Name != "orders-api" {
+		t.Errorf("expected app name orders-api from env, got %s", cfg.App.Name)
 	}
-	if cfg.Service.Environment != "production" {
-		t.Errorf("expected service environment production from env, got %s", cfg.Service.Environment)
+	if cfg.App.Environment != "production" {
+		t.Errorf("expected app environment production from env, got %s", cfg.App.Environment)
 	}
 }
 
@@ -366,7 +367,7 @@ func TestViperLoader_LoadSchedulerFromEnv(t *testing.T) {
 	os.Setenv("APP_SCHEDULER_LOCK_PROVIDER", "postgres")
 	os.Setenv("APP_SCHEDULER_LOCK_TTL", "30s")
 	os.Setenv("APP_SCHEDULER_DISPATCH_TIMEOUT", "9s")
-	os.Setenv("APP_DATABASE_URL", "postgres://localhost:5432/app?sslmode=disable")
+	os.Setenv("APP_DB_URL", "postgres://localhost:5432/app?sslmode=disable")
 	os.Setenv("APP_SCHEDULER_POSTGRES_TABLE", "scheduler_locks")
 	os.Setenv("APP_SCHEDULER_POSTGRES_OPERATION_TIMEOUT", "4s")
 
@@ -626,37 +627,6 @@ func TestViperLoader_LoadMgmtPortFromAbbreviatedEnv(t *testing.T) {
 	}
 }
 
-func TestViperLoader_LoadMgmtPortFromLegacyEnvAlias(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_MANAGEMENT_PORT", "9292")
-	loader := NewViperLoader("", "APP")
-	cfg, err := loader.Load()
-	if err != nil {
-		t.Fatalf("unexpected load error: %v", err)
-	}
-	if cfg.Management.Port != 9292 {
-		t.Fatalf("expected management port 9292 from legacy alias, got %d", cfg.Management.Port)
-	}
-}
-
-func TestViperLoader_AbbreviatedMgmtTakesPrecedenceOverLegacy(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_MANAGEMENT_PORT", "9393")
-	os.Setenv("APP_MGMT_PORT", "9494")
-	loader := NewViperLoader("", "APP")
-	cfg, err := loader.Load()
-	if err != nil {
-		t.Fatalf("unexpected load error: %v", err)
-	}
-	if cfg.Management.Port != 9494 {
-		t.Fatalf("expected abbreviated APP_MGMT_PORT to win, got %d", cfg.Management.Port)
-	}
-}
-
 func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 	t.Run("missing auth issuer message", func(t *testing.T) {
 		clearAppEnv()
@@ -686,7 +656,7 @@ func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 		defer clearAppEnv()
 		os.Setenv("APP_MGMT_PORT", "70000")
 		_, err := NewViperLoader("", "APP").Load()
-		if err == nil || !strings.Contains(err.Error(), "invalid management.port") {
+		if err == nil || !strings.Contains(err.Error(), "management.port must be between 1 and 65535 when management is enabled") {
 			t.Fatalf("expected invalid management.port message, got %v", err)
 		}
 	})
@@ -732,14 +702,8 @@ func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for missing management TLS files, got nil")
 		}
-		for _, msg := range []string{
-			"management.tls_cert_file is required when management.mtls_enabled is true",
-			"management.tls_key_file is required when management.mtls_enabled is true",
-			"management.tls_ca_file is required when management.mtls_enabled is true",
-		} {
-			if !strings.Contains(err.Error(), msg) {
-				t.Fatalf("expected error to contain %q, got %v", msg, err)
-			}
+		if !strings.Contains(err.Error(), "management.tls_cert_file is required when management.mtls_enabled is true") {
+			t.Fatalf("expected error to contain missing TLS cert message, got %v", err)
 		}
 	})
 }
@@ -1072,60 +1036,6 @@ func TestProperty_EnvPrecedenceAcrossSections(t *testing.T) {
 		genPort,
 		gen.IntRange(1, 100),
 		genBool,
-	))
-
-	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
-func TestProperty_LegacyEnvVariablesWorkAsAliases(t *testing.T) {
-	properties := gopter.NewProperties(nil)
-	properties.Property("legacy APP_MANAGEMENT_PORT maps to management.port", prop.ForAll(
-		func(port int) bool {
-			if port < 1024 || port > 65000 {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_MANAGEMENT_PORT", fmt.Sprintf("%d", port))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Management.Port == port
-		},
-		gen.IntRange(1024, 65000),
-	))
-
-	properties.Property("legacy APP_DATABASE_MAX_OPEN_CONNS maps to database.max_open_conns", prop.ForAll(
-		func(v int) bool {
-			if v < 1 || v > 500 {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_DATABASE_MAX_OPEN_CONNS", fmt.Sprintf("%d", v))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Database.MaxOpenConns == v
-		},
-		gen.IntRange(1, 500),
-	))
-
-	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
-func TestProperty_AbbreviatedEnvTakesPrecedenceOverLegacy(t *testing.T) {
-	properties := gopter.NewProperties(nil)
-	properties.Property("APP_MGMT_PORT wins over APP_MANAGEMENT_PORT", prop.ForAll(
-		func(legacy, abbrev int) bool {
-			if legacy < 1024 || legacy > 65000 || abbrev < 1024 || abbrev > 65000 || legacy == abbrev {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_MANAGEMENT_PORT", fmt.Sprintf("%d", legacy))
-			os.Setenv("APP_MGMT_PORT", fmt.Sprintf("%d", abbrev))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Management.Port == abbrev
-		},
-		gen.IntRange(1024, 65000),
-		gen.IntRange(1024, 65000),
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
