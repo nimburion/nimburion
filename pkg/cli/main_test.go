@@ -1,19 +1,29 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 
+	"github.com/nimburion/nimburion/pkg/cache"
 	"github.com/nimburion/nimburion/pkg/config"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	"github.com/nimburion/nimburion/pkg/core/feature"
+	"github.com/nimburion/nimburion/pkg/descriptor"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/health"
+	httpopenapi "github.com/nimburion/nimburion/pkg/http/openapi"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/jobs"
+	jobsfeature "github.com/nimburion/nimburion/pkg/jobs/feature"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	relationalmigrate "github.com/nimburion/nimburion/pkg/persistence/relational/migrate"
 	"github.com/nimburion/nimburion/pkg/scheduler"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type testCLIFeature struct {
@@ -80,9 +90,9 @@ func TestResolveServiceNameValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveServiceNameValue(tt.currentConfigName, tt.defaultService, tt.override)
+			got := resolveAppNameValue(tt.currentConfigName, tt.defaultService, tt.override)
 			if got != tt.want {
-				t.Fatalf("resolveServiceNameValue() = %q, want %q", got, tt.want)
+				t.Fatalf("resolveAppNameValue() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -110,14 +120,18 @@ func TestNewAppCommand_AddsCompletionByDefault(t *testing.T) {
 }
 
 func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
+	jobsFeature := jobsfeature.NewCommandFeature(jobsfeature.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+		ConfigureWorker: func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error { return nil },
+	})
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
-		IncludeJobs: true,
-		ConfigureJobsWorker: func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error {
-			return nil
-		},
+		Features:    []feature.Feature{jobsFeature},
 	})
 
 	workerCmd, _, err := cmd.Find([]string{"jobs", "worker"})
@@ -134,11 +148,17 @@ func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
 }
 
 func TestNewAppCommand_AddsJobsOpsCommands(t *testing.T) {
+	jobsFeature := jobsfeature.NewCommandFeature(jobsfeature.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+	})
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
 		Description: "test service",
 		ConfigPath:  "",
-		IncludeJobs: true,
+		Features:    []feature.Feature{jobsFeature},
 	})
 
 	enqueueCmd, _, err := cmd.Find([]string{"jobs", "enqueue"})
@@ -167,14 +187,18 @@ func TestNewAppCommand_AddsJobsOpsCommands(t *testing.T) {
 }
 
 func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
-	cmd := NewAppCommand(AppCommandOptions{
-		Name:             "testsvc",
-		Description:      "test service",
-		ConfigPath:       "",
-		IncludeScheduler: true,
-		ConfigureScheduler: func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error {
-			return nil
+	schedulerFeature := scheduler.NewCommandFeature(scheduler.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
 		},
+		ConfigureRuntime: func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error { return nil },
+	})
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+		Features:    []feature.Feature{schedulerFeature},
 	})
 
 	runCmd, _, err := cmd.Find([]string{"scheduler", "run"})
@@ -191,11 +215,17 @@ func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
 }
 
 func TestNewAppCommand_AddsSchedulerOpsCommands(t *testing.T) {
+	schedulerFeature := scheduler.NewCommandFeature(scheduler.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+	})
 	cmd := NewAppCommand(AppCommandOptions{
-		Name:             "testsvc",
-		Description:      "test service",
-		ConfigPath:       "",
-		IncludeScheduler: true,
+		Name:        "testsvc",
+		Description: "test service",
+		ConfigPath:  "",
+		Features:    []feature.Feature{schedulerFeature},
 	})
 
 	validateCmd, _, err := cmd.Find([]string{"scheduler", "validate"})
@@ -212,48 +242,6 @@ func TestNewAppCommand_AddsSchedulerOpsCommands(t *testing.T) {
 	}
 	if triggerCmd == nil || triggerCmd.Name() != "trigger" {
 		t.Fatalf("expected trigger command, got %#v", triggerCmd)
-	}
-}
-
-func TestResolveWorkerQueues(t *testing.T) {
-	tests := []struct {
-		name          string
-		flagQueues    []string
-		defaultQueue  string
-		expectedQueue []string
-	}{
-		{
-			name:          "uses flags",
-			flagQueues:    []string{"payments", "emails"},
-			defaultQueue:  "default",
-			expectedQueue: []string{"payments", "emails"},
-		},
-		{
-			name:          "falls back to config default",
-			flagQueues:    []string{"", " "},
-			defaultQueue:  "jobs-default",
-			expectedQueue: []string{"jobs-default"},
-		},
-		{
-			name:          "falls back to framework default",
-			flagQueues:    nil,
-			defaultQueue:  "",
-			expectedQueue: []string{"default"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := resolveWorkerQueues(tt.flagQueues, tt.defaultQueue)
-			if len(got) != len(tt.expectedQueue) {
-				t.Fatalf("expected %d queues, got %d", len(tt.expectedQueue), len(got))
-			}
-			for idx := range got {
-				if got[idx] != tt.expectedQueue[idx] {
-					t.Fatalf("queue[%d] = %q, want %q", idx, got[idx], tt.expectedQueue[idx])
-				}
-			}
-		})
 	}
 }
 
@@ -317,6 +305,70 @@ func TestNewAppCommand_AddsFeatureContributedCommand(t *testing.T) {
 	}
 }
 
+func TestNewAppCommand_AddsCacheFromFeatureContribution(t *testing.T) {
+	cacheFeature := cache.NewCommandFeature(cache.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+		Clean: func(ctx context.Context, cfg *config.Config, log logger.Logger, pattern string) error {
+			return nil
+		},
+	})
+
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Features:    []feature.Feature{cacheFeature},
+	})
+
+	cacheCmd, _, err := cmd.Find([]string{"cache", "clean"})
+	if err != nil {
+		t.Fatalf("expected cache clean command, got error: %v", err)
+	}
+	if cacheCmd == nil || cacheCmd.Name() != "clean" {
+		t.Fatalf("expected clean command, got %#v", cacheCmd)
+	}
+}
+
+func TestNewAppCommand_DoesNotAddMigrateWithoutFeatureContribution(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+	})
+
+	migrateCmd, _, err := cmd.Find([]string{"migrate"})
+	if err == nil && migrateCmd != nil && migrateCmd.Name() == "migrate" {
+		t.Fatalf("expected migrate command to be absent without feature contribution")
+	}
+}
+
+func TestNewAppCommand_AddsMigrateFromFeatureContribution(t *testing.T) {
+	migrateFeature := relationalmigrate.NewCommandFeature(relationalmigrate.CommandFeatureOptions{
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+		Run: func(ctx context.Context, cfg *config.Config, log logger.Logger, direction string, args []string) error {
+			return nil
+		},
+	})
+
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Features:    []feature.Feature{migrateFeature},
+	})
+
+	migrateCmd, _, err := cmd.Find([]string{"migrate"})
+	if err != nil {
+		t.Fatalf("expected migrate command, got error: %v", err)
+	}
+	if migrateCmd == nil || migrateCmd.Name() != "migrate" {
+		t.Fatalf("expected migrate command, got %#v", migrateCmd)
+	}
+}
+
 func TestNewAppCommand_AddsIntrospectCommand(t *testing.T) {
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testapp",
@@ -332,6 +384,61 @@ func TestNewAppCommand_AddsIntrospectCommand(t *testing.T) {
 	}
 }
 
+func TestNewAppCommand_AddsDescribeCommand(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+	})
+
+	describeCmd, _, err := cmd.Find([]string{"describe"})
+	if err != nil {
+		t.Fatalf("expected describe command, got error: %v", err)
+	}
+	if describeCmd == nil || describeCmd.Name() != "describe" {
+		t.Fatalf("expected describe command, got %#v", describeCmd)
+	}
+}
+
+func TestDescribeCommand_EmitsDescriptorJSON(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Run:         func(ctx context.Context, cfg *config.Config, log logger.Logger) error { return nil },
+		Descriptor: descriptor.Options{
+			Application: descriptor.Application{
+				Kind:        descriptor.ApplicationKindService,
+				TenancyMode: descriptor.TenancyModeSingleTenant,
+			},
+			Transports: []descriptor.Transport{
+				{Family: descriptor.TransportFamilyHTTP},
+			},
+		},
+	})
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"describe", "--format", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute describe: %v", err)
+	}
+
+	var payload descriptor.Descriptor
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal descriptor output: %v\noutput=%s", err, out.String())
+	}
+	if payload.DescriptorVersion != descriptor.VersionV1 {
+		t.Fatalf("expected descriptor version %q, got %q", descriptor.VersionV1, payload.DescriptorVersion)
+	}
+	if payload.Application.Name != "testapp" {
+		t.Fatalf("expected app name testapp, got %q", payload.Application.Name)
+	}
+	if payload.Runtime.DefaultCommand != "run" {
+		t.Fatalf("expected run as default command, got %q", payload.Runtime.DefaultCommand)
+	}
+}
+
 func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testapp",
@@ -344,6 +451,40 @@ func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
 	if schedulerCmd, _, err := cmd.Find([]string{"scheduler"}); err == nil && schedulerCmd != nil && schedulerCmd.Name() == "scheduler" {
 		t.Fatalf("expected scheduler command to be omitted by default for app command")
 	}
+	if cacheCmd, _, err := cmd.Find([]string{"cache"}); err == nil && cacheCmd != nil && cacheCmd.Name() == "cache" {
+		t.Fatalf("expected cache command to be omitted by default for app command")
+	}
+	if openAPICmd, _, err := cmd.Find([]string{"openapi"}); err == nil && openAPICmd != nil && openAPICmd.Name() == "openapi" {
+		t.Fatalf("expected openapi command to be omitted by default for app command")
+	}
+}
+
+func TestNewAppCommand_AddsOpenAPIFromFeatureContribution(t *testing.T) {
+	openAPIFeature := httpopenapi.NewCommandFeature(httpopenapi.CommandFeatureOptions{
+		RegisterRoutes: func(r router.Router, _ *config.Config) {
+			r.GET("/ping", func(c router.Context) error { return nil })
+		},
+		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+			return config.DefaultConfig(), log, nil
+		},
+		ServiceName:    "testapp",
+		ServiceVersion: "dev",
+	})
+
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Features:    []feature.Feature{openAPIFeature},
+	})
+
+	openAPICmd, _, err := cmd.Find([]string{"openapi"})
+	if err != nil {
+		t.Fatalf("expected openapi command, got error: %v", err)
+	}
+	if openAPICmd == nil || openAPICmd.Name() != "openapi" {
+		t.Fatalf("expected openapi command, got %#v", openAPICmd)
+	}
 }
 
 func TestShouldCheckJobsRuntimeHealth(t *testing.T) {
@@ -352,7 +493,7 @@ func TestShouldCheckJobsRuntimeHealth(t *testing.T) {
 		t.Fatal("expected default config to skip jobs runtime health checks")
 	}
 
-	cfg.EventBus.Type = config.EventBusTypeKafka
+	cfg.EventBus.Type = eventbusconfig.EventBusTypeKafka
 	if !shouldCheckJobsRuntimeHealth(cfg) {
 		t.Fatal("expected jobs runtime health checks when eventbus is configured")
 	}
@@ -364,6 +505,13 @@ func TestHealthCheckResultError(t *testing.T) {
 		Status: health.StatusHealthy,
 	}); err != nil {
 		t.Fatalf("expected nil error for healthy status, got %v", err)
+	}
+
+	if err := healthCheckResultError(health.CheckResult{
+		Name:   "degraded",
+		Status: health.StatusDegraded,
+	}); err != nil {
+		t.Fatalf("expected nil error for degraded status, got %v", err)
 	}
 
 	err := healthCheckResultError(health.CheckResult{
@@ -416,6 +564,22 @@ func TestRunHealthcheckWithRegistry_ReturnsApplicationDependencyFailures(t *test
 	})
 	if err == nil || !strings.Contains(err.Error(), "application-dependencies") {
 		t.Fatalf("expected application dependency failure, got %v", err)
+	}
+}
+
+func TestRunHealthcheckWithRegistry_AllowsDegradedState(t *testing.T) {
+	registry := health.NewRegistry()
+	registry.Register(health.NewCustomChecker("degraded-check", func(ctx context.Context) (health.Status, string, error) {
+		return health.StatusDegraded, "degraded but serving", nil
+	}))
+
+	err := runHealthcheckWithRegistry(context.Background(), healthcheckRuntimeOptions{
+		name:     "testapp",
+		cfg:      config.DefaultConfig(),
+		registry: registry,
+	})
+	if err != nil {
+		t.Fatalf("expected degraded healthcheck to stay ready, got %v", err)
 	}
 }
 
