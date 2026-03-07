@@ -1,6 +1,6 @@
 # Test Infrastructure
 
-This document describes the current test infrastructure used by the repo and the direction it should follow during the refactor.
+This document describes the test infrastructure used by the repo and the expected direction for remaining verification work.
 
 ## Current Infrastructure
 

@@ -1,5 +1,8 @@
 # Refactoring User Stories
 
+> Current branch state: this document describes desired interactions and acceptance criteria, not a claim that every legacy package named in the stories still exists.
+> Historical mapping: story language may refer to legacy roots because it captures the original problem statement the refactor is solving.
+
 This document captures the user stories behind the refactor so the work stays grounded in real interactions, not only package moves.
 
 It complements:

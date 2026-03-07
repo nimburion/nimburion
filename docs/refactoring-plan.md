@@ -1,5 +1,8 @@
 # Refactoring Plan
 
+> Current branch state: several source package roots mentioned below as move origins are already removed on this branch.
+> Historical mapping: package-move tables and milestone references preserve refactor provenance and execution order.
+
 This document turns the target architecture in [refactoring-requirements.md](./refactoring-requirements.md) into an execution plan.
 The target package boundaries and runtime model are described in [refactoring-design.md](./refactoring-design.md).
 Actors and workflow-level goals are described in [refactoring-user-stories.md](./refactoring-user-stories.md).
@@ -12,6 +15,12 @@ Cross-repo alignment for `nimbctl` is tracked in [nimbctl-alignment-plan.md](./n
 - The preferred strategy is a clean move toward the target package model, not a long-lived compatibility layer.
 - Current packages remain accurate for the running codebase until they are replaced, but they should be deleted once their target replacements are stable.
 - New framework code must follow this plan, even while old packages still exist in the tree.
+
+## Current Branch State Versus Historical Mapping
+
+- The package-move tables in this document are historical execution mappings, not a statement that every source package still exists on the current branch.
+- On the current branch, `pkg/server`, `pkg/controller`, `pkg/repository`, `pkg/migrate`, and `pkg/store` have already been removed.
+- When this document references those roots in move tables or milestone text, read them as refactor provenance, not as active package locations.
 
 ## End-State Overview
 
@@ -113,7 +122,7 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 
 - Freeze the target architecture in docs.
 - Mark legacy/current-implementation docs that would otherwise guide new code incorrectly.
-- Define package-level no-new-code rules for `pkg/store`, `pkg/server`, and `pkg/configschema`, and explicitly steer former `pkg/controller` responsibilities into their target-state packages.
+- Define package-level no-new-code rules for `pkg/store` and `pkg/configschema`, and explicitly steer former `pkg/server` and `pkg/controller` responsibilities into their target-state packages.
 
 ### Tasks
 
@@ -124,7 +133,7 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 ### Done
 
 - New contributors can distinguish current implementation docs from target architecture docs.
-- New framework work no longer uses `pkg/store`, `pkg/configschema`, or factory-based router selection as the default pattern, and former `pkg/controller` responsibilities are handled by `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input`.
+- New framework work no longer uses `pkg/store`, `pkg/configschema`, or factory-based router selection as the default pattern, and former `pkg/server` / `pkg/controller` responsibilities are handled by `pkg/http/*` and `pkg/core/errors`.
 
 ### Milestone 1: Core Runtime And CLI
 

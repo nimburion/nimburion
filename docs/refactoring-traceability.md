@@ -1,5 +1,8 @@
 # Refactoring Traceability Matrix
 
+> Current branch state: milestone links point to the current target families on this branch even when the originating legacy roots are already gone.
+> Historical mapping: story summaries and milestone associations preserve the original migration intent and should be read as traceability, not live package inventory.
+
 This document maps user stories to the requirement areas, design sections, and primary implementation milestones that realize them.
 
 It complements:
