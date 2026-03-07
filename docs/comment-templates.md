@@ -1,83 +1,466 @@
-# Comment Templates for Remaining Exports
+# Comment Guide for Exported API
 
-Use these templates to quickly add comments to remaining exported types.
+Use this guide when writing comments for exported symbols in Nimburion during the refactor.
 
-## Constants
+The goal is not to satisfy lint with low-value comments. The goal is to make public contracts understandable.
+
+## Rule Of Thumb
+
+An exported comment should answer at least one of these:
+
+- what contract does this symbol expose?
+- when should it be used?
+- what responsibility does it own?
+- what does it explicitly not do?
+
+If the comment only restates the name, it is probably not useful.
+
+## Prefer Contract Comments Over Filler
+
+Weak:
 
 ```go
-// ConstantName describes what this constant represents
-const ConstantName = "value"
+// Manager manages things.
+type Manager struct {}
 ```
 
-## Types
+Better:
 
 ```go
-// TypeName describes the purpose of this type
+// Manager coordinates local SSE subscribers and fan-out for one process.
+type Manager struct {}
+```
+
+Weak:
+
+```go
+// Validate validates the config.
+func Validate(cfg Config) error {}
+```
+
+Better:
+
+```go
+// Validate checks semantic configuration rules after file, env, and flag values are merged.
+func Validate(cfg Config) error {}
+```
+
+## When Not To Export
+
+If a symbol is not part of the intended public contract:
+
+- make it unexported instead of documenting it
+- avoid exporting helpers only because they are convenient in one package
+- keep vendor plumbing and glue code in `internal/...` when it is not part of the framework API
+
+## Comment Patterns By Symbol Kind
+
+## Packages
+
+Package comments should describe:
+
+- the family or role the package represents
+- the level of abstraction it exposes
+- the kinds of implementations expected under it
+
+Example:
+
+```go
+// Package cache defines the cache role contracts used by framework features and applications.
+package cache
+```
+
+## Interfaces
+
+Interface comments should explain:
+
+- the contract boundary
+- the minimum semantics callers can rely on
+- portability limits when relevant
+
+Template:
+
+```go
+// InterfaceName defines the minimum contract for ...
+//
+// Callers may rely on ...
+// Implementations are expected to ...
+type InterfaceName interface {
+    // ...
+}
+```
+
+Example:
+
+```go
+// EventBus defines the durable messaging contract used by publishers and consumers.
+//
+// Callers may rely on publish, subscribe, and health semantics only.
+// Broker-specific routing and partition details are not part of this contract.
+type EventBus interface {
+    // ...
+}
+```
+
+## Struct Types
+
+Struct comments should say whether the type is:
+
+- a config object
+- a runtime component
+- an adapter
+- a request/response model
+- an error or descriptor
+
+Template:
+
+```go
+// TypeName describes ...
 type TypeName struct {
     // ...
 }
 ```
 
-## Functions
+Examples:
 
 ```go
-// FunctionName does something specific
-func FunctionName() {}
+// Config holds the HTTP server settings owned by the HTTP feature.
+type Config struct {
+    // ...
+}
+```
+
+```go
+// Descriptor describes the machine-readable application contract consumed by nimbctl.
+type Descriptor struct {
+    // ...
+}
+```
+
+## Refactor Review Guardrails
+
+Use these review prompts when a change touches transport or contract packages during the refactor.
+
+### Legacy Root Expansion
+
+Bad direction:
+
+- new framework behavior added under `pkg/configschema`
+- new framework behavior added under a removed legacy root such as `pkg/store` on branches where that root is already gone
+- new framework behavior reintroduced under a replacement-free legacy root after it has already been split, such as recreating `pkg/controller` responsibilities outside `pkg/http/response`, `pkg/http/input`, or `pkg/core/errors`
+- a refactor keeps extending a transitional package instead of moving the responsibility to the target family
+
+Review questions:
+
+- is this change adding new code to a package root that the refactor has frozen?
+- should this responsibility move to `pkg/persistence/*`, `pkg/http/*`, `pkg/grpc/*`, or `pkg/config/schema` now instead of later?
+
+### gRPC Placement
+
+Bad direction:
+
+- gRPC listener, interceptor, reflection, health, or status code added under `pkg/http`
+- gRPC transport bootstrap added under `pkg/server`
+
+Review question:
+
+- does this code belong under `pkg/grpc` instead of a shared or HTTP-specific package?
+
+### Core Transport Leakage
+
+Bad direction:
+
+- `pkg/core` imports HTTP or gRPC runtime packages
+- app lifecycle code starts owning transport bootstrap details
+
+Review question:
+
+- is `pkg/core` staying transport-agnostic while transport families own their runtime wiring?
+
+### Shared Policy Leakage
+
+Bad direction:
+
+- transport-specific auth details added to shared policy packages
+- gRPC metadata credential handling embedded in reusable authorization contracts
+
+Review question:
+
+- is transport-specific auth glue staying inside the transport family while shared policy contracts remain reusable?
+
+### Family Versus Provider
+
+Bad direction:
+
+- Protobuf treated as the definition of the gRPC family
+- OpenAPI treated as the definition of the HTTP family
+
+Review question:
+
+- is the code modeling a transport family or only one contract-validation provider inside that family?
+
+### Streaming Semantics
+
+Bad direction:
+
+- unary and streaming handlers collapsed into one abstraction that hides cancellation, deadline, or flow-control semantics
+
+Review question:
+
+- does the abstraction preserve the behavior differences the framework explicitly promises?
+
+### Optional Capabilities
+
+Bad direction:
+
+- reflection or health exposure made mandatory for every gRPC application
+
+Review question:
+
+- is this capability optional and debug or environment aware where the framework says it should be?
+
+## Config Structs
+
+Config comments should state:
+
+- which feature owns the config
+- whether it is core or feature-local
+- whether it is runtime config, descriptor config, or generation config
+
+Example:
+
+```go
+// Config holds the settings for the relational migration feature.
+type Config struct {
+    // ...
+}
+```
+
+## Constructors
+
+Constructor comments should say what is built and at what level.
+
+Avoid:
+
+```go
+// New creates a new X.
+```
+
+Prefer:
+
+```go
+// New builds a Redis-backed session store.
+func New(cfg Config, log logger.Logger) (*Store, error) {}
+```
+
+If there are important constraints, say them:
+
+```go
+// New builds an HTTP server bound to the provided router and does not start listening.
+func New(cfg Config, r router.Router) (*Server, error) {}
 ```
 
 ## Methods
 
+Method comments should explain behavior, not repeat the method name.
+
+Good cases for comments:
+
+- non-obvious side effects
+- lifecycle behavior
+- idempotency expectations
+- transport or concurrency semantics
+
+Example:
+
 ```go
-// MethodName performs an action on the receiver
-func (r *Receiver) MethodName() {}
+// Run starts the application lifecycle and blocks until shutdown or error.
+func (a *App) Run(ctx context.Context) error {}
 ```
 
-## Quick Patterns
-
-### For "should have comment or be unexported"
-If the export is intentional, add a comment. If not, make it unexported (lowercase).
-
-### For "comment should be of the form 'Name ...'"
-Start the comment with the exact name:
 ```go
-// NewThing creates a new Thing
-func NewThing() *Thing {}
+// Register contributes HTTP routes for this feature without starting a server.
+func (f *Feature) Register(r router.Router) {}
 ```
 
-### For stuttering (e.g., `kafka.KafkaAdapter`)
-Rename to avoid repetition:
+## Errors
+
+Error type comments should explain when the error is returned and what it means to callers.
+
+Example:
+
 ```go
-// Adapter implements Kafka event bus adapter
-type Adapter struct {} // instead of KafkaAdapter
+// OptimisticLockError reports that an update failed because the stored version no longer matches the caller's version.
+type OptimisticLockError struct {
+    // ...
+}
 ```
 
-### For constants blocks
-Add a group comment:
+## Constants
+
+Constant comments should explain the domain meaning, not only the literal.
+
+Example:
+
 ```go
-// HTTP method constants
+// PolicyMigration marks commands that are intended to run during migration workflows.
+const PolicyMigration CommandPolicy = "migration"
+```
+
+For constant blocks, add a block comment only when the constants clearly belong to one domain:
+
+```go
+// Command execution policy values.
 const (
-    // MethodGet represents HTTP GET
-    MethodGet = "GET"
-    // MethodPost represents HTTP POST
-    MethodPost = "POST"
+    // PolicyAlways allows the command to run in every workflow.
+    PolicyAlways CommandPolicy = "always"
+    // PolicyRun marks the primary runtime start command.
+    PolicyRun CommandPolicy = "run"
+    // PolicyMigration marks commands intended for migration workflows.
+    PolicyMigration CommandPolicy = "migration"
+    // PolicyManual marks commands intended for explicit operator use.
+    PolicyManual CommandPolicy = "manual"
+    // PolicyScheduled marks commands that run long-lived or scheduled workloads.
+    PolicyScheduled CommandPolicy = "scheduled"
 )
 ```
 
-## Priority Order
+## Descriptor And Contract Types
 
-1. **Public API** (pkg/server, pkg/config, pkg/middleware)
-2. **Core types** (pkg/eventbus, pkg/jobs, pkg/repository)
-3. **Adapters** (pkg/store/*, pkg/email/*)
-4. **Internal utilities** (everything else)
+These are especially important in the new refactor.
 
-## Automation Helper
+Comments should say:
 
-For simple constant blocks, use this sed pattern:
-```bash
-# Add comment above constant
-sed -i '/^const ConstName/i\
-// ConstName description
-' file.go
+- who consumes the contract
+- whether the contract is stable
+- whether fields are optional or versioned
+
+Example:
+
+```go
+// Descriptor is the machine-readable application contract consumed by nimbctl.
+//
+// It is versioned independently from the framework and is intended for orchestration,
+// command discovery, and config capability discovery.
+type Descriptor struct {
+    // ...
+}
 ```
 
-For methods, manually review and add appropriate comments based on functionality.
+## Feature Types
+
+Feature comments should explain what the feature contributes.
+
+Example:
+
+```go
+// Feature contributes HTTP routes, config sections, and health checks for the OpenAPI capability.
+type Feature struct {
+    // ...
+}
+```
+
+## Adapters And Providers
+
+Adapter comments should say:
+
+- what family or role they implement
+- which vendor/backend they use
+- what level of the contract they cover
+
+Example:
+
+```go
+// Store implements the cache.Store contract on top of Redis.
+type Store struct {
+    // ...
+}
+```
+
+```go
+// Validator implements event contract validation with Protobuf descriptors.
+type Validator struct {
+    // ...
+}
+```
+
+## Package Priority During Refactor
+
+When adding or fixing comments, prioritize these areas first:
+
+1. `pkg/core`
+2. `pkg/cli`
+3. `pkg/config` and `pkg/config/schema`
+4. `pkg/http`
+5. `pkg/persistence/*`
+6. `pkg/eventbus`, `pkg/jobs`, `pkg/scheduler`, `pkg/coordination`, `pkg/pubsub`
+7. `pkg/auth`, `pkg/email`, `pkg/health`, `pkg/observability`, `pkg/resilience`, `pkg/version`
+
+These are the packages most likely to define the public contract of the refactored framework.
+
+## Style Rules
+
+- Start the comment with the exact exported name.
+- Keep the first sentence short and contract-focused.
+- Add a second sentence only when it clarifies behavior, ownership, or limits.
+- Avoid "helper", "utility", "manager", "handler" unless the next words explain the real responsibility.
+- Avoid comments like:
+  - `X is X`
+  - `NewX creates a new X`
+  - `Handle handles the request`
+  - `Config contains configuration`
+
+## Quick Templates
+
+Use these only as starting points.
+
+### Interface
+
+```go
+// InterfaceName defines the minimum contract for ...
+//
+// Callers may rely on ...
+type InterfaceName interface {
+    // ...
+}
+```
+
+### Config
+
+```go
+// Config holds the settings for ...
+type Config struct {
+    // ...
+}
+```
+
+### Constructor
+
+```go
+// New builds a ... and does not ...
+func New(...) (...) {}
+```
+
+### Runtime Method
+
+```go
+// Run starts ... and blocks until ...
+func (x *TypeName) Run(ctx context.Context) error {}
+```
+
+### Error
+
+```go
+// ErrorName reports that ...
+type ErrorName struct {
+    // ...
+}
+```
+
+## Final Check Before Writing A Comment
+
+Before you add a comment, ask:
+
+1. Should this symbol be exported at all?
+2. Does the comment explain the contract or only restate the name?
+3. Would a new contributor understand when to use this symbol after reading the comment?

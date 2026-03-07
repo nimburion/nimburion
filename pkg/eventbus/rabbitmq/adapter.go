@@ -2,11 +2,13 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -39,9 +41,7 @@ type Config struct {
 	ConsumerTag      string
 }
 
-// Cosa fa: crea connessione/channel RabbitMQ e prepara publish/subscribe.
-// Cosa NON fa: non crea policy broker o dead-letter exchange.
-// Esempio minimo: adapter, err := rabbitmq.NewAdapter(cfg, log)
+// NewAdapter creates a RabbitMQ-backed event bus adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("rabbitmq URL is required")
@@ -63,13 +63,23 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 
 	pubCh, err := conn.Channel()
 	if err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to create rabbitmq channel: %w", err),
+				fmt.Errorf("failed to close rabbitmq connection after channel setup failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to create rabbitmq channel: %w", err)
 	}
 
 	if err := pubCh.ExchangeDeclare(cfg.Exchange, cfg.ExchangeType, true, false, false, false, nil); err != nil {
-		_ = pubCh.Close()
-		_ = conn.Close()
+		closeErr := errors.Join(pubCh.Close(), conn.Close())
+		if closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to declare exchange: %w", err),
+				fmt.Errorf("failed to clean up rabbitmq resources after exchange declaration failure: %w", closeErr),
+			)
+		}
 		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
@@ -82,13 +92,33 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	}
 
 	if err := a.HealthCheck(context.Background()); err != nil {
-		_ = a.Close()
+		if closeErr := a.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 
 	return a, nil
 }
 
+// NewFromEventBusConfig adapts the family config surface to the RabbitMQ provider config.
+func NewFromEventBusConfig(cfg eventbusconfig.Config, log logger.Logger) (*Adapter, error) {
+	url := cfg.URL
+	if url == "" && len(cfg.Brokers) > 0 {
+		url = cfg.Brokers[0]
+	}
+	return NewAdapter(Config{
+		URL:              url,
+		Exchange:         cfg.Exchange,
+		ExchangeType:     cfg.ExchangeType,
+		QueueName:        cfg.QueueName,
+		RoutingKey:       cfg.RoutingKey,
+		OperationTimeout: cfg.OperationTimeout,
+		ConsumerTag:      cfg.ConsumerTag,
+	}, log)
+}
+
+// Publish sends a message to the configured exchange.
 func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -123,6 +153,7 @@ func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.M
 	return nil
 }
 
+// PublishBatch sends multiple messages sequentially.
 func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	for _, msg := range messages {
 		if err := a.Publish(ctx, topic, msg); err != nil {
@@ -132,6 +163,7 @@ func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*ev
 	return nil
 }
 
+// Subscribe registers a consumer for the given topic.
 func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -149,7 +181,12 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 	}
 
 	if declareErr := ch.ExchangeDeclare(a.config.Exchange, a.config.ExchangeType, true, false, false, false, nil); declareErr != nil {
-		_ = ch.Close()
+		if closeErr := ch.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to declare exchange: %w", declareErr),
+				fmt.Errorf("failed to close consumer channel after exchange declaration failure: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to declare exchange: %w", declareErr)
 	}
 
@@ -159,7 +196,12 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 	}
 	q, err := ch.QueueDeclare(qName, true, false, false, false, nil)
 	if err != nil {
-		_ = ch.Close()
+		if closeErr := ch.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to declare queue: %w", err),
+				fmt.Errorf("failed to close consumer channel after queue declaration failure: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to declare queue: %w", err)
 	}
 
@@ -168,13 +210,23 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 		bindKey = a.config.RoutingKey
 	}
 	if bindErr := ch.QueueBind(q.Name, bindKey, a.config.Exchange, false, nil); bindErr != nil {
-		_ = ch.Close()
+		if closeErr := ch.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to bind queue: %w", bindErr),
+				fmt.Errorf("failed to close consumer channel after queue bind failure: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to bind queue: %w", bindErr)
 	}
 
 	deliveries, err := ch.Consume(q.Name, a.config.ConsumerTag, false, false, false, false, nil)
 	if err != nil {
-		_ = ch.Close()
+		if closeErr := ch.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to start consumer: %w", err),
+				fmt.Errorf("failed to close consumer channel after consume failure: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to start consumer: %w", err)
 	}
 
@@ -204,14 +256,19 @@ func (a *Adapter) consumeLoop(ctx context.Context, topic string, deliveries <-ch
 			}
 
 			if err := handler(ctx, msg); err != nil {
-				_ = d.Nack(false, true)
+				if nackErr := d.Nack(false, true); nackErr != nil {
+					a.logBackgroundError("failed to nack rabbitmq message", nackErr)
+				}
 				continue
 			}
-			_ = d.Ack(false)
+			if ackErr := d.Ack(false); ackErr != nil {
+				a.logBackgroundError("failed to ack rabbitmq message", ackErr)
+			}
 		}
 	}
 }
 
+// Unsubscribe removes the consumer for the given topic.
 func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -228,6 +285,7 @@ func (a *Adapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies the RabbitMQ connection is usable.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -248,7 +306,9 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("rabbitmq health check failed: %w", err)
 	}
-	_ = ch.Close()
+	if closeErr := ch.Close(); closeErr != nil {
+		return fmt.Errorf("rabbitmq health check close failed: %w", closeErr)
+	}
 	select {
 	case <-hcCtx.Done():
 		return fmt.Errorf("rabbitmq health check timeout: %w", hcCtx.Err())
@@ -257,6 +317,14 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	}
 }
 
+func (a *Adapter) logBackgroundError(msg string, err error) {
+	if err == nil || a.logger == nil {
+		return
+	}
+	a.logger.Error(msg, "error", err)
+}
+
+// Close stops subscriptions and releases RabbitMQ resources.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

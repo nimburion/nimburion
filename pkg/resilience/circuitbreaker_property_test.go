@@ -296,7 +296,7 @@ func TestProperty_CircuitBreakerStateMachine(t *testing.T) {
 				// If circuit should be open, verify it is
 				if shouldBeOpen && cb.GetState() != StateOpen {
 					// Unless we just had a success in Half-Open that closed it
-					if !(success && cb.GetState() == StateClosed) {
+					if !success || cb.GetState() != StateClosed {
 						t.Logf("Expected circuit to be Open at iteration %d, got %v", i, cb.GetState())
 						return false
 					}

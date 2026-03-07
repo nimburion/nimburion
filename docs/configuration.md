@@ -1,5 +1,7 @@
 # Configuration Management
 
+> Transitional note: this document describes the current pre-refactor configuration model and current environment variable surface. Keep it accurate for the running codebase, but do not treat the monolithic root config, global type selectors, or `pkg/configschema` coupling as the target architecture for new code. For the target direction, see [refactoring-requirements.md](./refactoring-requirements.md).
+
 The Go Microservices Framework uses a hierarchical configuration system built on [Viper](https://github.com/spf13/viper) that supports multiple configuration sources with clear precedence rules.
 
 ## Configuration Precedence
@@ -25,10 +27,6 @@ All environment variables use the `APP_` prefix and follow a hierarchical naming
 
 #### Router Configuration
 
-- `APP_ROUTER_TYPE` - Router type: `nethttp`, `gin`, `gorilla` (default: `nethttp`)
-  - Example: `APP_ROUTER_TYPE=nethttp`
-  - Example: `APP_ROUTER_TYPE=gin`
-  - Example: `APP_ROUTER_TYPE=gorilla`
 
 #### HTTP Server Configuration
 
@@ -583,11 +581,11 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 
 #### Observability Configuration
 
-- `APP_SERVICE_NAME` - Service name for the application identity.
-  With `cli.NewServiceCommand`, if not set, the default is `ServiceCommandOptions.Name`.
+- `APP_APP_NAME` - Application name for the runtime identity.
+  With `cli.NewAppCommand`, if not set, the default is `AppCommandOptions.Name`.
 - `APP_OBSERVABILITY_LOG_LEVEL` - Log level: debug, info, warn, error (default: info)
 - `APP_OBSERVABILITY_LOG_FORMAT` - Log format: json, text (default: json)
-- `APP_OBSERVABILITY_SERVICE_NAME` - Optional tracing service-name override (default: falls back to `service.name`)
+- `APP_OBSERVABILITY_SERVICE_NAME` - Optional tracing service-name override (default: falls back to `app.name`)
 - `APP_OBSERVABILITY_TRACING_ENABLED` - Enable tracing (default: false)
 - `APP_OBSERVABILITY_TRACING_SAMPLE_RATE` - Trace sample rate (default: 0.1)
 - `APP_OBSERVABILITY_TRACING_ENDPOINT` - OpenTelemetry endpoint (required if tracing enabled)
@@ -616,9 +614,9 @@ The framework supports YAML, JSON, and TOML configuration files. YAML is recomme
 ### Example YAML Configuration
 
 ```yaml
-service:
-  # optional with cli.NewServiceCommand, defaults to ServiceCommandOptions.Name
-  name: "my-service"
+app:
+  # optional with cli.NewAppCommand, defaults to AppCommandOptions.Name
+  name: "my-app"
   environment: "development"
 
 http:

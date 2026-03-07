@@ -37,12 +37,12 @@ func (p *ConfigProvider) WithFlags(flags *pflag.FlagSet) *ConfigProvider {
 	return p
 }
 
-// WithServiceNameDefault sets a default service name if not configured
-func (p *ConfigProvider) WithServiceNameDefault(serviceName string) *ConfigProvider {
+// WithAppNameDefault sets a default app name if not configured.
+func (p *ConfigProvider) WithAppNameDefault(appName string) *ConfigProvider {
 	if p == nil || p.loader == nil {
 		return p
 	}
-	p.loader.WithServiceNameDefault(serviceName)
+	p.loader.WithAppNameDefault(appName)
 	return p
 }
 
@@ -81,7 +81,7 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	p.loader.setDefaults(p.v, defaults)
 
 	for _, extension := range extensions {
-		if err := applyExtensionDefaults(p.v, extension); err != nil {
+		if err := applyConfigDefaults(p.v, extension); err != nil {
 			return nil, err
 		}
 	}
@@ -113,11 +113,12 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 
 	p.v.SetEnvPrefix(p.loader.envPrefix)
-	p.loader.bindLegacyEnvVars()
-	p.loader.bindEnvVars(p.v)
+	if err := p.loader.bindEnvVars(p.v); err != nil {
+		return nil, fmt.Errorf("failed to bind environment variables: %w", err)
+	}
 
 	for _, extension := range extensions {
-		if err := bindExtensionEnv(p.v, extension); err != nil {
+		if err := bindConfigEnv(p.v, p.loader.envPrefix, extension); err != nil {
 			return nil, err
 		}
 	}
@@ -138,6 +139,17 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 	if err := p.loader.Validate(core); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
+	for _, extension := range builtInConfigExtensions() {
+		if err := unmarshalCoreExtension(core, extension); err != nil {
+			return nil, err
+		}
+		if validator, ok := extension.(extensionValidator); ok {
+			if err := validator.Validate(); err != nil {
+				return nil, fmt.Errorf("extension config validation failed: %w", err)
+			}
+		}
 	}
 
 	for _, extension := range extensions {
@@ -176,18 +188,38 @@ func RegisterFlagsFromStruct(flags *pflag.FlagSet, target interface{}) error {
 
 		switch field.Type.Kind() {
 		case reflect.String:
-			flags.String(field.Flag, defaultValue.(string), usage)
+			value, ok := defaultValue.(string)
+			if !ok {
+				return fmt.Errorf("invalid default value type for flag %q: got %T, want string", field.Flag, defaultValue)
+			}
+			flags.String(field.Flag, value, usage)
 		case reflect.Bool:
-			flags.Bool(field.Flag, defaultValue.(bool), usage)
+			value, ok := defaultValue.(bool)
+			if !ok {
+				return fmt.Errorf("invalid default value type for flag %q: got %T, want bool", field.Flag, defaultValue)
+			}
+			flags.Bool(field.Flag, value, usage)
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			if field.Type.PkgPath() == "time" && field.Type.Name() == "Duration" {
-				flags.Duration(field.Flag, defaultValue.(time.Duration), usage)
+				value, ok := defaultValue.(time.Duration)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want time.Duration", field.Flag, defaultValue)
+				}
+				flags.Duration(field.Flag, value, usage)
 			} else {
-				flags.Int64(field.Flag, defaultValue.(int64), usage)
+				value, ok := defaultValue.(int64)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want int64", field.Flag, defaultValue)
+				}
+				flags.Int64(field.Flag, value, usage)
 			}
 		case reflect.Slice:
 			if field.Type.Elem().Kind() == reflect.String {
-				flags.StringSlice(field.Flag, defaultValue.([]string), usage)
+				value, ok := defaultValue.([]string)
+				if !ok {
+					return fmt.Errorf("invalid default value type for flag %q: got %T, want []string", field.Flag, defaultValue)
+				}
+				flags.StringSlice(field.Flag, value, usage)
 			}
 		}
 	}
@@ -275,6 +307,13 @@ func collectConfigFields(target interface{}) ([]configField, error) {
 	fields := make([]configField, 0, elem.NumField())
 	collectFieldsRecursive(elem.Type(), "", &fields)
 	return fields, nil
+}
+
+func unmarshalCoreExtension(core *Config, extension interface{}) error {
+	if core == nil || extension == nil {
+		return nil
+	}
+	return remapCoreExtension(core, extension)
 }
 
 func collectFieldsRecursive(structType reflect.Type, prefix string, out *[]configField) {

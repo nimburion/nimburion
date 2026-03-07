@@ -1,0 +1,79 @@
+package sendgrid
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/nimburion/nimburion/internal/emailkit"
+	"github.com/nimburion/nimburion/pkg/email"
+	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
+)
+
+type Config = emailconfig.TokenConfig
+
+type Provider struct {
+	cfg        Config
+	httpClient *http.Client
+	log        logger.Logger
+}
+
+func New(cfg Config, log logger.Logger) (*Provider, error) {
+	if strings.TrimSpace(cfg.Token) == "" {
+		return nil, fmt.Errorf("sendgrid token is required")
+	}
+	if strings.TrimSpace(cfg.BaseURL) == "" {
+		cfg.BaseURL = "https://api.sendgrid.com"
+	}
+	if cfg.OperationTimeout <= 0 {
+		cfg.OperationTimeout = 10 * time.Second
+	}
+	return &Provider{cfg: cfg, httpClient: emailkit.DefaultHTTPClient(nil, cfg.OperationTimeout), log: log}, nil
+}
+
+func (p *Provider) Send(ctx context.Context, message email.Message) error {
+	msg := message.Normalized()
+	msg, err := email.ApplyDefaultSender(msg, p.cfg.From)
+	if err != nil {
+		return err
+	}
+	if err := msg.Validate(); err != nil {
+		return err
+	}
+	payload := map[string]interface{}{
+		"personalizations": []map[string]interface{}{{"to": emailkit.MapRecipients(msg.To), "cc": emailkit.MapRecipients(msg.Cc), "bcc": emailkit.MapRecipients(msg.Bcc)}},
+		"from":             map[string]string{"email": msg.From}, "subject": msg.Subject, "content": emailkit.MapContent(msg),
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	cctx, cancel := emailkit.WithTimeout(ctx, p.cfg.OperationTimeout)
+	defer cancel()
+	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/v3/mail/send"
+	if err := emailkit.ValidateEndpointURL(endpoint); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+p.cfg.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("sendgrid send failed with status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (p *Provider) Close() error { return nil }

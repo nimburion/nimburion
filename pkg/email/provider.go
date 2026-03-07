@@ -26,7 +26,7 @@ type Message struct {
 	Headers  map[string]string
 }
 
-func (m Message) normalized() Message {
+func (m Message) Normalized() Message {
 	cp := m
 	cp.From = strings.TrimSpace(cp.From)
 	cp.ReplyTo = strings.TrimSpace(cp.ReplyTo)
@@ -37,7 +37,7 @@ func (m Message) normalized() Message {
 	return cp
 }
 
-func (m Message) validate() error {
+func (m Message) Validate() error {
 	totalRecipients := len(m.To) + len(m.Cc) + len(m.Bcc)
 	if totalRecipients == 0 {
 		return errors.New("at least one recipient is required")
@@ -72,7 +72,7 @@ func normalizeEmailList(list []string) []string {
 	return out
 }
 
-func applyDefaultSender(message Message, defaultFrom string) (Message, error) {
+func ApplyDefaultSender(message Message, defaultFrom string) (Message, error) {
 	if strings.TrimSpace(message.From) != "" {
 		return message, nil
 	}

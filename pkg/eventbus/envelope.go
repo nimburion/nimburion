@@ -91,8 +91,6 @@ func (e *EventEnvelope) Validate() error {
 		return errors.New("event envelope is nil")
 	}
 
-	trim := func(v string) string { return strings.TrimSpace(v) }
-
 	required := map[string]string{
 		"id":             e.ID,
 		"type":           e.Type,
@@ -109,7 +107,7 @@ func (e *EventEnvelope) Validate() error {
 	}
 
 	for field, value := range required {
-		if trim(value) == "" {
+		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("missing required field: %s", field)
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nimburion/nimburion/internal/safepath"
 	yaml "go.yaml.in/yaml/v3"
 )
 
@@ -204,6 +205,10 @@ func applyTemplateParams(template string, params map[string]interface{}) string 
 }
 
 func loadJSONCatalog(catalog *Catalog, locale, filePath string) error {
+	if err := safepath.ValidateFilePath(filePath, ""); err != nil {
+		return fmt.Errorf("invalid i18n json catalog path %s: %w", filePath, err)
+	}
+	// #nosec G304 -- filePath is validated before being read.
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read i18n json catalog %s: %w", filePath, err)
@@ -217,6 +222,10 @@ func loadJSONCatalog(catalog *Catalog, locale, filePath string) error {
 }
 
 func loadYAMLCatalog(catalog *Catalog, locale, filePath string) error {
+	if err := safepath.ValidateFilePath(filePath, ""); err != nil {
+		return fmt.Errorf("invalid i18n yaml catalog path %s: %w", filePath, err)
+	}
+	// #nosec G304 -- filePath is validated before being read.
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read i18n yaml catalog %s: %w", filePath, err)

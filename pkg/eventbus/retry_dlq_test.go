@@ -6,7 +6,18 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 )
+
+type fakeQuarantineSink struct {
+	records []*reliabilityretry.QuarantineRecord
+}
+
+func (s *fakeQuarantineSink) Quarantine(_ context.Context, record *reliabilityretry.QuarantineRecord) error {
+	s.records = append(s.records, record)
+	return nil
+}
 
 func TestConsumeWithRetry_SucceedsAfterRetries(t *testing.T) {
 	producer := &fakeProducer{}
@@ -24,6 +35,7 @@ func TestConsumeWithRetry_SucceedsAfterRetries(t *testing.T) {
 			return nil
 		},
 		producer,
+		nil,
 		RetryDLQConfig{MaxRetries: 5, InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond, AttemptTimeout: time.Second},
 		testLogger{},
 		nil,
@@ -50,6 +62,7 @@ func TestConsumeWithRetry_SendsToDLQOnPermanentFailure(t *testing.T) {
 			return errors.New("permanent failure")
 		},
 		producer,
+		nil,
 		RetryDLQConfig{MaxRetries: 2, InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond, AttemptTimeout: time.Second},
 		testLogger{},
 		nil,
@@ -96,6 +109,7 @@ func TestConsumeWithRetry_RespectsAttemptTimeout(t *testing.T) {
 			}
 		},
 		producer,
+		nil,
 		RetryDLQConfig{MaxRetries: 1, InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond, AttemptTimeout: 5 * time.Millisecond},
 		testLogger{},
 		nil,
@@ -105,5 +119,33 @@ func TestConsumeWithRetry_RespectsAttemptTimeout(t *testing.T) {
 	}
 	if len(producer.messages) != 1 {
 		t.Fatalf("expected one dlq message after timeout retries")
+	}
+}
+
+func TestConsumeWithRetry_QuarantinesPoisonFailureWhenSinkProvided(t *testing.T) {
+	producer := &fakeProducer{}
+	sink := &fakeQuarantineSink{}
+
+	err := ConsumeWithRetry(
+		context.Background(),
+		"events.orders",
+		&Message{ID: "m1", Key: "k1", Value: []byte("payload")},
+		func(context.Context, *Message) error {
+			return reliabilityretry.Poison(errors.New("invalid schema"))
+		},
+		producer,
+		sink,
+		RetryDLQConfig{MaxRetries: 2, InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond, AttemptTimeout: time.Second},
+		testLogger{},
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected quarantine error")
+	}
+	if len(sink.records) != 1 {
+		t.Fatalf("expected one quarantine record, got %d", len(sink.records))
+	}
+	if len(producer.messages) != 0 {
+		t.Fatalf("expected no dlq publish when quarantine sink is provided")
 	}
 }

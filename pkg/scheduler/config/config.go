@@ -1,0 +1,187 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/spf13/viper"
+)
+
+const (
+	LockProviderRedis    = "redis"
+	LockProviderPostgres = "postgres"
+)
+
+// Config configures distributed scheduler runtime behavior.
+type Config struct {
+	Enabled         bool           `mapstructure:"enabled"`
+	Timezone        string         `mapstructure:"timezone"`
+	LockProvider    string         `mapstructure:"lock_provider"` // redis, postgres
+	LockTTL         time.Duration  `mapstructure:"lock_ttl"`
+	DispatchTimeout time.Duration  `mapstructure:"dispatch_timeout"`
+	Redis           RedisConfig    `mapstructure:"redis"`
+	Postgres        PostgresConfig `mapstructure:"postgres"`
+	Tasks           []TaskConfig   `mapstructure:"tasks"`
+}
+
+// RedisConfig configures Redis lock provider settings.
+type RedisConfig struct {
+	URL              string        `mapstructure:"url"`
+	Prefix           string        `mapstructure:"prefix"`
+	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
+}
+
+// PostgresConfig configures Postgres lock provider settings.
+type PostgresConfig struct {
+	URL              string        `mapstructure:"url"`
+	Table            string        `mapstructure:"table"`
+	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
+}
+
+// TaskConfig configures one scheduled task.
+type TaskConfig struct {
+	Name           string            `mapstructure:"name"`
+	Cron           string            `mapstructure:"cron"`
+	Queue          string            `mapstructure:"queue"`
+	JobName        string            `mapstructure:"job_name"`
+	Payload        string            `mapstructure:"payload"`
+	Headers        map[string]string `mapstructure:"headers"`
+	TenantID       string            `mapstructure:"tenant_id"`
+	IdempotencyKey string            `mapstructure:"idempotency_key"`
+	Timezone       string            `mapstructure:"timezone"`
+	LockTTL        time.Duration     `mapstructure:"lock_ttl"`
+	MisfirePolicy  string            `mapstructure:"misfire_policy"` // skip, fire_once
+}
+
+// Extension contributes the scheduler config section as family-owned config surface.
+type Extension struct {
+	Scheduler Config `mapstructure:"scheduler"`
+}
+
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
+func (Extension) DisabledCoreConfigSections() []string {
+	return []string{"scheduler"}
+}
+
+func (Extension) ApplyDefaults(v *viper.Viper) {
+	v.SetDefault("scheduler.enabled", false)
+	v.SetDefault("scheduler.timezone", "UTC")
+	v.SetDefault("scheduler.lock_provider", LockProviderRedis)
+	v.SetDefault("scheduler.lock_ttl", 45*time.Second)
+	v.SetDefault("scheduler.dispatch_timeout", 10*time.Second)
+	v.SetDefault("scheduler.redis.prefix", "nimburion:scheduler:lock")
+	v.SetDefault("scheduler.redis.operation_timeout", 3*time.Second)
+	v.SetDefault("scheduler.postgres.table", "nimburion_scheduler_locks")
+	v.SetDefault("scheduler.postgres.operation_timeout", 3*time.Second)
+}
+
+func (Extension) BindEnv(v *viper.Viper, prefix string) error {
+	return bindEnvPairs(v, prefix,
+		"scheduler.enabled", "SCHEDULER_ENABLED",
+		"scheduler.timezone", "SCHEDULER_TIMEZONE",
+		"scheduler.lock_provider", "SCHEDULER_LOCK_PROVIDER",
+		"scheduler.lock_ttl", "SCHEDULER_LOCK_TTL",
+		"scheduler.dispatch_timeout", "SCHEDULER_DISPATCH_TIMEOUT",
+		"scheduler.redis.url", "SCHEDULER_REDIS_URL",
+		"scheduler.redis.prefix", "SCHEDULER_REDIS_PREFIX",
+		"scheduler.redis.operation_timeout", "SCHEDULER_REDIS_OPERATION_TIMEOUT",
+		"scheduler.postgres.url", "SCHEDULER_POSTGRES_URL",
+		"scheduler.postgres.table", "SCHEDULER_POSTGRES_TABLE",
+		"scheduler.postgres.operation_timeout", "SCHEDULER_POSTGRES_OPERATION_TIMEOUT",
+	)
+}
+
+func (e Extension) Validate() error {
+	if !e.Scheduler.Enabled {
+		return nil
+	}
+	lockProvider := strings.ToLower(strings.TrimSpace(e.Scheduler.LockProvider))
+	if lockProvider == "" {
+		lockProvider = LockProviderRedis
+	}
+	validProviders := []string{LockProviderRedis, LockProviderPostgres}
+	if !contains(validProviders, lockProvider) {
+		return fmt.Errorf("invalid scheduler.lock_provider: %s (must be one of: %v)", e.Scheduler.LockProvider, validProviders)
+	}
+	if e.Scheduler.LockTTL <= 0 {
+		return errors.New("scheduler.lock_ttl must be greater than zero")
+	}
+	if e.Scheduler.DispatchTimeout <= 0 {
+		return errors.New("scheduler.dispatch_timeout must be greater than zero")
+	}
+	timezone := strings.TrimSpace(e.Scheduler.Timezone)
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return fmt.Errorf("invalid scheduler.timezone: %w", err)
+	}
+	switch lockProvider {
+	case LockProviderRedis:
+		if strings.TrimSpace(e.Scheduler.Redis.Prefix) == "" {
+			return errors.New("scheduler.redis.prefix is required when scheduler.lock_provider is redis")
+		}
+		if e.Scheduler.Redis.OperationTimeout <= 0 {
+			return errors.New("scheduler.redis.operation_timeout must be greater than zero when scheduler.lock_provider is redis")
+		}
+	case LockProviderPostgres:
+		if strings.TrimSpace(e.Scheduler.Postgres.Table) == "" {
+			return errors.New("scheduler.postgres.table is required when scheduler.lock_provider is postgres")
+		}
+		if e.Scheduler.Postgres.OperationTimeout <= 0 {
+			return errors.New("scheduler.postgres.operation_timeout must be greater than zero when scheduler.lock_provider is postgres")
+		}
+	}
+	taskNames := map[string]struct{}{}
+	for idx, task := range e.Scheduler.Tasks {
+		name := strings.TrimSpace(task.Name)
+		if name == "" {
+			return fmt.Errorf("scheduler.tasks[%d].name is required", idx)
+		}
+		if _, exists := taskNames[name]; exists {
+			return fmt.Errorf("scheduler.tasks contains duplicate name %q", name)
+		}
+		taskNames[name] = struct{}{}
+		if strings.TrimSpace(task.Cron) == "" {
+			return fmt.Errorf("scheduler.tasks[%s].cron is required", name)
+		}
+		if strings.TrimSpace(task.Queue) == "" {
+			return fmt.Errorf("scheduler.tasks[%s].queue is required", name)
+		}
+		if strings.TrimSpace(task.JobName) == "" {
+			return fmt.Errorf("scheduler.tasks[%s].job_name is required", name)
+		}
+		misfire := strings.ToLower(strings.TrimSpace(task.MisfirePolicy))
+		if misfire != "" && misfire != "skip" && misfire != "fire_once" {
+			return fmt.Errorf("scheduler.tasks[%s].misfire_policy must be one of: skip, fire_once", name)
+		}
+	}
+	return nil
+}
+
+func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
+	for index := 0; index < len(values); index += 2 {
+		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func prefixedEnv(prefix, suffix string) string {
+	if strings.TrimSpace(prefix) == "" {
+		return suffix
+	}
+	return strings.TrimSpace(prefix) + "_" + suffix
+}
+
+func contains(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}

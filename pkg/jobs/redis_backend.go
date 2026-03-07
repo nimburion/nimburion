@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/redis/go-redis/v9"
 )
@@ -120,7 +121,7 @@ type redisDLQRecord struct {
 
 // RedisBackend implements jobs Backend with Redis lists/zsets and lease keys.
 type RedisBackend struct {
-	client *redis.Client
+	client *rediskit.Client
 	log    logger.Logger
 	config RedisBackendConfig
 
@@ -138,16 +139,14 @@ func NewRedisBackend(cfg RedisBackendConfig, log logger.Logger) (*RedisBackend, 
 	}
 	cfg.normalize()
 
-	opts, err := redis.ParseURL(cfg.URL)
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		OperationTimeout: cfg.OperationTimeout,
+	}, log)
 	if err != nil {
-		return nil, errors.Join(jobsError(ErrValidation, "parse redis url failed"), err)
-	}
-	client := redis.NewClient(opts)
-
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.OperationTimeout)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		_ = client.Close()
+		if strings.Contains(err.Error(), "parse redis URL") {
+			return nil, errors.Join(jobsError(ErrValidation, "parse redis url failed"), err)
+		}
 		return nil, errors.Join(jobsError(ErrRetryable, "ping redis failed"), err)
 	}
 
@@ -191,9 +190,9 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 	now := time.Now().UTC()
 	var enqueueErr error
 	if !jobCopy.RunAt.After(now) {
-		enqueueErr = b.client.RPush(opCtx, b.readyKey(jobCopy.Queue), string(encoded)).Err()
+		enqueueErr = b.client.Raw().RPush(opCtx, b.readyKey(jobCopy.Queue), string(encoded)).Err()
 	} else {
-		enqueueErr = b.client.ZAdd(opCtx, b.delayedKey(jobCopy.Queue), redis.Z{
+		enqueueErr = b.client.Raw().ZAdd(opCtx, b.delayedKey(jobCopy.Queue), redis.Z{
 			Score:  float64(jobCopy.RunAt.UnixMilli()),
 			Member: string(encoded),
 		}).Err()
@@ -237,7 +236,7 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		opCtx, cancel := b.operationContext(ctx)
 		result, reserveErr := redisReserveScript.Run(
 			opCtx,
-			b.client,
+			b.client.Raw(),
 			[]string{b.delayedKey(queue), b.readyKey(queue)},
 			b.leaseKeyPrefix(),
 			now.UnixMilli(),
@@ -270,11 +269,15 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		var envelope redisJobEnvelope
 		if err := json.Unmarshal([]byte(raw), &envelope); err != nil {
 			b.log.Warn("discarding malformed queued job payload", "queue", queue, "error", err)
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge malformed queued job payload", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 		if envelope.Job == nil {
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge empty queued job payload", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 		if strings.TrimSpace(envelope.Job.Queue) == "" {
@@ -282,7 +285,9 @@ func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.
 		}
 		if err := envelope.Job.Validate(); err != nil {
 			b.log.Warn("discarding invalid queued job", "queue", queue, "error", err)
-			_ = b.Ack(ctx, &Lease{Token: token})
+			if ackErr := b.Ack(ctx, &Lease{Token: token}); ackErr != nil {
+				b.log.Warn("failed to acknowledge invalid queued job", "queue", queue, "error", ackErr)
+			}
 			continue
 		}
 
@@ -307,7 +312,7 @@ func (b *RedisBackend) Ack(ctx context.Context, lease *Lease) error {
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
-	_, err := redisGetAndDeleteScript.Run(opCtx, b.client, []string{b.leaseKey(strings.TrimSpace(lease.Token))}).Result()
+	_, err := redisGetAndDeleteScript.Run(opCtx, b.client.Raw(), []string{b.leaseKey(strings.TrimSpace(lease.Token))}).Result()
 	if errors.Is(err, redis.Nil) {
 		return nil
 	}
@@ -358,7 +363,7 @@ func (b *RedisBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Du
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
-	expireSet, err := b.client.PExpire(opCtx, b.leaseKey(strings.TrimSpace(lease.Token)), leaseFor).Result()
+	expireSet, err := b.client.Raw().PExpire(opCtx, b.leaseKey(strings.TrimSpace(lease.Token)), leaseFor).Result()
 	if err != nil {
 		return err
 	}
@@ -423,7 +428,7 @@ func (b *RedisBackend) ListDLQ(ctx context.Context, queue string, limit int) ([]
 	}
 
 	opCtx, cancel := b.operationContext(ctx)
-	ids, err := b.client.ZRevRange(opCtx, b.dlqIndexKey(queue), 0, int64(limit-1)).Result()
+	ids, err := b.client.Raw().ZRevRange(opCtx, b.dlqIndexKey(queue), 0, int64(limit-1)).Result()
 	cancel()
 	if err != nil {
 		return nil, err
@@ -432,7 +437,7 @@ func (b *RedisBackend) ListDLQ(ctx context.Context, queue string, limit int) ([]
 	entries := make([]*DLQEntry, 0, len(ids))
 	for _, id := range ids {
 		opCtx, cancel := b.operationContext(ctx)
-		raw, getErr := b.client.Get(opCtx, b.dlqEntryKey(queue, id)).Result()
+		raw, getErr := b.client.Raw().Get(opCtx, b.dlqEntryKey(queue, id)).Result()
 		cancel()
 		if getErr != nil {
 			if errors.Is(getErr, redis.Nil) {
@@ -477,7 +482,7 @@ func (b *RedisBackend) ReplayDLQ(ctx context.Context, queue string, ids []string
 		}
 
 		opCtx, cancel := b.operationContext(ctx)
-		raw, err := b.client.Get(opCtx, b.dlqEntryKey(queue, id)).Result()
+		raw, err := b.client.Raw().Get(opCtx, b.dlqEntryKey(queue, id)).Result()
 		cancel()
 		if err != nil {
 			if errors.Is(err, redis.Nil) {
@@ -504,7 +509,7 @@ func (b *RedisBackend) ReplayDLQ(ctx context.Context, queue string, ids []string
 		}
 
 		opCtx, cancel = b.operationContext(ctx)
-		_, err = b.client.TxPipelined(opCtx, func(pipe redis.Pipeliner) error {
+		_, err = b.client.Raw().TxPipelined(opCtx, func(pipe redis.Pipeliner) error {
 			pipe.ZRem(opCtx, b.dlqIndexKey(queue), id)
 			pipe.Del(opCtx, b.dlqEntryKey(queue, id))
 			return nil
@@ -526,7 +531,7 @@ func (b *RedisBackend) HealthCheck(ctx context.Context) error {
 	}
 	opCtx, cancel := b.operationContext(ctx)
 	defer cancel()
-	return b.client.Ping(opCtx).Err()
+	return b.client.HealthCheck(opCtx)
 }
 
 // Close closes Redis connections.
@@ -573,7 +578,7 @@ func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string,
 	token := strings.TrimSpace(lease.Token)
 
 	opCtx, cancel := b.operationContext(ctx)
-	raw, err := b.client.Get(opCtx, b.leaseKey(token)).Result()
+	raw, err := b.client.Raw().Get(opCtx, b.leaseKey(token)).Result()
 	cancel()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -589,7 +594,7 @@ func (b *RedisBackend) readLeasedJob(ctx context.Context, lease *Lease) (string,
 	if envelope.Job == nil {
 		return "", nil, jobsError(ErrValidation, "lease payload does not contain a job")
 	}
-	if strings.TrimSpace(envelope.Job.Queue) == "" && lease != nil {
+	if strings.TrimSpace(envelope.Job.Queue) == "" {
 		envelope.Job.Queue = strings.TrimSpace(lease.Queue)
 	}
 	if err := envelope.Job.Validate(); err != nil {
@@ -633,7 +638,7 @@ func (b *RedisBackend) transitionLeaseToQueue(
 	opCtx, cancel := b.operationContext(ctx)
 	transitionResult, err := redisTransitionLeaseScript.Run(
 		opCtx,
-		b.client,
+		b.client.Raw(),
 		[]string{
 			b.leaseKey(strings.TrimSpace(lease.Token)),
 			b.readyKey(queue),
@@ -688,7 +693,7 @@ func (b *RedisBackend) saveDLQEntry(ctx context.Context, entry *DLQEntry) error 
 	}
 
 	opCtx, cancel := b.operationContext(ctx)
-	_, err = b.client.TxPipelined(opCtx, func(pipe redis.Pipeliner) error {
+	_, err = b.client.Raw().TxPipelined(opCtx, func(pipe redis.Pipeliner) error {
 		pipe.Set(opCtx, b.dlqEntryKey(queue, entry.ID), string(encoded), 0)
 		pipe.ZAdd(opCtx, b.dlqIndexKey(queue), redis.Z{
 			Score:  float64(entry.FailedAt.UnixMilli()),

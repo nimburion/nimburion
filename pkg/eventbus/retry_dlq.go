@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 	"github.com/nimburion/nimburion/pkg/resilience"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -201,6 +202,7 @@ func ConsumeWithRetry(
 	message *Message,
 	handler MessageHandler,
 	producer Producer,
+	quarantineSink reliabilityretry.QuarantineSink,
 	config RetryDLQConfig,
 	log logger.Logger,
 	metrics *RetryDLQMetrics,
@@ -225,14 +227,20 @@ func ConsumeWithRetry(
 	}
 
 	config.normalize()
+	budget := reliabilityretry.Budget{
+		MaxAttempts:    config.MaxRetries + 1,
+		InitialBackoff: config.InitialBackoff,
+		MaxBackoff:     config.MaxBackoff,
+		AttemptTimeout: config.AttemptTimeout,
+	}
 	breaker := resilience.NewCircuitBreaker(config.CircuitBreakerFailures, config.CircuitBreakerReset)
 
 	var lastErr error
-	attempts := config.MaxRetries + 1
+	attempts := budget.MaxAttempts
 
 	for attempt := 1; attempt <= attempts; attempt++ {
 		lastErr = breaker.Execute(func() error {
-			return resilience.WithTimeout(ctx, config.AttemptTimeout, func(attemptCtx context.Context) error {
+			return resilience.WithTimeout(ctx, budget.AttemptTimeout, func(attemptCtx context.Context) error {
 				return handler(attemptCtx, message)
 			})
 		})
@@ -243,16 +251,59 @@ func ConsumeWithRetry(
 		}
 
 		metrics.incRetry(lastErr.Error())
-		if attempt == attempts {
+		decision := reliabilityretry.Decide(
+			reliabilityretry.Classify(lastErr),
+			attempt,
+			attempts,
+			budget,
+			reliabilityretry.Policy{DeadLetterEnabled: true},
+		)
+		if decision.Disposition != reliabilityretry.DispositionDelayedRetry {
 			break
 		}
 
-		backoff := exponentialBackoff(attempt, config.InitialBackoff, config.MaxBackoff)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(backoff):
+		case <-time.After(decision.Delay):
 		}
+	}
+
+	finalDecision := reliabilityretry.Decide(
+		reliabilityretry.Classify(lastErr),
+		attempts,
+		attempts,
+		budget,
+		reliabilityretry.Policy{
+			DeadLetterEnabled: true,
+			QuarantineEnabled: quarantineSink != nil,
+		},
+	)
+
+	if finalDecision.Disposition == reliabilityretry.DispositionQuarantine {
+		record := &reliabilityretry.QuarantineRecord{
+			Scope:          "eventbus",
+			Key:            consumerTopic + ":" + message.ID,
+			Classification: finalDecision.Classification,
+			Reason:         lastErr.Error(),
+			Attempt:        finalDecision.Attempt,
+			MaxAttempts:    finalDecision.MaxAttempts,
+			OccurredAt:     time.Now().UTC(),
+			Metadata: map[string]string{
+				"topic":      consumerTopic,
+				"message_id": message.ID,
+			},
+		}
+		if err := quarantineSink.Quarantine(ctx, record); err != nil {
+			return fmt.Errorf("handler failed after retries (%v) and quarantine failed: %w", lastErr, err)
+		}
+		log.Error("message routed to quarantine",
+			"original_topic", consumerTopic,
+			"message_id", message.ID,
+			"attempts", attempts,
+			"error", lastErr,
+		)
+		return fmt.Errorf("handler quarantined after %d attempts: %w", attempts, lastErr)
 	}
 
 	dlqTopic := consumerTopic + config.DLQTopicSuffix

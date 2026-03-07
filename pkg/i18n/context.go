@@ -19,7 +19,10 @@ func GetLocale(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	locale, _ := ctx.Value(localeContextKey).(string)
+	locale, ok := ctx.Value(localeContextKey).(string)
+	if !ok {
+		return ""
+	}
 	return locale
 }
 
@@ -34,7 +37,10 @@ func TranslatorFromContext(ctx context.Context) Translator {
 	if ctx == nil {
 		return fallbackTranslator{}
 	}
-	translator, _ := ctx.Value(translatorContextKey).(Translator)
+	translator, ok := ctx.Value(translatorContextKey).(Translator)
+	if !ok {
+		return fallbackTranslator{}
+	}
 	if translator == nil {
 		return fallbackTranslator{}
 	}
