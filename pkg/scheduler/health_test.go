@@ -5,16 +5,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/coordination"
 	"github.com/nimburion/nimburion/pkg/health"
 )
 
 type healthLockProvider struct{}
 
-func (p *healthLockProvider) Acquire(context.Context, string, time.Duration) (*LockLease, bool, error) {
+func (p *healthLockProvider) Acquire(context.Context, string, time.Duration) (*coordination.LockLease, bool, error) {
 	return nil, false, nil
 }
-func (p *healthLockProvider) Renew(context.Context, *LockLease, time.Duration) error { return nil }
-func (p *healthLockProvider) Release(context.Context, *LockLease) error              { return nil }
+func (p *healthLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
+	return nil
+}
+func (p *healthLockProvider) Release(context.Context, *coordination.LockLease) error { return nil }
 func (p *healthLockProvider) HealthCheck(context.Context) error                      { return nil }
 func (p *healthLockProvider) Close() error                                           { return nil }
 
