@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/core/feature"
+	"github.com/nimburion/nimburion/pkg/featureflag"
 	"github.com/nimburion/nimburion/pkg/health"
 )
 
@@ -367,5 +368,58 @@ func TestPrepareRegistersIntrospectionContributionsWhenDebugEnabled(t *testing.T
 	value, ok := a.Runtime().Introspection.Get("feature")
 	if !ok || value != "enabled" {
 		t.Fatalf("introspection entry = %v, %v; want enabled, true", value, ok)
+	}
+}
+
+func TestPrepareUpdatesRuntimePosture(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(Options{Name: "testapp"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := a.Prepare(context.Background()); err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+
+	snapshot := a.Runtime().RuntimePosture().Snapshot()
+	if snapshot.Startup != featureflag.StartupReady {
+		t.Fatalf("startup = %s, want ready", snapshot.Startup)
+	}
+	if snapshot.Readiness != featureflag.ReadinessReady {
+		t.Fatalf("readiness = %s, want ready", snapshot.Readiness)
+	}
+	if snapshot.Liveness != featureflag.LivenessAlive {
+		t.Fatalf("liveness = %s, want alive", snapshot.Liveness)
+	}
+}
+
+func TestPrepareFailureMarksRuntimePostureFailed(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(Options{
+		ObservabilityHooks: []Hook{{
+			Name: "boom",
+			Fn: func(ctx context.Context, runtime *Runtime) error {
+				return errors.New("bad observability")
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = a.Prepare(context.Background())
+	if err == nil {
+		t.Fatal("expected prepare error")
+	}
+
+	snapshot := a.Runtime().RuntimePosture().Snapshot()
+	if snapshot.Startup != featureflag.StartupFailed {
+		t.Fatalf("startup = %s, want failed", snapshot.Startup)
+	}
+	if snapshot.Readiness != featureflag.ReadinessBlocked {
+		t.Fatalf("readiness = %s, want blocked", snapshot.Readiness)
 	}
 }

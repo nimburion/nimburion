@@ -36,7 +36,7 @@ type CheckResult struct {
 type Checker interface {
 	// Check performs the health check and returns the result
 	Check(ctx context.Context) CheckResult
-	
+
 	// Name returns the name of the health check
 	Name() string
 }
@@ -72,7 +72,7 @@ func NewRegistry() *Registry {
 func (r *Registry) Register(checker Checker) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	r.checkers[checker.Name()] = checker
 }
 
@@ -80,7 +80,7 @@ func (r *Registry) Register(checker Checker) {
 func (r *Registry) RegisterFunc(name string, checkFunc func(ctx context.Context) CheckResult) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	r.checkers[name] = &namedChecker{
 		name:      name,
 		checkFunc: checkFunc,
@@ -91,7 +91,7 @@ func (r *Registry) RegisterFunc(name string, checkFunc func(ctx context.Context)
 func (r *Registry) Unregister(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	delete(r.checkers, name)
 }
 
@@ -104,15 +104,15 @@ func (r *Registry) Check(ctx context.Context) AggregatedResult {
 		checkers = append(checkers, checker)
 	}
 	r.mu.RUnlock()
-	
+
 	start := time.Now()
 	results := make([]CheckResult, 0, len(checkers))
 	overallStatus := StatusHealthy
-	
+
 	// Run all checks concurrently
 	resultsChan := make(chan CheckResult, len(checkers))
 	var wg sync.WaitGroup
-	
+
 	for _, checker := range checkers {
 		wg.Add(1)
 		go func(c Checker) {
@@ -121,17 +121,17 @@ func (r *Registry) Check(ctx context.Context) AggregatedResult {
 			resultsChan <- result
 		}(checker)
 	}
-	
+
 	// Wait for all checks to complete
 	go func() {
 		wg.Wait()
 		close(resultsChan)
 	}()
-	
+
 	// Collect results
 	for result := range resultsChan {
 		results = append(results, result)
-		
+
 		// Determine overall status
 		if result.Status == StatusUnhealthy {
 			overallStatus = StatusUnhealthy
@@ -139,7 +139,7 @@ func (r *Registry) Check(ctx context.Context) AggregatedResult {
 			overallStatus = StatusDegraded
 		}
 	}
-	
+
 	return AggregatedResult{
 		Status:    overallStatus,
 		Checks:    results,
@@ -153,11 +153,11 @@ func (r *Registry) CheckOne(ctx context.Context, name string) (CheckResult, erro
 	r.mu.RLock()
 	checker, exists := r.checkers[name]
 	r.mu.RUnlock()
-	
+
 	if !exists {
 		return CheckResult{}, fmt.Errorf("health check not found: %s", name)
 	}
-	
+
 	return checker.Check(ctx), nil
 }
 
@@ -165,12 +165,12 @@ func (r *Registry) CheckOne(ctx context.Context, name string) (CheckResult, erro
 func (r *Registry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(r.checkers))
 	for name := range r.checkers {
 		names = append(names, name)
 	}
-	
+
 	return names
 }
 
@@ -185,6 +185,11 @@ type AggregatedResult struct {
 // IsHealthy returns true if the overall status is healthy
 func (r AggregatedResult) IsHealthy() bool {
 	return r.Status == StatusHealthy
+}
+
+// IsReady returns true when the aggregate status can still serve traffic.
+func (r AggregatedResult) IsReady() bool {
+	return r.Status != StatusUnhealthy
 }
 
 // namedChecker wraps a function-based checker with a name

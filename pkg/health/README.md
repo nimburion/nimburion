@@ -18,6 +18,7 @@ The package owns:
 - `pkg/core/app` should own one shared `Registry` per application runtime.
 - Features and runtime families register checks into that shared registry.
 - CLI `healthcheck` and management/readiness surfaces should evaluate the same registry model instead of maintaining independent aggregation logic.
+- Runtime posture checkers from `pkg/featureflag` attach to the same registry so startup, readiness, liveness, and degraded mode stay explicit.
 - Package-local helpers may construct checkers, but they should not redefine health result shapes.
 
 ## Non-Goals
@@ -32,6 +33,7 @@ The package owns:
 - checks run concurrently when the registry is evaluated
 - any unhealthy check makes the aggregate result unhealthy
 - degraded results are preserved unless an unhealthy result takes precedence
+- readiness-style consumers should treat degraded as explicit degraded service, not as identical to unhealthy
 - context cancellation and timeouts flow into each checker
 
 ## Testing Expectations
