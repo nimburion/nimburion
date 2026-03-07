@@ -46,7 +46,7 @@ All environment variables use the `APP_` prefix and follow a hierarchical naming
 - `APP_MGMT_TLS_CERT_FILE` - Server certificate path for management mTLS
 - `APP_MGMT_TLS_KEY_FILE` - Server private key path for management mTLS
 - `APP_MGMT_TLS_CA_FILE` - CA certificate path used to verify client certificates
-  Legacy aliases:
+  Historical aliases removed on this branch:
   `APP_MANAGEMENT_PORT`, `APP_MANAGEMENT_READ_TIMEOUT`, `APP_MANAGEMENT_WRITE_TIMEOUT`, `APP_MANAGEMENT_AUTH_ENABLED`, `APP_MANAGEMENT_MTLS_ENABLED`
 
 When `APP_MGMT_AUTH_ENABLED=true`, `APP_AUTH_ENABLED` must also be `true`.
@@ -371,8 +371,8 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 - `APP_DB_ACCESS_KEY_ID` - AWS access key (optional)
 - `APP_DB_SECRET_ACCESS_KEY` - AWS secret key (optional)
 - `APP_DB_SESSION_TOKEN` - AWS session token (optional)
-  Legacy aliases:
-  all `APP_DATABASE_*` equivalents are supported for backward compatibility.
+  Historical aliases removed on this branch:
+  all `APP_DATABASE_*` equivalents have been retired in favor of `APP_DB_*`.
 
 | Config key | Env ufficiale | Alias legacy |
 | --- | --- | --- |
@@ -923,7 +923,7 @@ Ensure environment variables use the correct prefix (`APP_`) and naming conventi
 Correct: `APP_HTTP_PORT=9000`
 Incorrect: `HTTP_PORT=9000`
 
-If you still use `APP_MANAGEMENT_*` or `APP_DATABASE_*`, they are accepted as legacy aliases, but `APP_MGMT_*` and `APP_DB_*` take precedence when both are set.
+`APP_MANAGEMENT_*` and `APP_DATABASE_*` are no longer accepted on this branch. Use `APP_MGMT_*` and `APP_DB_*`.
 
 ### Validation Errors
 

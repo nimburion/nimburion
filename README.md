@@ -2,7 +2,7 @@
 
 Production-ready Go framework for microservices with strong defaults for security, observability, and operations.
 
-> Architecture status: this branch uses the refactored package layout built around `pkg/core`, `pkg/http`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related target-state families. Config schema ownership now lives in `pkg/config/schema`; for package boundaries and remaining guardrails, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md).
+> Architecture status: this branch uses the refactored package layout built around `pkg/core`, `pkg/http`, `pkg/grpc`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related target-state families. Config schema ownership now lives in `pkg/config/schema`; for package boundaries and remaining guardrails, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md) and [docs/migration-guide.md](./docs/migration-guide.md).
 
 ## Value Proposition
 - Build services faster with reusable platform modules.
@@ -25,7 +25,7 @@ Applications on this branch bootstrap through `pkg/http/server` + `pkg/config` f
 
 ## Testing
 ```bash
-# Task-scoped verification lanes during the refactor
+# Verification Lanes
 make test-build TEST_PKG=./pkg/core/...
 make test-fast-lane TEST_PKG=./pkg/core/...
 make test-contract-lane TEST_PKG=./pkg/http/router/...
@@ -37,7 +37,7 @@ make test-fast
 make test-integration
 ```
 
-Use the `*-lane` wrappers for task-scoped verification during the refactor and the aggregate targets for broad repo runs. See [Testing Guide](./docs/testing.md) for details.
+Use the `*-lane` wrappers for focused verification and the aggregate targets for broad repo runs. See [Testing Guide](./docs/testing.md) for details.
 
 ## Configuration
 - Priority: `ENV > secrets file > config file > defaults`

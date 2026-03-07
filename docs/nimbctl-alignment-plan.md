@@ -291,6 +291,11 @@ Done:
 
 ### Phase 3: Enterprise Orchestration Metadata
 
+Status on this branch:
+
+- implemented in the sibling `nimbctl` repo for descriptor-driven management and transport inspection
+- `nimbctl status` now consumes persisted descriptor management and transport metadata instead of assuming HTTP-only management
+
 Goal:
 
 - make the descriptor strong enough for enterprise orchestration instead of only service discovery

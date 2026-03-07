@@ -952,6 +952,8 @@ Status on this branch: implemented.
 
 ### T6.3 Align `nimbctl` management and transport orchestration
 
+Status on this branch: implemented in the sibling `nimbctl` repo.
+
 - Stories: cross-repo; use the `nimbctl` docs as the contract source
 - Depends on: `T6.2`
 - Outputs:
@@ -999,6 +1001,8 @@ Status on this branch: implemented, including the `pkg/security` -> `internal/sa
   - shared packages have clear, stable ownership and no misplaced transport-specific logic
 
 ### T6.5 Remove legacy roots and finalize documentation
+
+Status on this branch: implemented.
 
 - Stories: cleanup-linked stories across all milestones
 - Depends on: `T4.5`, `T6.1`, `T6.4`
