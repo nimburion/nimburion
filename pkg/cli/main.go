@@ -6,19 +6,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/audit"
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/coordination"
+	coordinationpostgres "github.com/nimburion/nimburion/pkg/coordination/postgres"
+	coordinationredis "github.com/nimburion/nimburion/pkg/coordination/redis"
+	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/health"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/jobs"
-	jobsfactory "github.com/nimburion/nimburion/pkg/jobs/factory"
+	jobsconstruct "github.com/nimburion/nimburion/pkg/jobs/construct"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/scheduler"
-	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/nimburion/nimburion/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -73,7 +77,7 @@ type JobsBackendFactory func(
 ) (jobs.Backend, error)
 
 // SchedulerLockProviderFactory creates the scheduler lock provider.
-type SchedulerLockProviderFactory func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error)
+type SchedulerLockProviderFactory func(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error)
 
 // AppCommandOptions defines callbacks for application-oriented CLI assembly.
 type AppCommandOptions struct {
@@ -88,6 +92,8 @@ type AppCommandOptions struct {
 	IncludeJobs        bool
 	IncludeScheduler   bool
 	IncludeOpenAPI     bool
+	Debug              bool
+	HealthRegistry     *health.Registry
 
 	Run func(ctx context.Context, cfg *config.Config, log logger.Logger) error
 
@@ -123,9 +129,11 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	var cfgPath string
 	var secretFilePath string
 	var serviceNameOverride string
+	var debug bool
 	rootCmd.PersistentFlags().StringVarP(&cfgPath, "config-file", "c", opts.ConfigPath, "config file path")
 	rootCmd.PersistentFlags().StringVar(&secretFilePath, "secret-file", "", "path to secrets file (sets APP_SECRETS_FILE)")
 	rootCmd.PersistentFlags().StringVar(&serviceNameOverride, "service-name", "", "service name override")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", opts.Debug, "enable framework debug surfaces such as introspection")
 
 	loadConfig := func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
 		if opts.ConfigPathResolved != nil {
@@ -146,7 +154,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	buildJobsRuntime := func(cfg *config.Config, log logger.Logger) (jobs.Runtime, error) {
 		runtimeFactory := opts.JobsRuntimeFactory
 		if runtimeFactory == nil {
-			runtimeFactory = jobsfactory.NewRuntimeWithValidation
+			runtimeFactory = jobsconstruct.NewRuntimeWithValidation
 		}
 		return runtimeFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
 	}
@@ -154,12 +162,12 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	buildJobsBackend := func(cfg *config.Config, log logger.Logger) (jobs.Backend, error) {
 		backendFactory := opts.JobsBackendFactory
 		if backendFactory == nil {
-			backendFactory = jobsfactory.NewBackendWithValidation
+			backendFactory = jobsconstruct.NewBackendWithValidation
 		}
 		return backendFactory(cfg.Jobs, cfg.EventBus, cfg.Validation.Kafka, log)
 	}
 
-	buildSchedulerLockProvider := func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error) {
+	buildSchedulerLockProvider := func(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error) {
 		lockFactory := opts.SchedulerLockProviderFactory
 		if lockFactory != nil {
 			return lockFactory(cfg, log)
@@ -193,9 +201,8 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	// run command (primary)
 	if opts.Run != nil {
 		runCmd := &cobra.Command{
-			Use:     "run",
-			Aliases: []string{"serve"},
-			Short:   "Run the application",
+			Use:   "run",
+			Short: "Run the application",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				cfg, log, err := loadConfig(cmd.Flags())
 				if err != nil {
@@ -245,17 +252,53 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			return runHealthcheckWithRegistry(cmd.Context(), healthcheckRuntimeOptions{
+				name:                       opts.Name,
+				cfg:                        cfg,
+				log:                        log,
+				features:                   opts.Features,
+				debug:                      debug,
+				registry:                   opts.HealthRegistry,
+				checkDependencies:          opts.CheckDependencies,
+				buildJobsRuntime:           buildJobsRuntime,
+				buildSchedulerLockProvider: buildSchedulerLockProvider,
+			})
+		},
+	})
+	SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 
-			var errs []error
-			if err := runFrameworkDependencyHealthChecks(cmd.Context(), cfg, log, buildJobsRuntime, buildSchedulerLockProvider); err != nil {
-				errs = append(errs, err)
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "introspect",
+		Short: "Show framework introspection data when debug is enabled",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !debug {
+				return errors.New("framework introspection is disabled; rerun with --debug")
 			}
-			if opts.CheckDependencies != nil {
-				if err := opts.CheckDependencies(cmd.Context(), cfg, log); err != nil {
-					errs = append(errs, err)
-				}
+			cfg, log, err := loadConfig(cmd.Flags())
+			if err != nil {
+				return err
 			}
-			return errors.Join(errs...)
+
+			app, err := coreapp.New(coreapp.Options{
+				Name:     opts.Name,
+				Config:   cfg,
+				Logger:   log,
+				Debug:    debug,
+				Features: opts.Features,
+			})
+			if err != nil {
+				return err
+			}
+			if err := app.Prepare(cmd.Context()); err != nil {
+				return err
+			}
+
+			out, err := formatSettings(app.Runtime().Introspection.Snapshot())
+			if err != nil {
+				return err
+			}
+			fmt.Print(out)
+			return nil
 		},
 	})
 	SetCommandPolicies(rootCmd.Commands()[len(rootCmd.Commands())-1], map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
@@ -520,7 +563,7 @@ func runFrameworkDependencyHealthChecks(
 	cfg *config.Config,
 	log logger.Logger,
 	buildJobsRuntime func(*config.Config, logger.Logger) (jobs.Runtime, error),
-	buildSchedulerLockProvider func(*config.Config, logger.Logger) (scheduler.LockProvider, error),
+	buildSchedulerLockProvider func(*config.Config, logger.Logger) (coordination.LockProvider, error),
 ) error {
 	if cfg == nil {
 		return errors.New("config is required")
@@ -563,6 +606,111 @@ func runFrameworkDependencyHealthChecks(
 	}
 
 	return errors.Join(errs...)
+}
+
+type healthcheckRuntimeOptions struct {
+	name                       string
+	cfg                        *config.Config
+	log                        logger.Logger
+	features                   []corefeature.Feature
+	debug                      bool
+	registry                   *health.Registry
+	checkDependencies          func(context.Context, *config.Config, logger.Logger) error
+	buildJobsRuntime           func(*config.Config, logger.Logger) (jobs.Runtime, error)
+	buildSchedulerLockProvider func(*config.Config, logger.Logger) (coordination.LockProvider, error)
+}
+
+func runHealthcheckWithRegistry(ctx context.Context, opts healthcheckRuntimeOptions) error {
+	registry := opts.registry
+	if registry == nil {
+		registry = health.NewRegistry()
+	}
+
+	app, err := coreapp.New(coreapp.Options{
+		Name:           opts.name,
+		Config:         opts.cfg,
+		Logger:         opts.log,
+		Debug:          opts.debug,
+		Features:       opts.features,
+		HealthRegistry: registry,
+		HealthRegistrations: []coreapp.Hook{{
+			Name: "framework_dependencies",
+			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				registerFrameworkDependencyHealthChecks(runtime.HealthRegistry(), opts.cfg, opts.log, opts.buildJobsRuntime, opts.buildSchedulerLockProvider)
+				if opts.checkDependencies != nil {
+					runtime.HealthRegistry().RegisterFunc("application-dependencies", func(ctx context.Context) health.CheckResult {
+						if err := opts.checkDependencies(ctx, opts.cfg, opts.log); err != nil {
+							return health.CheckResult{
+								Name:    "application-dependencies",
+								Status:  health.StatusUnhealthy,
+								Error:   err.Error(),
+								Message: "application dependency checks failed",
+							}
+						}
+						return health.CheckResult{
+							Name:    "application-dependencies",
+							Status:  health.StatusHealthy,
+							Message: "application dependency checks passed",
+						}
+					})
+				}
+				return nil
+			},
+		}},
+	})
+	if err != nil {
+		return err
+	}
+	if err := app.Prepare(ctx); err != nil {
+		return err
+	}
+
+	result := registry.Check(ctx)
+	if result.IsHealthy() {
+		return nil
+	}
+
+	var errs []error
+	for _, check := range result.Checks {
+		if err := healthCheckResultError(check); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func registerFrameworkDependencyHealthChecks(
+	registry *health.Registry,
+	cfg *config.Config,
+	log logger.Logger,
+	buildJobsRuntime func(*config.Config, logger.Logger) (jobs.Runtime, error),
+	buildSchedulerLockProvider func(*config.Config, logger.Logger) (coordination.LockProvider, error),
+) {
+	if registry == nil || cfg == nil {
+		return
+	}
+
+	if shouldCheckJobsRuntimeHealth(cfg) {
+		registry.RegisterFunc("jobs-runtime", func(ctx context.Context) health.CheckResult {
+			runtime, err := buildJobsRuntime(cfg, log)
+			if err != nil {
+				return health.CheckResult{Name: "jobs-runtime", Status: health.StatusUnhealthy, Error: fmt.Sprintf("create jobs runtime for healthcheck: %v", err)}
+			}
+			defer func() { _ = runtime.Close() }()
+			return jobs.NewRuntimeHealthChecker("", runtime, jobsHealthTimeout(cfg)).Check(ctx)
+		})
+	}
+
+	if shouldCheckSchedulerLockHealth(cfg) {
+		registry.RegisterFunc("scheduler-lock-provider", func(ctx context.Context) health.CheckResult {
+			lockProvider, err := buildSchedulerLockProvider(cfg, log)
+			if err != nil {
+				return health.CheckResult{Name: "scheduler-lock-provider", Status: health.StatusUnhealthy, Error: fmt.Sprintf("create scheduler lock provider for healthcheck: %v", err)}
+			}
+			defer func() { _ = lockProvider.Close() }()
+			return scheduler.NewLockProviderHealthChecker("", lockProvider, schedulerLockHealthTimeout(cfg)).Check(ctx)
+		})
+	}
 }
 
 func shouldCheckJobsRuntimeHealth(cfg *config.Config) bool {
@@ -700,7 +848,7 @@ func registerSchedulerTasksFromConfig(runtime *scheduler.Runtime, cfg *config.Co
 	return nil
 }
 
-func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error) {
+func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
@@ -718,7 +866,7 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 		if redisURL == "" {
 			return nil, errors.New("scheduler redis url is required (set scheduler.redis.url or cache.url)")
 		}
-		return scheduler.NewRedisLockProvider(scheduler.RedisLockProviderConfig{
+		return coordinationredis.NewRedisLockProvider(coordinationredis.RedisLockProviderConfig{
 			URL:              redisURL,
 			Prefix:           cfg.Scheduler.Redis.Prefix,
 			OperationTimeout: cfg.Scheduler.Redis.OperationTimeout,
@@ -731,7 +879,7 @@ func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) 
 		if postgresURL == "" {
 			return nil, errors.New("scheduler postgres url is required (set scheduler.postgres.url or database.url)")
 		}
-		return scheduler.NewPostgresLockProvider(scheduler.PostgresLockProviderConfig{
+		return coordinationpostgres.NewPostgresLockProvider(coordinationpostgres.PostgresLockProviderConfig{
 			URL:              postgresURL,
 			Table:            cfg.Scheduler.Postgres.Table,
 			OperationTimeout: cfg.Scheduler.Postgres.OperationTimeout,
@@ -842,88 +990,15 @@ func formatSettings(settings map[string]interface{}) (string, error) {
 }
 
 func redactSettingsMap(settings, secrets map[string]interface{}) map[string]interface{} {
-	if len(settings) == 0 || len(secrets) == 0 {
-		return settings
-	}
-	out := make(map[string]interface{}, len(settings))
-	for key, value := range settings {
-		mask, ok := secrets[key]
-		if !ok {
-			out[key] = value
-			continue
-		}
-		out[key] = redactSettingValue(value, mask)
-	}
-	return out
+	return audit.RedactSettings(settings, secrets)
 }
 
 func redactSettingValue(value, mask interface{}) interface{} {
-	maskMap, maskIsMap := mask.(map[string]interface{})
-	if maskIsMap {
-		valueMap, valueIsMap := value.(map[string]interface{})
-		if !valueIsMap {
-			if shouldRedactSetting(mask) {
-				return "***"
-			}
-			return value
-		}
-		out := make(map[string]interface{}, len(valueMap))
-		for key, item := range valueMap {
-			childMask, ok := maskMap[key]
-			if !ok {
-				out[key] = item
-				continue
-			}
-			out[key] = redactSettingValue(item, childMask)
-		}
-		return out
-	}
-	if shouldRedactSetting(mask) {
-		return "***"
-	}
-	return value
+	return audit.RedactSettings(map[string]interface{}{"value": value}, map[string]interface{}{"value": mask})["value"]
 }
 
 func shouldRedactSetting(mask interface{}) bool {
-	if mask == nil {
-		return false
-	}
-	switch value := mask.(type) {
-	case string:
-		return strings.TrimSpace(value) != ""
-	case bool:
-		return value
-	case int:
-		return value != 0
-	case int8:
-		return value != 0
-	case int16:
-		return value != 0
-	case int32:
-		return value != 0
-	case int64:
-		return value != 0
-	case uint:
-		return value != 0
-	case uint8:
-		return value != 0
-	case uint16:
-		return value != 0
-	case uint32:
-		return value != 0
-	case uint64:
-		return value != 0
-	case float32:
-		return value != 0
-	case float64:
-		return value != 0
-	case []interface{}:
-		return len(value) > 0
-	case map[string]interface{}:
-		return len(value) > 0
-	default:
-		return !reflect.ValueOf(mask).IsZero()
-	}
+	return audit.ShouldRedact(mask)
 }
 
 // Execute runs the command and exits with appropriate code.

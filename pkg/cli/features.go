@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	cliopenapi "github.com/nimburion/nimburion/pkg/cli/openapi"
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/coordination"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -26,7 +27,7 @@ import (
 type configLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
 type jobsRuntimeBuilder func(cfg *config.Config, log logger.Logger) (jobs.Runtime, error)
 type jobsBackendBuilder func(cfg *config.Config, log logger.Logger) (jobs.Backend, error)
-type schedulerLockProviderBuilder func(cfg *config.Config, log logger.Logger) (scheduler.LockProvider, error)
+type schedulerLockProviderBuilder func(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error)
 
 type commandFeature struct {
 	name     string

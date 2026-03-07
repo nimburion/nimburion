@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`pkg/cli` provides the shared application CLI used by Nimburion-based services and workers. During the refactor it is moving from an HTTP-service-oriented bootstrap to an application-oriented CLI where `run` is the primary entrypoint and transport-specific commands such as `serve` are feature concerns.
+`pkg/cli` provides the shared application CLI used by Nimburion-based services and workers. The target-state CLI is application-oriented: `run` is the primary entrypoint and transport-specific commands are contributed explicitly by the relevant family.
 
 ## Owned Contracts
 
@@ -11,14 +11,16 @@ The package owns:
 - `AppCommandOptions` as the target-state application CLI assembly contract
 - `NewAppCommand` for application-oriented command trees
 - base commands such as `version`, `config`, and `healthcheck`
+- the debug-gated `introspect` command for framework-owned runtime data
 - framework-managed jobs and scheduler command wiring until those areas become fully feature-driven
 
 ## Composition And Wiring Expectations
 
 - New CLI assembly should prefer `AppCommandOptions` and `NewAppCommand`.
-- `run` is the primary application command; `serve` remains an alias for HTTP-oriented compatibility.
+- `run` is the primary application command.
 - Feature command and config contributions flow through `pkg/core/feature` and are merged into the CLI builder when they can be expressed as command or config descriptors.
-- Custom application commands may still be added directly while the refactor is in transition.
+- `healthcheck` should use the shared runtime health registry instead of a separate ad hoc aggregation path.
+- Custom application commands may be added directly when they do not fit a feature contribution yet.
 
 ## Non-Goals
 
@@ -30,12 +32,13 @@ The package owns:
 ## Validation And Runtime Semantics
 
 - config loading remains centralized through the existing config provider path
-- healthcheck runs framework dependency health checks plus optional application checks
+- healthcheck builds the shared runtime, registers framework and optional application checks in the shared health registry, and evaluates that registry once
+- `introspect` prints framework introspection data only when `--debug` is enabled
 - scheduler and jobs commands keep explicit signal handling and graceful shutdown behavior
 
 ## Testing Expectations
 
-- fast tests should cover command registration, policy annotations, `run`/`serve` behavior, and feature-contributed commands
+- fast tests should cover command registration, policy annotations, `run` behavior, and feature-contributed commands
 - later waves should add integration coverage once feature-driven command registration fully replaces hardcoded optional command wiring
 
 ## Status

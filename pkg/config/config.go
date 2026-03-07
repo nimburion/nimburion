@@ -42,7 +42,6 @@ const (
 
 // Config is the root configuration structure for the microservice framework
 type Config struct {
-	RouterType      string `mapstructure:"router_type"`
 	Service         ServiceConfig
 	HTTP            HTTPConfig
 	Management      ManagementConfig

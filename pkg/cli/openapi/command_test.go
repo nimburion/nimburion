@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/spf13/pflag"
 )
 

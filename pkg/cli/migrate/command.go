@@ -3,7 +3,7 @@ package migrate
 import (
 	"context"
 	"database/sql"
-	"github.com/nimburion/nimburion/pkg/migrate"
+	"github.com/nimburion/nimburion/pkg/persistence/relational/migrate"
 	"io/fs"
 	"time"
 

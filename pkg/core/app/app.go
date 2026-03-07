@@ -21,13 +21,20 @@ const defaultShutdownTimeout = 30 * time.Second
 type Phase string
 
 const (
-	PhaseConfigResolution      Phase = "config_resolution"
+	// PhaseConfigResolution resolves runtime configuration before other startup work.
+	PhaseConfigResolution Phase = "config_resolution"
+	// PhaseObservabilityBaseline initializes shared logs, metrics, and tracing state.
 	PhaseObservabilityBaseline Phase = "observability_baseline"
-	PhaseFeatureRegistration   Phase = "feature_registration"
-	PhaseHealthRegistration    Phase = "health_registration"
-	PhaseServiceConstruction   Phase = "service_construction"
-	PhaseRuntimeExecution      Phase = "runtime_execution"
-	PhaseGracefulShutdown      Phase = "graceful_shutdown"
+	// PhaseFeatureRegistration registers feature-owned startup contributions.
+	PhaseFeatureRegistration Phase = "feature_registration"
+	// PhaseHealthRegistration registers shared health checks and optional introspection entries.
+	PhaseHealthRegistration Phase = "health_registration"
+	// PhaseServiceConstruction constructs feature-owned runtime services.
+	PhaseServiceConstruction Phase = "service_construction"
+	// PhaseRuntimeExecution starts long-running workloads.
+	PhaseRuntimeExecution Phase = "runtime_execution"
+	// PhaseGracefulShutdown stops workloads and shutdown hooks in reverse order.
+	PhaseGracefulShutdown Phase = "graceful_shutdown"
 )
 
 // Hook defines a named lifecycle action.
@@ -46,6 +53,7 @@ type Runner struct {
 type Runtime struct {
 	Name          string
 	Config        any
+	Debug         bool
 	Logger        logger.Logger
 	Health        *health.Registry
 	Metrics       *metrics.Registry
@@ -126,6 +134,7 @@ type Options struct {
 	TracerProvider        *tracing.TracerProvider
 	IntrospectionRegistry *IntrospectionRegistry
 	ShutdownTimeout       time.Duration
+	Debug                 bool
 
 	ConfigResolvers      []Hook
 	ObservabilityHooks   []Hook
@@ -150,6 +159,7 @@ type App struct {
 	serviceConstructors  []Hook
 	runners              []Runner
 	shutdownHooks        []Hook
+	introspectionHooks   []Hook
 }
 
 // New builds a transport-agnostic application runtime.
@@ -187,6 +197,7 @@ func New(opts Options) (*App, error) {
 		runtime: &Runtime{
 			Name:          opts.Name,
 			Config:        opts.Config,
+			Debug:         opts.Debug,
 			Logger:        log,
 			Health:        healthRegistry,
 			Metrics:       metricsRegistry,
@@ -205,11 +216,8 @@ func New(opts Options) (*App, error) {
 			adaptFeatureHooks(featureContributions.startupHooks)...,
 		),
 		healthRegistrations: append(
-			append(
-				append([]Hook(nil), opts.HealthRegistrations...),
-				adaptFeatureHooks(featureContributions.healthHooks)...,
-			),
-			adaptFeatureHooks(featureContributions.introspectionHooks)...,
+			append([]Hook(nil), opts.HealthRegistrations...),
+			adaptFeatureHooks(featureContributions.healthHooks)...,
 		),
 		instrumentationHooks: append(
 			append([]Hook(nil), opts.InstrumentationHooks...),
@@ -227,6 +235,7 @@ func New(opts Options) (*App, error) {
 			append([]Hook(nil), opts.ShutdownHooks...),
 			adaptFeatureHooks(featureContributions.shutdownHooks)...,
 		),
+		introspectionHooks: adaptFeatureHooks(featureContributions.introspectionHooks),
 	}, nil
 }
 
@@ -235,8 +244,8 @@ func (a *App) Runtime() *Runtime {
 	return a.runtime
 }
 
-// Run executes the configured lifecycle phases and runtime workloads.
-func (a *App) Run(ctx context.Context) error {
+// Prepare executes startup phases up to service construction without starting runners.
+func (a *App) Prepare(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -253,10 +262,23 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.runPhase(ctx, PhaseHealthRegistration, a.healthRegistrations); err != nil {
 		return err
 	}
+	if a.runtime.Debug {
+		if err := a.runPhase(ctx, PhaseHealthRegistration, a.introspectionHooks); err != nil {
+			return err
+		}
+	}
 	if err := a.runPhase(ctx, PhaseObservabilityBaseline, a.instrumentationHooks); err != nil {
 		return err
 	}
 	if err := a.runPhase(ctx, PhaseServiceConstruction, a.serviceConstructors); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Run executes the configured lifecycle phases and runtime workloads.
+func (a *App) Run(ctx context.Context) error {
+	if err := a.Prepare(ctx); err != nil {
 		return err
 	}
 
@@ -276,6 +298,11 @@ func (r *Runtime) AppName() string {
 // ConfigValue returns the effective runtime config object.
 func (r *Runtime) ConfigValue() any {
 	return r.Config
+}
+
+// DebugEnabled reports whether framework debug surfaces are enabled.
+func (r *Runtime) DebugEnabled() bool {
+	return r.Debug
 }
 
 // Log returns the runtime logger.

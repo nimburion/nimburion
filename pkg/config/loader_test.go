@@ -15,10 +15,6 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Verify HTTP defaults
-	if cfg.RouterType != "gin" {
-		t.Errorf("expected router type gin, got %s", cfg.RouterType)
-	}
 	if cfg.Service.Name != "app" {
 		t.Errorf("expected service name app, got %s", cfg.Service.Name)
 	}
@@ -90,14 +86,12 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	os.Setenv("APP_HTTP_PORT", "9000")
 	os.Setenv("APP_HTTP_MAX_REQUEST_SIZE", "2048")
 	os.Setenv("APP_OBSERVABILITY_LOG_LEVEL", "debug")
-	os.Setenv("APP_ROUTER_TYPE", "gin")
 	os.Setenv("APP_SERVICE_NAME", "orders-api")
 	os.Setenv("APP_SERVICE_ENVIRONMENT", "production")
 	defer func() {
 		os.Unsetenv("APP_HTTP_PORT")
 		os.Unsetenv("APP_HTTP_MAX_REQUEST_SIZE")
 		os.Unsetenv("APP_OBSERVABILITY_LOG_LEVEL")
-		os.Unsetenv("APP_ROUTER_TYPE")
 		os.Unsetenv("APP_SERVICE_NAME")
 		os.Unsetenv("APP_SERVICE_ENVIRONMENT")
 	}()
@@ -118,9 +112,6 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	}
 	if cfg.Observability.LogLevel != "debug" {
 		t.Errorf("expected log level 'debug' from env, got %s", cfg.Observability.LogLevel)
-	}
-	if cfg.RouterType != "gin" {
-		t.Errorf("expected router type 'gin' from env, got %s", cfg.RouterType)
 	}
 	if cfg.Service.Name != "orders-api" {
 		t.Errorf("expected service name orders-api from env, got %s", cfg.Service.Name)
@@ -152,23 +143,6 @@ func TestViperLoader_LoadSecurityHeadersFromEnv(t *testing.T) {
 	}
 	if cfg.SecurityHeaders.STSSeconds != 63072000 {
 		t.Fatalf("expected security_headers.sts_seconds=63072000 from env, got %d", cfg.SecurityHeaders.STSSeconds)
-	}
-}
-
-func TestViperLoader_InvalidRouterType(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_ROUTER_TYPE", "invalid")
-	defer os.Unsetenv("APP_ROUTER_TYPE")
-
-	loader := NewViperLoader("", "APP")
-	_, err := loader.Load()
-	if err == nil {
-		t.Fatal("expected error for invalid router type")
-	}
-	if !strings.Contains(err.Error(), "invalid router_type") {
-		t.Fatalf("expected invalid router_type error, got %v", err)
 	}
 }
 

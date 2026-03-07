@@ -14,6 +14,7 @@ import (
 type Runtime interface {
 	AppName() string
 	ConfigValue() any
+	DebugEnabled() bool
 	Log() logger.Logger
 	HealthRegistry() *health.Registry
 	MetricsRegistry() *metrics.Registry
