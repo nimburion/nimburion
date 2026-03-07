@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
-	"github.com/nimburion/nimburion/pkg/server/router"
 )
 
 // SuccessBody represents a successful response with data.

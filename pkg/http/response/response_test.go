@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
-	"github.com/nimburion/nimburion/pkg/server/router"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 type mockResponseWriter struct {
