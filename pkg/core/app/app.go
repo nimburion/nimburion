@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/core/feature"
+	"github.com/nimburion/nimburion/pkg/featureflag"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
@@ -54,11 +55,16 @@ type Runtime struct {
 	Name          string
 	Config        any
 	Debug         bool
+	Flags         *featureflag.Registry
+	Failures      *FailureInjector
+	Deployment    *DeploymentPosture
+	Signals       *SignalCatalog
 	Logger        logger.Logger
 	Health        *health.Registry
 	Metrics       *metrics.Registry
 	Tracer        *tracing.TracerProvider
 	Introspection *IntrospectionRegistry
+	Posture       *featureflag.RuntimePosture
 	Services      map[string]any
 }
 
@@ -133,6 +139,11 @@ type Options struct {
 	MetricsRegistry       *metrics.Registry
 	TracerProvider        *tracing.TracerProvider
 	IntrospectionRegistry *IntrospectionRegistry
+	FeatureFlags          *featureflag.Registry
+	RuntimePosture        *featureflag.RuntimePosture
+	FailureInjector       *FailureInjector
+	DeploymentPosture     *DeploymentPosture
+	SignalCatalog         *SignalCatalog
 	ShutdownTimeout       time.Duration
 	Debug                 bool
 
@@ -181,10 +192,52 @@ func New(opts Options) (*App, error) {
 	if metricsRegistry == nil {
 		metricsRegistry = metrics.NewRegistry()
 	}
+	flagRegistry := opts.FeatureFlags
+	if flagRegistry == nil {
+		flagRegistry = featureflag.NewRegistry()
+	}
 	introspectionRegistry := opts.IntrospectionRegistry
 	if introspectionRegistry == nil {
 		introspectionRegistry = NewIntrospectionRegistry()
 	}
+	posture := opts.RuntimePosture
+	if posture == nil {
+		posture = featureflag.NewRuntimePosture()
+	}
+	failures := opts.FailureInjector
+	if failures == nil {
+		failures = NewFailureInjector()
+	}
+	deploymentPosture := opts.DeploymentPosture
+	if deploymentPosture == nil {
+		deploymentPosture = NewDeploymentPosture()
+	}
+	signalCatalog := opts.SignalCatalog
+	if signalCatalog == nil {
+		signalCatalog = NewSignalCatalog()
+	}
+	signalCatalog.Register(SignalAttachment{
+		Name:        "runtime-readiness",
+		Family:      "runtime",
+		Class:       SignalErrors,
+		Metric:      featureflag.CheckNameRuntimeReadiness,
+		Description: "Readiness posture exposed through the shared health registry.",
+	})
+	signalCatalog.Register(SignalAttachment{
+		Name:        "runtime-liveness",
+		Family:      "runtime",
+		Class:       SignalErrors,
+		Metric:      featureflag.CheckNameRuntimeLiveness,
+		Description: "Liveness posture exposed through the shared health registry.",
+	})
+	signalCatalog.Register(SignalAttachment{
+		Name:        "runtime-degraded-mode",
+		Family:      "runtime",
+		Class:       SignalSaturation,
+		Metric:      featureflag.CheckNameRuntimePosture,
+		Description: "Degraded-mode posture exposed through the shared health registry.",
+	})
+	featureflag.RegisterHealthChecks(healthRegistry, posture)
 
 	shutdownTimeout := opts.ShutdownTimeout
 	if shutdownTimeout <= 0 {
@@ -198,11 +251,16 @@ func New(opts Options) (*App, error) {
 			Name:          opts.Name,
 			Config:        opts.Config,
 			Debug:         opts.Debug,
+			Flags:         flagRegistry,
+			Failures:      failures,
+			Deployment:    deploymentPosture,
+			Signals:       signalCatalog,
 			Logger:        log,
 			Health:        healthRegistry,
 			Metrics:       metricsRegistry,
 			Tracer:        opts.TracerProvider,
 			Introspection: introspectionRegistry,
+			Posture:       posture,
 			Services:      make(map[string]any),
 		},
 		shutdownTimeout: shutdownTimeout,
@@ -249,29 +307,64 @@ func (a *App) Prepare(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	a.runtime.Posture.SetLiveness(featureflag.LivenessAlive, "")
+	a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup in progress")
+	a.runtime.Posture.SetStartup(featureflag.StartupStarting, "startup in progress")
 
 	if err := a.runPhase(ctx, PhaseConfigResolution, a.configResolvers); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
 	}
 	if err := a.runPhase(ctx, PhaseObservabilityBaseline, a.observabilityHooks); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
 	}
 	if err := a.runPhase(ctx, PhaseFeatureRegistration, a.featureRegistrations); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
 	}
 	if err := a.runPhase(ctx, PhaseHealthRegistration, a.healthRegistrations); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
 	}
 	if a.runtime.Debug {
 		if err := a.runPhase(ctx, PhaseHealthRegistration, a.introspectionHooks); err != nil {
+			a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+			a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 			return err
 		}
 	}
 	if err := a.runPhase(ctx, PhaseObservabilityBaseline, a.instrumentationHooks); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
 	}
 	if err := a.runPhase(ctx, PhaseServiceConstruction, a.serviceConstructors); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
 		return err
+	}
+	if err := a.runtime.Deployment.Validate(); err != nil {
+		a.runtime.Posture.SetStartup(featureflag.StartupFailed, err.Error())
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "startup failed")
+		return fmt.Errorf("deployment posture validation failed: %w", err)
+	}
+	a.runtime.Posture.SetStartup(featureflag.StartupReady, "startup completed")
+	if a.runtime.Posture.Snapshot().Mode == featureflag.ModeDegraded {
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessDegraded, "runtime is ready in degraded mode")
+	} else {
+		a.runtime.Posture.SetReadiness(featureflag.ReadinessReady, "runtime is ready")
+	}
+	if a.runtime.Debug {
+		a.runtime.Introspection.Set("feature_flags", a.runtime.Flags.Snapshot())
+		a.runtime.Introspection.Set("runtime_posture", a.runtime.Posture.Snapshot())
+		a.runtime.Introspection.Set("failure_injection", a.runtime.Failures.Snapshot())
+		a.runtime.Introspection.Set("deployment_posture", a.runtime.Deployment.Snapshot())
+		a.runtime.Introspection.Set("signal_catalog", a.runtime.Signals.Snapshot())
 	}
 	return nil
 }
@@ -308,6 +401,31 @@ func (r *Runtime) DebugEnabled() bool {
 // Log returns the runtime logger.
 func (r *Runtime) Log() logger.Logger {
 	return r.Logger
+}
+
+// FeatureFlags returns the shared feature flag registry.
+func (r *Runtime) FeatureFlags() *featureflag.Registry {
+	return r.Flags
+}
+
+// RuntimePosture returns the shared runtime posture contract.
+func (r *Runtime) RuntimePosture() *featureflag.RuntimePosture {
+	return r.Posture
+}
+
+// FailureInjector returns the shared failure-injection registry.
+func (r *Runtime) FailureInjector() feature.FailureInjector {
+	return r.Failures
+}
+
+// DeploymentPosture returns the shared deployment posture metadata.
+func (r *Runtime) DeploymentPosture() feature.DeploymentPosture {
+	return r.Deployment
+}
+
+// SignalCatalog returns the shared operational signal catalog.
+func (r *Runtime) SignalCatalog() feature.SignalCatalog {
+	return r.Signals
 }
 
 // HealthRegistry returns the shared health registry.
@@ -348,6 +466,9 @@ func (a *App) runPhase(ctx context.Context, phase Phase, hooks []Hook) error {
 		if hook.Fn == nil {
 			continue
 		}
+		if err := a.runtime.Failures.Apply(ctx, HookFailureTarget(phase, hook.Name)); err != nil {
+			return fmt.Errorf("%s failure injection for hook %q failed: %w", phase, hook.Name, err)
+		}
 		if err := hook.Fn(ctx, a.runtime); err != nil {
 			return fmt.Errorf("%s hook %q failed: %w", phase, hook.Name, err)
 		}
@@ -372,6 +493,10 @@ func (a *App) runRunners(ctx context.Context, cancel context.CancelFunc) error {
 				errCh <- nil
 				return
 			}
+			if err := a.runtime.Failures.Apply(ctx, RunnerFailureTarget(currentRunner.Name)); err != nil {
+				errCh <- fmt.Errorf("runner %q failure injection failed: %w", currentRunner.Name, err)
+				return
+			}
 			errCh <- currentRunner.Fn(ctx, a.runtime)
 		}()
 	}
@@ -391,6 +516,8 @@ func (a *App) runRunners(ctx context.Context, cancel context.CancelFunc) error {
 func (a *App) shutdown(ctx context.Context) error {
 	a.runtime.Logger.Info("application phase started", "phase", PhaseGracefulShutdown)
 	defer a.runtime.Logger.Info("application phase completed", "phase", PhaseGracefulShutdown)
+	a.runtime.Posture.SetReadiness(featureflag.ReadinessBlocked, "graceful shutdown in progress")
+	a.runtime.Posture.SetLiveness(featureflag.LivenessStopping, "graceful shutdown in progress")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), a.shutdownTimeout)
 	defer cancel()
@@ -411,6 +538,10 @@ func (a *App) shutdown(ctx context.Context) error {
 		if hook.Fn == nil {
 			continue
 		}
+		if err := a.runtime.Failures.Apply(shutdownCtx, ShutdownFailureTarget(hook.Name)); err != nil {
+			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("%s failure injection for hook %q failed: %w", PhaseGracefulShutdown, hook.Name, err))
+			continue
+		}
 		if err := hook.Fn(shutdownCtx, a.runtime); err != nil {
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("%s hook %q failed: %w", PhaseGracefulShutdown, hook.Name, err))
 		}
@@ -421,6 +552,7 @@ func (a *App) shutdown(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, fmt.Errorf("shutdown tracer provider: %w", err))
 		}
 	}
+	a.runtime.Posture.SetLiveness(featureflag.LivenessStopped, "runtime stopped")
 
 	return shutdownErr
 }

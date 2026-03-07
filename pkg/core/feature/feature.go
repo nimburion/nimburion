@@ -4,6 +4,7 @@ package feature
 import (
 	"context"
 
+	"github.com/nimburion/nimburion/pkg/featureflag"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
@@ -16,6 +17,11 @@ type Runtime interface {
 	ConfigValue() any
 	DebugEnabled() bool
 	Log() logger.Logger
+	FeatureFlags() *featureflag.Registry
+	RuntimePosture() *featureflag.RuntimePosture
+	FailureInjector() FailureInjector
+	DeploymentPosture() DeploymentPosture
+	SignalCatalog() SignalCatalog
 	HealthRegistry() *health.Registry
 	MetricsRegistry() *metrics.Registry
 	TracerProvider() *tracing.TracerProvider
@@ -29,6 +35,23 @@ type IntrospectionRegistry interface {
 	Set(name string, value any)
 	Get(name string) (any, bool)
 	Snapshot() map[string]any
+}
+
+// FailureInjector exposes opt-in runtime failure injection.
+type FailureInjector interface {
+	Apply(context.Context, string) error
+	Snapshot() any
+}
+
+// DeploymentPosture exposes deployment topology metadata.
+type DeploymentPosture interface {
+	Validate() error
+	Snapshot() any
+}
+
+// SignalCatalog exposes runtime signal attachment metadata.
+type SignalCatalog interface {
+	Snapshot() any
 }
 
 // Hook defines a named feature lifecycle action.
