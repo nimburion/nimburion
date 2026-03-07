@@ -2,7 +2,7 @@
 
 Production-ready Go framework for microservices with strong defaults for security, observability, and operations.
 
-> Architecture status: this branch uses the refactored package layout built around `pkg/core`, `pkg/http`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related target-state families. `pkg/configschema` remains the main legacy implementation area. For package boundaries and remaining guardrails, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md).
+> Architecture status: this branch uses the refactored package layout built around `pkg/core`, `pkg/http`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related target-state families. Config schema ownership now lives in `pkg/config/schema`; for package boundaries and remaining guardrails, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md).
 
 ## Value Proposition
 - Build services faster with reusable platform modules.
@@ -46,19 +46,20 @@ Use the `*-lane` wrappers for task-scoped verification during the refactor and t
 
 ## Current Package Map
 - `pkg/http/server`, `pkg/http/router`: server lifecycle and HTTP routing
-- `pkg/config`, `pkg/configschema`: config loading and schema helpers
+- `pkg/core/app`, `pkg/featureflag`: application lifecycle, rollout-safe flags, and runtime posture
+- `pkg/config`, `pkg/config/schema`: config loading and schema helpers
 - `pkg/http/*`, `pkg/auth`: transport security and request pipeline
 - `pkg/persistence/*`: relational, document, key-value, search, and object families
 - `pkg/cache/*`, `pkg/session/*`: shared operational roles and role-specific backend adapters
 - `pkg/eventbus`, `pkg/jobs`, `pkg/realtime`: async messaging, jobs runtime, and realtime channels
-- `pkg/observability`, `pkg/health`, `pkg/resilience`: runtime operations
+- `pkg/observability`, `pkg/health`, `pkg/resilience`: runtime operations and shared health semantics
 - `pkg/cli`, `pkg/persistence/relational/migrate`, `pkg/http/openapi`: tooling and HTTP API documentation
 
 ## Refactor Guardrails
 
 Until the refactor lands, do not add new framework code under:
 
-- `pkg/configschema`
+- `pkg/config/schema`
 
 `pkg/controller` is already removed on this branch. Place HTTP response/input work in `pkg/http/response` and `pkg/http/input`, keep application errors in `pkg/core/errors`, place new transport code in `pkg/http/*` or `pkg/grpc/*`, keep `pkg/core` transport-agnostic, and prefer target-state families such as `pkg/persistence/*`, `pkg/cache/*`, `pkg/session/*`, and `pkg/config/schema` over legacy package roots.
 

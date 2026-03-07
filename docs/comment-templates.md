@@ -314,8 +314,14 @@ For constant blocks, add a block comment only when the constants clearly belong 
 const (
     // PolicyAlways allows the command to run in every workflow.
     PolicyAlways CommandPolicy = "always"
+    // PolicyRun marks the primary runtime start command.
+    PolicyRun CommandPolicy = "run"
+    // PolicyMigration marks commands intended for migration workflows.
+    PolicyMigration CommandPolicy = "migration"
     // PolicyManual marks commands intended for explicit operator use.
     PolicyManual CommandPolicy = "manual"
+    // PolicyScheduled marks commands that run long-lived or scheduled workloads.
+    PolicyScheduled CommandPolicy = "scheduled"
 )
 ```
 

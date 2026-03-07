@@ -205,6 +205,14 @@ Run the non-functional gate with:
 make test-nonfunctional-lane TEST_PKG=./path/...
 ```
 
+Shared harness support lives in `internal/testharness/nonfunctional`.
+
+Use `NIMB_NONFUNCTIONAL` to narrow expensive categories when a package owns long-running suites, for example:
+
+```bash
+NIMB_NONFUNCTIONAL=resilience,ordering make test-nonfunctional-lane TEST_PKG=./pkg/core/app
+```
+
 During and after the refactor, the test model should explicitly include:
 
 - performance tests
@@ -213,6 +221,17 @@ During and after the refactor, the test model should explicitly include:
 - security tests
 - compatibility and migration tests
 - concurrency race and ordering suites
+
+The standard category names are:
+
+- `performance`
+- `load`
+- `soak`
+- `resilience`
+- `security`
+- `compatibility`
+- `race`
+- `ordering`
 
 ### Performance Tests
 

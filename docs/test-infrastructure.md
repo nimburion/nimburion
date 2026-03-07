@@ -33,6 +33,7 @@ Use:
 - `make test-integration-lane TEST_PKG=./path/...` for task-level integration verification
 - `make test-contract-lane TEST_PKG=./path/...` for family contract verification
 - `make test-nonfunctional-lane TEST_PKG=./path/...` for non-functional verification
+- `internal/testharness/nonfunctional` for standard category gating and naming
 - `make test-fast` for quick feedback
 - `make test-integration` for external-service coverage
 - `make test-parallel` for full parallel runs
@@ -80,6 +81,11 @@ The most important additional non-functional support is for:
 - security-focused suites where the framework owns auth, masking, tenant, or secret-handling behavior
 - compatibility and migration suites for descriptor, config, and startup-policy evolution
 - race and ordering verification for concurrent runtimes
+
+Current branch state:
+
+- shared non-functional harness helpers live in `internal/testharness/nonfunctional`
+- `NIMB_NONFUNCTIONAL` can restrict category execution without changing the lane command shape
 
 These areas are the most likely to need external dependencies and contract verification.
 
