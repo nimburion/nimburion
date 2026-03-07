@@ -1,4 +1,4 @@
-package configschema
+package schema
 
 import (
 	"encoding/json"
@@ -74,11 +74,11 @@ func BuildSchemaWithDefaults(baseDefaults any, extensions ...any) (*jsonschema.S
 	}
 	pruneRequiredWithDefaults(schema)
 
-	serviceName := "Service"
-	if cfg, ok := baseDefaults.(*nimburioncfg.Config); ok && strings.TrimSpace(cfg.Service.Name) != "" {
-		serviceName = cfg.Service.Name
-	} else if cfg, ok := baseDefaults.(nimburioncfg.Config); ok && strings.TrimSpace(cfg.Service.Name) != "" {
-		serviceName = cfg.Service.Name
+	serviceName := "Application"
+	if cfg, ok := baseDefaults.(*nimburioncfg.Config); ok && strings.TrimSpace(cfg.App.Name) != "" {
+		serviceName = cfg.App.Name
+	} else if cfg, ok := baseDefaults.(nimburioncfg.Config); ok && strings.TrimSpace(cfg.App.Name) != "" {
+		serviceName = cfg.App.Name
 	}
 
 	schema.Title = serviceName + " Configuration"
@@ -106,16 +106,19 @@ func applyFieldNames(schema *jsonschema.Schema, t reflect.Type) {
 			if !field.IsExported() {
 				continue
 			}
-			jsonName, omit := jsonFieldName(field)
+			sourceNames, omit := schemaSourceFieldNames(field)
 			if omit {
 				continue
 			}
 			desired := fieldKeyName(field)
-			nameMap[jsonName] = desired
-			if prop, ok := schema.Properties[jsonName]; ok {
-				delete(schema.Properties, jsonName)
-				schema.Properties[desired] = prop
-				applyFieldNames(prop, field.Type)
+			for _, sourceName := range sourceNames {
+				nameMap[sourceName] = desired
+				if prop, ok := schema.Properties[sourceName]; ok {
+					delete(schema.Properties, sourceName)
+					schema.Properties[desired] = prop
+					applyFieldNames(prop, field.Type)
+					break
+				}
 			}
 		}
 
@@ -239,212 +242,205 @@ func pruneRequiredWithDefaults(schema *jsonschema.Schema) {
 	for _, prop := range schema.Properties {
 		pruneRequiredWithDefaults(prop)
 	}
-	if len(schema.Required) == 0 || len(schema.Properties) == 0 {
+	if schema.Items != nil {
+		pruneRequiredWithDefaults(schema.Items)
+	}
+	if schema.AdditionalProperties != nil {
+		pruneRequiredWithDefaults(schema.AdditionalProperties)
+	}
+	if len(schema.Required) == 0 {
 		return
 	}
-	kept := make([]string, 0, len(schema.Required))
+	required := make([]string, 0, len(schema.Required))
 	for _, name := range schema.Required {
 		prop := schema.Properties[name]
-		if prop == nil || prop.Default == nil {
-			kept = append(kept, name)
+		if prop != nil && prop.Default != nil {
+			continue
 		}
+		required = append(required, name)
 	}
-	schema.Required = kept
+	schema.Required = required
 }
 
 func marshalDefault(schema *jsonschema.Schema, value reflect.Value) (json.RawMessage, bool) {
-	if !value.IsValid() {
-		return nil, false
-	}
 	for value.Kind() == reflect.Pointer {
 		if value.IsNil() {
 			return nil, false
 		}
 		value = value.Elem()
 	}
-
-	if value.Type() == reflect.TypeOf(time.Duration(0)) && schemaAllowsString(schema) {
-		dur, ok := value.Interface().(time.Duration)
-		if !ok {
-			return nil, false
-		}
-		payload, err := json.Marshal(dur.String())
-		if err != nil {
-			return nil, false
-		}
-		return payload, true
+	if !value.IsValid() {
+		return nil, false
 	}
 
-	payload, err := json.Marshal(value.Interface())
+	if value.Type() == reflect.TypeOf(time.Duration(0)) {
+		return json.RawMessage(`"` + value.Interface().(time.Duration).String() + `"`), true
+	}
+
+	if isZeroValue(value) && !schemaAllowsZeroDefault(schema, value.Kind()) {
+		return nil, false
+	}
+
+	raw, err := json.Marshal(value.Interface())
 	if err != nil {
 		return nil, false
 	}
-	return payload, true
+	return raw, true
 }
 
-func schemaAllowsString(schema *jsonschema.Schema) bool {
+func schemaAllowsNull(schema *jsonschema.Schema) bool {
 	if schema == nil {
 		return false
 	}
-	if schema.Type == "string" {
+	if schema.Type == "null" {
 		return true
 	}
-	for _, t := range schema.Types {
-		if t == "string" {
+	for _, v := range schema.AnyOf {
+		if schemaAllowsNull(v) {
+			return true
+		}
+	}
+	for _, v := range schema.OneOf {
+		if schemaAllowsNull(v) {
 			return true
 		}
 	}
 	return false
 }
 
-func fieldKeyName(field reflect.StructField) string {
-	if tag, ok := tagName(field.Tag.Get("mapstructure")); ok {
-		return tag
-	}
-	if tag, ok := tagName(field.Tag.Get("yaml")); ok {
-		return tag
-	}
-	return toSnakeCase(field.Name)
-}
-
-func tagName(tag string) (string, bool) {
-	if tag == "" {
-		return "", false
-	}
-	name := strings.Split(tag, ",")[0]
-	if name == "" || name == "-" {
-		return "", false
-	}
-	return name, true
-}
-
-func toSnakeCase(value string) string {
-	if value == "" {
-		return value
-	}
-	var b strings.Builder
-	b.Grow(len(value) + 8)
-
-	for i, r := range value {
-		if i > 0 && isWordBoundary(value, i, r) {
-			b.WriteByte('_')
-		}
-		b.WriteRune(unicode.ToLower(r))
-	}
-	return b.String()
-}
-
-func isWordBoundary(value string, index int, r rune) bool {
-	if !unicode.IsUpper(r) {
+func schemaAllowsZeroDefault(schema *jsonschema.Schema, kind reflect.Kind) bool {
+	if schema == nil {
 		return false
 	}
-	prev := rune(value[index-1])
-	if unicode.IsUpper(prev) {
-		if index+1 < len(value) {
-			next := rune(value[index+1])
-			return unicode.IsLower(next)
-		}
-		return false
+	switch kind {
+	case reflect.Bool:
+		return true
+	case reflect.Struct:
+		return true
 	}
-	return true
+	return false
 }
 
-func jsonFieldName(field reflect.StructField) (string, bool) {
-	if !field.IsExported() {
-		return "", true
+func collectDisabledCoreSections(ext any, disabled map[string]struct{}) {
+	disabler, ok := ext.(CoreSchemaDisabler)
+	if !ok {
+		return
 	}
-	name := field.Name
-	if tag, ok := field.Tag.Lookup("json"); ok {
-		tagName, _, found := strings.Cut(tag, ",")
-		if tagName == "-" && !found {
-			return "", true
-		}
-		if tagName != "" {
-			name = tagName
+	for _, name := range disabler.DisabledCoreConfigSections() {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			disabled[name] = struct{}{}
 		}
 	}
-	return name, false
 }
 
-func mergeSchemas(primary, secondary *jsonschema.Schema) *jsonschema.Schema {
-	if primary == nil {
-		return secondary
+func disableCoreSections(schema *jsonschema.Schema, disabled map[string]struct{}) {
+	if schema == nil || len(disabled) == 0 {
+		return
 	}
-	if secondary == nil {
-		return primary
+	for name := range disabled {
+		delete(schema.Properties, name)
 	}
-	return mergeSchemaNode(primary, secondary)
+	if len(schema.Required) == 0 {
+		return
+	}
+	filtered := make([]string, 0, len(schema.Required))
+	for _, name := range schema.Required {
+		if _, ok := disabled[name]; !ok {
+			filtered = append(filtered, name)
+		}
+	}
+	schema.Required = filtered
 }
 
-func mergeSchemaNode(primary, secondary *jsonschema.Schema) *jsonschema.Schema {
-	if primary == nil {
-		return secondary
+func mergeSchemas(base, ext *jsonschema.Schema) *jsonschema.Schema {
+	if base == nil {
+		return ext
 	}
-	if secondary == nil {
-		return primary
+	if ext == nil {
+		return base
 	}
-
-	merged := &jsonschema.Schema{}
-	*merged = *primary
-
-	merged.Properties = map[string]*jsonschema.Schema{}
-	for key, value := range primary.Properties {
-		merged.Properties[key] = value
+	merged := *base
+	if merged.Properties == nil {
+		merged.Properties = map[string]*jsonschema.Schema{}
 	}
-	for key, value := range secondary.Properties {
-		if existing, exists := merged.Properties[key]; exists {
-			merged.Properties[key] = mergeSchemaNode(existing, value)
+	for name, prop := range ext.Properties {
+		if existing, ok := merged.Properties[name]; ok {
+			merged.Properties[name] = mergeSchemas(existing, prop)
 			continue
 		}
-		merged.Properties[key] = value
+		merged.Properties[name] = prop
 	}
-
-	if secondary.Type != "" {
-		merged.Type = secondary.Type
-	}
-	if len(secondary.Types) > 0 {
-		merged.Types = dedupeStrings(append([]string{}, secondary.Types...))
-	}
-
-	merged.Required = dedupeStrings(append(append([]string{}, primary.Required...), secondary.Required...))
-	merged.PropertyOrder = dedupeStrings(append(append([]string{}, primary.PropertyOrder...), secondary.PropertyOrder...))
-	merged.DependentRequired = mergeDependentRequired(primary.DependentRequired, secondary.DependentRequired)
-
-	if secondary.AdditionalProperties != nil {
-		if merged.AdditionalProperties != nil {
-			merged.AdditionalProperties = mergeSchemaNode(merged.AdditionalProperties, secondary.AdditionalProperties)
-		} else {
-			merged.AdditionalProperties = secondary.AdditionalProperties
+	merged.Required = dedupeStrings(append(append([]string(nil), base.Required...), ext.Required...))
+	merged.PropertyOrder = dedupeStrings(append(append([]string(nil), base.PropertyOrder...), ext.PropertyOrder...))
+	if len(ext.DependentRequired) > 0 {
+		if merged.DependentRequired == nil {
+			merged.DependentRequired = map[string][]string{}
+		}
+		for key, deps := range ext.DependentRequired {
+			merged.DependentRequired[key] = dedupeStrings(append(append([]string(nil), merged.DependentRequired[key]...), deps...))
 		}
 	}
-
-	if secondary.Items != nil {
-		if merged.Items != nil {
-			merged.Items = mergeSchemaNode(merged.Items, secondary.Items)
-		} else {
-			merged.Items = secondary.Items
-		}
-	}
-
-	if secondary.Default != nil {
-		merged.Default = secondary.Default
-	}
-
-	return merged
+	return &merged
 }
 
-func mergeDependentRequired(primary, secondary map[string][]string) map[string][]string {
-	if len(primary) == 0 && len(secondary) == 0 {
-		return nil
+func fieldKeyName(field reflect.StructField) string {
+	if tag := strings.TrimSpace(field.Tag.Get("mapstructure")); tag != "" && tag != "-" {
+		if name, _, _ := strings.Cut(tag, ","); name != "" {
+			return name
+		}
 	}
-	out := make(map[string][]string, len(primary)+len(secondary))
-	for key, values := range primary {
-		out[key] = append([]string{}, values...)
+	if tag := strings.TrimSpace(field.Tag.Get("yaml")); tag != "" && tag != "-" {
+		if name, _, _ := strings.Cut(tag, ","); name != "" {
+			return name
+		}
 	}
-	for key, values := range secondary {
-		out[key] = dedupeStrings(append(out[key], values...))
+	if tag := strings.TrimSpace(field.Tag.Get("json")); tag != "" && tag != "-" {
+		if name, _, _ := strings.Cut(tag, ","); name != "" {
+			return name
+		}
 	}
-	return out
+	return lowerCamel(field.Name)
+}
+
+func schemaSourceFieldNames(field reflect.StructField) ([]string, bool) {
+	tag := strings.TrimSpace(field.Tag.Get("json"))
+	if tag == "-" {
+		return nil, true
+	}
+	if tag != "" {
+		if name, _, _ := strings.Cut(tag, ","); name != "" {
+			return uniqueStrings([]string{name, lowerCamel(field.Name), snakeCase(field.Name), field.Name}), false
+		}
+	}
+	return uniqueStrings([]string{lowerCamel(field.Name), snakeCase(field.Name), field.Name}), false
+}
+
+func lowerCamel(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	runes[0] = unicode.ToLower(runes[0])
+	return string(runes)
+}
+
+func snakeCase(name string) string {
+	if name == "" {
+		return ""
+	}
+	var out []rune
+	for i, r := range name {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				out = append(out, '_')
+			}
+			out = append(out, unicode.ToLower(r))
+			continue
+		}
+		out = append(out, r)
+	}
+	return string(out)
 }
 
 func dedupeStrings(values []string) []string {
@@ -460,66 +456,17 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-func schemaAllowsNull(schema *jsonschema.Schema) bool {
-	if schema == nil {
-		return false
-	}
-	if schema.Type == "null" {
-		return true
-	}
-	for _, t := range schema.Types {
-		if t == "null" {
-			return true
-		}
-	}
-	return false
-}
-
-func collectDisabledCoreSections(extension any, disabled map[string]struct{}) {
-	disabler, ok := extension.(CoreSchemaDisabler)
-	if !ok {
-		return
-	}
-	for _, section := range disabler.DisabledCoreConfigSections() {
-		normalized := strings.ToLower(strings.TrimSpace(section))
-		if normalized == "" {
-			continue
-		}
-		disabled[normalized] = struct{}{}
-	}
-}
-
-func disableCoreSections(schema *jsonschema.Schema, disabled map[string]struct{}) {
-	if schema == nil || len(disabled) == 0 {
-		return
-	}
-	for section := range disabled {
-		delete(schema.Properties, section)
-		delete(schema.DependentRequired, section)
-	}
-	schema.Required = filterDisabledSections(schema.Required, disabled)
-	schema.PropertyOrder = filterDisabledSections(schema.PropertyOrder, disabled)
-
-	if len(schema.DependentRequired) == 0 {
-		return
-	}
-	updated := make(map[string][]string, len(schema.DependentRequired))
-	for key, deps := range schema.DependentRequired {
-		updated[key] = filterDisabledSections(deps, disabled)
-	}
-	schema.DependentRequired = updated
-}
-
-func filterDisabledSections(values []string, disabled map[string]struct{}) []string {
-	if len(values) == 0 {
-		return values
-	}
-	kept := make([]string, 0, len(values))
+func uniqueStrings(values []string) []string {
+	filtered := make([]string, 0, len(values))
 	for _, value := range values {
-		if _, blocked := disabled[strings.ToLower(strings.TrimSpace(value))]; blocked {
+		if strings.TrimSpace(value) == "" {
 			continue
 		}
-		kept = append(kept, value)
+		filtered = append(filtered, value)
 	}
-	return kept
+	return dedupeStrings(filtered)
+}
+
+func isZeroValue(value reflect.Value) bool {
+	return value.IsZero()
 }
