@@ -9,7 +9,10 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 
 ## Status
 
-- The packages under `pkg/server`, `pkg/store`, `pkg/configschema`, and `pkg/migrate` describe the current implementation.
+- `pkg/configschema` remains a legacy implementation area.
+- Former `pkg/repository` and `pkg/migrate` responsibilities already live under `pkg/persistence/relational` on this branch.
+- `pkg/store` has been removed on this branch; former shared backend adapters were split into role-specific packages under `pkg/cache/*` and `pkg/session/*`.
+- The former `pkg/server` responsibilities are already split across `pkg/http/server`, `pkg/http/router`, and `pkg/http/openapi` on this branch.
 - The former `pkg/controller` responsibilities are already split into `pkg/core/errors`, `pkg/http/response`, and `pkg/http/input` on this branch.
 - They are still valid for the running codebase, but they are not the preferred extension points for new framework code.
 - Until the refactor is complete, current implementation docs must stay accurate and must also be marked as transitional when they would otherwise guide new code in the wrong direction.

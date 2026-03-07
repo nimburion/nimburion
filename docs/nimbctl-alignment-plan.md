@@ -1,5 +1,8 @@
 # nimbctl Alignment Plan
 
+> Current branch state: references to legacy roots such as `pkg/server`, `pkg/store`, or `pkg/configschema` describe coupling to remove, not active integration points that should still be used.
+> Historical mapping: those references remain to explain why `nimbctl` must align to the target contracts instead of the old package layout.
+
 This document defines how `nimbctl` should evolve to match the new Nimburion framework pattern.
 
 It is intentionally cross-repo in scope:

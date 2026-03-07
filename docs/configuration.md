@@ -27,10 +27,6 @@ All environment variables use the `APP_` prefix and follow a hierarchical naming
 
 #### Router Configuration
 
-- `APP_ROUTER_TYPE` - Router type: `nethttp`, `gin`, `gorilla` (default: `nethttp`)
-  - Example: `APP_ROUTER_TYPE=nethttp`
-  - Example: `APP_ROUTER_TYPE=gin`
-  - Example: `APP_ROUTER_TYPE=gorilla`
 
 #### HTTP Server Configuration
 

@@ -145,7 +145,8 @@ Use these review prompts when a change touches transport or contract packages du
 
 Bad direction:
 
-- new framework behavior added under `pkg/store`, `pkg/server`, or `pkg/configschema`
+- new framework behavior added under `pkg/configschema`
+- new framework behavior added under a removed legacy root such as `pkg/store` on branches where that root is already gone
 - new framework behavior reintroduced under a replacement-free legacy root after it has already been split, such as recreating `pkg/controller` responsibilities outside `pkg/http/response`, `pkg/http/input`, or `pkg/core/errors`
 - a refactor keeps extending a transitional package instead of moving the responsibility to the target family
 
