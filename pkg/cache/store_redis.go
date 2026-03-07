@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -37,18 +38,21 @@ func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, errors.New("redis cache url is required")
 	}
-	opts, err := redis.ParseURL(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parse redis url: %w", err)
-	}
-	if cfg.MaxConns > 0 {
-		opts.PoolSize = cfg.MaxConns
-	}
-	client := redis.NewClient(opts)
 
 	timeout := cfg.OperationTimeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
+	}
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		MaxConns:         cfg.MaxConns,
+		OperationTimeout: timeout,
+	}, noopLogger{})
+	if err != nil {
+		if strings.Contains(err.Error(), "parse redis URL") {
+			return nil, fmt.Errorf("parse redis url: %w", err)
+		}
+		return nil, err
 	}
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {
@@ -56,7 +60,7 @@ func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 	}
 
 	return &RedisStore{
-		client:    client,
+		client:    client.Raw(),
 		opTimeout: timeout,
 		prefix:    prefix,
 	}, nil

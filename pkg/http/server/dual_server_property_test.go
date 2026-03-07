@@ -11,10 +11,10 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
 )
@@ -58,7 +58,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 				return c.JSON(http.StatusOK, map[string]string{"server": "public"})
 			})
 
-			publicCfg := config.HTTPConfig{
+			publicCfg := serverconfig.HTTPConfig{
 				Port:         publicPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,
@@ -68,7 +68,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 
 			// Create management server
 			managementRouter := nethttp.NewRouter()
-			managementCfg := config.ManagementConfig{
+			managementCfg := serverconfig.ManagementConfig{
 				Port:         managementPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,
@@ -284,7 +284,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 				return c.JSON(http.StatusOK, map[string]string{"server": "public"})
 			})
 
-			publicCfg := config.HTTPConfig{
+			publicCfg := serverconfig.HTTPConfig{
 				Port:         publicPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,
@@ -293,7 +293,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 			publicServer := NewPublicAPIServer(publicCfg, publicRouter, log)
 
 			managementRouter := nethttp.NewRouter()
-			managementCfg := config.ManagementConfig{
+			managementCfg := serverconfig.ManagementConfig{
 				Port:         managementPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,
@@ -418,7 +418,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 				return c.JSON(http.StatusOK, map[string]string{"server": "public"})
 			})
 
-			publicCfg := config.HTTPConfig{
+			publicCfg := serverconfig.HTTPConfig{
 				Port:         publicPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,
@@ -427,7 +427,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 			publicServer := NewPublicAPIServer(publicCfg, publicRouter, log)
 
 			managementRouter := nethttp.NewRouter()
-			managementCfg := config.ManagementConfig{
+			managementCfg := serverconfig.ManagementConfig{
 				Port:         managementPort,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,

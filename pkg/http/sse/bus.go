@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/nimburion/nimburion/internal/rediskit"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 // Bus transports events across instances (distributed fan-out).
@@ -102,31 +105,27 @@ type RedisBusConfig struct {
 
 // RedisBus uses Redis pub/sub for distributed fan-out.
 type RedisBus struct {
-	client    *redis.Client
+	client    *rediskit.Client
 	prefix    string
 	opTimeout time.Duration
 }
 
 // NewRedisBus creates a Redis-backed distributed bus.
 func NewRedisBus(cfg RedisBusConfig) (*RedisBus, error) {
-	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, fmt.Errorf("redis url is required")
-	}
-	opts, err := redis.ParseURL(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parse redis url: %w", err)
-	}
-	if cfg.MaxConns > 0 {
-		opts.PoolSize = cfg.MaxConns
-	}
-	client := redis.NewClient(opts)
-
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {
 		prefix = "sse:bus"
 	}
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 3 * time.Second
+	}
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		MaxConns:         cfg.MaxConns,
+		OperationTimeout: cfg.OperationTimeout,
+	}, noopLogger{})
+	if err != nil {
+		return nil, err
 	}
 
 	return &RedisBus{
@@ -144,12 +143,12 @@ func (b *RedisBus) Publish(ctx context.Context, event Event) error {
 	}
 	cctx, cancel := context.WithTimeout(ctx, b.opTimeout)
 	defer cancel()
-	return b.client.Publish(cctx, b.key(event.Channel), raw).Err()
+	return b.client.Raw().Publish(cctx, b.key(event.Channel), raw).Err()
 }
 
 // Subscribe consumes redis pub/sub channel and forwards decoded events.
 func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(Event)) (Subscription, error) {
-	pubsub := b.client.Subscribe(ctx, b.key(channel))
+	pubsub := b.client.Raw().Subscribe(ctx, b.key(channel))
 	if _, err := pubsub.Receive(ctx); err != nil {
 		if closeErr := pubsub.Close(); closeErr != nil {
 			return nil, errors.Join(err, closeErr)
@@ -202,6 +201,17 @@ type redisBusSubscription struct {
 	once   sync.Once
 	cancel context.CancelFunc
 	pubsub *redis.PubSub
+}
+
+type noopLogger struct{}
+
+func (noopLogger) Debug(string, ...any)        {}
+func (noopLogger) Info(string, ...any)         {}
+func (noopLogger) Warn(string, ...any)         {}
+func (noopLogger) Error(string, ...any)        {}
+func (n noopLogger) With(...any) logger.Logger { return n }
+func (n noopLogger) WithContext(context.Context) logger.Logger {
+	return n
 }
 
 // Close releases all resources held by this instance. Should be called when the instance is no longer needed.

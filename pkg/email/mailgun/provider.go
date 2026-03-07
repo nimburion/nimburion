@@ -1,4 +1,4 @@
-package email
+package mailgun
 
 import (
 	"context"
@@ -8,30 +8,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nimburion/nimburion/internal/emailkit"
+	"github.com/nimburion/nimburion/pkg/email"
+	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-// MailgunConfig configures Mailgun adapter.
-type MailgunConfig struct {
-	APIKey           string
-	Domain           string
-	From             string
-	BaseURL          string
-	OperationTimeout time.Duration
-	HTTPClient       *http.Client
-}
+type Config = emailconfig.MailgunConfig
 
-// MailgunProvider sends email through Mailgun API.
-type MailgunProvider struct {
-	cfg        MailgunConfig
+type Provider struct {
+	cfg        Config
 	httpClient *http.Client
 	log        logger.Logger
 }
 
-// NewMailgunProvider creates a Mailgun adapter.
-func NewMailgunProvider(cfg MailgunConfig, log logger.Logger) (*MailgunProvider, error) {
-	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("mailgun api key is required")
+func New(cfg Config, log logger.Logger) (*Provider, error) {
+	if strings.TrimSpace(cfg.Token) == "" {
+		return nil, fmt.Errorf("mailgun token is required")
 	}
 	if strings.TrimSpace(cfg.Domain) == "" {
 		return nil, fmt.Errorf("mailgun domain is required")
@@ -42,24 +35,18 @@ func NewMailgunProvider(cfg MailgunConfig, log logger.Logger) (*MailgunProvider,
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 10 * time.Second
 	}
-	return &MailgunProvider{
-		cfg:        cfg,
-		httpClient: defaultHTTPClient(cfg.HTTPClient, cfg.OperationTimeout),
-		log:        log,
-	}, nil
+	return &Provider{cfg: cfg, httpClient: emailkit.DefaultHTTPClient(nil, cfg.OperationTimeout), log: log}, nil
 }
 
-// Send sends email via Mailgun.
-func (p *MailgunProvider) Send(ctx context.Context, message Message) error {
-	msg := message.normalized()
-	msg, err := applyDefaultSender(msg, p.cfg.From)
+func (p *Provider) Send(ctx context.Context, message email.Message) error {
+	msg := message.Normalized()
+	msg, err := email.ApplyDefaultSender(msg, p.cfg.From)
 	if err != nil {
 		return err
 	}
-	if validateErr := msg.validate(); validateErr != nil {
-		return validateErr
+	if err := msg.Validate(); err != nil {
+		return err
 	}
-
 	form := url.Values{}
 	form.Set("from", msg.From)
 	form.Set("to", strings.Join(msg.To, ","))
@@ -79,38 +66,27 @@ func (p *MailgunProvider) Send(ctx context.Context, message Message) error {
 	if msg.ReplyTo != "" {
 		form.Set("h:Reply-To", msg.ReplyTo)
 	}
-
-	cctx, cancel := withTimeout(ctx, p.cfg.OperationTimeout)
+	cctx, cancel := emailkit.WithTimeout(ctx, p.cfg.OperationTimeout)
 	defer cancel()
-
 	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/v3/" + p.cfg.Domain + "/messages"
-	if validateErr := validateEndpointURL(endpoint); validateErr != nil {
-		return validateErr
+	if err := emailkit.ValidateEndpointURL(endpoint); err != nil {
+		return err
 	}
 	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
-	req.SetBasicAuth("api", p.cfg.APIKey)
+	req.SetBasicAuth("api", p.cfg.Token)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	// #nosec G704 -- endpoint is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			ignoreCloseError(closeErr)
-		}
-	}()
+	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("mailgun send failed with status %d", resp.StatusCode)
 	}
 	return nil
 }
 
-// Close releases resources.
-func (p *MailgunProvider) Close() error {
-	return nil
-}
+func (p *Provider) Close() error { return nil }

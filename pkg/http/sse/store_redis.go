@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/nimburion/nimburion/internal/rediskit"
 )
 
 // RedisStoreConfig configures Redis replay storage.
@@ -21,7 +21,7 @@ type RedisStoreConfig struct {
 
 // RedisStore persists replay history in Redis lists.
 type RedisStore struct {
-	client    *redis.Client
+	client    *rediskit.Client
 	prefix    string
 	maxSize   int64
 	opTimeout time.Duration
@@ -29,18 +29,6 @@ type RedisStore struct {
 
 // NewRedisStore creates a Redis replay store.
 func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
-	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, fmt.Errorf("redis url is required")
-	}
-	opts, err := redis.ParseURL(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parse redis url: %w", err)
-	}
-	if cfg.MaxConns > 0 {
-		opts.PoolSize = cfg.MaxConns
-	}
-	client := redis.NewClient(opts)
-
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {
 		prefix = "sse:history"
@@ -50,6 +38,14 @@ func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
 	}
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 3 * time.Second
+	}
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		MaxConns:         cfg.MaxConns,
+		OperationTimeout: cfg.OperationTimeout,
+	}, noopLogger{})
+	if err != nil {
+		return nil, err
 	}
 
 	return &RedisStore{
@@ -70,7 +66,7 @@ func (s *RedisStore) Append(ctx context.Context, event Event) error {
 	defer cancel()
 
 	key := s.key(event.Channel)
-	pipe := s.client.TxPipeline()
+	pipe := s.client.Raw().TxPipeline()
 	pipe.RPush(cctx, key, raw)
 	pipe.LTrim(cctx, key, -s.maxSize, -1)
 	_, err = pipe.Exec(cctx)
@@ -82,7 +78,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 	cctx, cancel := context.WithTimeout(ctx, s.opTimeout)
 	defer cancel()
 
-	values, err := s.client.LRange(cctx, s.key(channel), 0, -1).Result()
+	values, err := s.client.Raw().LRange(cctx, s.key(channel), 0, -1).Result()
 	if err != nil {
 		return nil, err
 	}

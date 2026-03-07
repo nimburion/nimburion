@@ -11,12 +11,13 @@ import (
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 func TestNewPublicAPIServer(t *testing.T) {
 	// Given: HTTP configuration
-	cfg := config.HTTPConfig{
+	cfg := serverconfig.HTTPConfig{
 		Port:         8080,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -58,7 +59,7 @@ func TestNewPublicAPIServer(t *testing.T) {
 
 func TestPublicAPIServer_MiddlewareStack(t *testing.T) {
 	// Given: HTTP configuration
-	cfg := config.HTTPConfig{
+	cfg := serverconfig.HTTPConfig{
 		Port:         8081,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -91,7 +92,7 @@ func TestPublicAPIServer_MiddlewareStack(t *testing.T) {
 }
 
 func TestPublicAPIServer_SSEEndpointEnabled(t *testing.T) {
-	httpCfg := config.HTTPConfig{
+	httpCfg := serverconfig.HTTPConfig{
 		Port:         8084,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -138,7 +139,7 @@ func TestPublicAPIServer_SSEEndpointEnabled(t *testing.T) {
 }
 
 func TestPublicAPIServer_RequestSizeMiddleware(t *testing.T) {
-	cfg := config.HTTPConfig{
+	cfg := serverconfig.HTTPConfig{
 		Port:           8083,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
@@ -177,7 +178,7 @@ func TestPublicAPIServer_RequestSizeMiddleware(t *testing.T) {
 
 func TestPublicAPIServer_StartAndShutdown(t *testing.T) {
 	// Given: HTTP configuration with a unique port
-	cfg := config.HTTPConfig{
+	cfg := serverconfig.HTTPConfig{
 		Port:         8082,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
@@ -254,7 +255,7 @@ func TestPublicAPIServer_BindsToConfiguredPort(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Given: HTTP configuration with specific port
-			cfg := config.HTTPConfig{
+			cfg := serverconfig.HTTPConfig{
 				Port:         tc.port,
 				ReadTimeout:  5 * time.Second,
 				WriteTimeout: 5 * time.Second,

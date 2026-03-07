@@ -49,7 +49,7 @@ func TestBuildHTTPServers_ManagementEnabled(t *testing.T) {
 func TestBuildHTTPServers_RegistersVersionEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Management.Enabled = true
-	cfg.Service.Name = "orders-from-config"
+	cfg.App.Name = "orders-from-config"
 
 	oldVersion := version.AppVersion
 	oldCommit := version.GitCommit
@@ -159,7 +159,7 @@ func TestInitTracerProvider_UsesVersionMetadata(t *testing.T) {
 	cfg.Observability.TracingEnabled = false
 	cfg.Observability.TracingSampleRate = 0.25
 	cfg.Observability.TracingEndpoint = "localhost:4317"
-	cfg.Service.Environment = "staging"
+	cfg.App.Environment = "staging"
 
 	log, err := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 	if err != nil {
@@ -189,7 +189,7 @@ func TestInitTracerProvider_UsesVersionMetadata(t *testing.T) {
 
 func TestResolveEnvironment_UsesConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Service.Environment = "staging"
+	cfg.App.Environment = "staging"
 
 	fromConfig := resolveEnvironment(&RunHTTPServersOptions{Config: cfg})
 	if fromConfig != "staging" {

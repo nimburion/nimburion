@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nimburion/nimburion/internal/memcachedkit"
 )
 
 type fakeMemcached struct {
@@ -117,7 +119,10 @@ func TestAdapter_CRUD(t *testing.T) {
 	}
 
 	fake := newFakeMemcached()
-	client.dial = fake.dial
+	client.client, err = memcachedkit.NewClientWithDial([]string{"fake:11211"}, 500*time.Millisecond, fake.dial)
+	if err != nil {
+		t.Fatalf("new internal client: %v", err)
+	}
 
 	ctx := context.Background()
 	if err := client.Set(ctx, "k1", []byte("v1"), time.Minute); err != nil {
@@ -148,16 +153,16 @@ func TestAdapter_CRUD(t *testing.T) {
 
 func TestTTLToSeconds(t *testing.T) {
 	t.Run("non positive ttl means no expiry", func(t *testing.T) {
-		if got := ttlToSeconds(0); got != 0 {
+		if got := memcachedkit.TTLToSeconds(0); got != 0 {
 			t.Fatalf("expected 0, got %d", got)
 		}
-		if got := ttlToSeconds(-1 * time.Second); got != 0 {
+		if got := memcachedkit.TTLToSeconds(-1 * time.Second); got != 0 {
 			t.Fatalf("expected 0, got %d", got)
 		}
 	})
 
 	t.Run("short ttl uses relative seconds", func(t *testing.T) {
-		got := ttlToSeconds(1500 * time.Millisecond)
+		got := memcachedkit.TTLToSeconds(1500 * time.Millisecond)
 		if got != 2 {
 			t.Fatalf("expected ceil to 2 seconds, got %d", got)
 		}
@@ -166,7 +171,7 @@ func TestTTLToSeconds(t *testing.T) {
 	t.Run("ttl above 30 days uses absolute unix timestamp", func(t *testing.T) {
 		ttl := 31 * 24 * time.Hour
 		before := time.Now().Add(ttl).Unix()
-		got := ttlToSeconds(ttl)
+		got := memcachedkit.TTLToSeconds(ttl)
 		after := time.Now().Add(ttl).Unix()
 
 		if int64(got) < before-1 || int64(got) > after+1 {

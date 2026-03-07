@@ -14,7 +14,7 @@
 
 ## Composition And Wiring
 
-Applications compose jobs explicitly. Config-driven construction lives in `pkg/jobs/construct`; concrete backends remain direct packages such as the Redis backend or the event-bus bridge.
+Applications compose jobs explicitly through the family owner `pkg/jobs`. Config-driven construction lives in root APIs such as `jobs.NewRuntimeFromConfig(...)` and `jobs.NewBackendFromConfig(...)`; concrete backends remain direct packages such as the Redis backend or the event-bus bridge. The jobs CLI command tree is contributed by the family through `pkg/jobs/feature`.
 
 ## Non-goals
 

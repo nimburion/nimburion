@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -88,6 +89,22 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 		return nil, err
 	}
 	return adapter, nil
+}
+
+// NewFromEventBusConfig adapts the family config surface to the SQS provider config.
+func NewFromEventBusConfig(cfg eventbusconfig.Config, log logger.Logger) (*Adapter, error) {
+	return NewAdapter(Config{
+		Region:            cfg.Region,
+		QueueURL:          cfg.QueueURL,
+		Endpoint:          cfg.Endpoint,
+		AccessKeyID:       cfg.AccessKeyID,
+		SecretAccessKey:   cfg.SecretAccessKey,
+		SessionToken:      cfg.SessionToken,
+		OperationTimeout:  cfg.OperationTimeout,
+		WaitTimeSeconds:   cfg.WaitTimeSeconds,
+		MaxMessages:       cfg.MaxMessages,
+		VisibilityTimeout: cfg.VisibilityTimeout,
+	}, log)
 }
 
 // Publish sends a message to the resolved queue.

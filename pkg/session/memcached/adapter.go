@@ -1,249 +1,47 @@
 package memcached
 
 import (
-	"bufio"
 	"context"
-	"errors"
-	"fmt"
-	"hash/fnv"
-	"io"
-	"math"
-	"net"
-	"strconv"
-	"strings"
 	"time"
-)
 
-const memcachedAbsoluteTTLThreshold = 30 * 24 * time.Hour
+	"github.com/nimburion/nimburion/internal/memcachedkit"
+)
 
 // Adapter is a lightweight Memcached text-protocol adapter.
 type Adapter struct {
-	addresses []string
-	timeout   time.Duration
-	dial      func(ctx context.Context, network, address string) (net.Conn, error)
+	client *memcachedkit.Client
 }
 
 // NewMemcachedAdapter creates a concrete memcached adapter using TCP text protocol.
 func NewMemcachedAdapter(addresses []string, timeout time.Duration) (*Adapter, error) {
-	if len(addresses) == 0 {
-		return nil, errors.New("at least one memcached address is required")
+	client, err := memcachedkit.NewClient(addresses, timeout)
+	if err != nil {
+		return nil, err
 	}
-	normalized := make([]string, 0, len(addresses))
-	for _, addr := range addresses {
-		trimmed := strings.TrimSpace(addr)
-		if trimmed == "" {
-			continue
-		}
-		normalized = append(normalized, trimmed)
-	}
-	if len(normalized) == 0 {
-		return nil, errors.New("at least one non-empty memcached address is required")
-	}
-	if timeout <= 0 {
-		timeout = 500 * time.Millisecond
-	}
-	return &Adapter{
-		addresses: normalized,
-		timeout:   timeout,
-		dial:      (&net.Dialer{Timeout: timeout}).DialContext,
-	}, nil
+	return &Adapter{client: client}, nil
 }
 
 // Get fetches a value by key.
-func (c *Adapter) Get(ctx context.Context, key string) (data []byte, err error) {
-	conn, err := c.connect(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := conn.Close(); err == nil && closeErr != nil {
-			err = closeErr
-		}
-	}()
-
-	reader := bufio.NewReader(conn)
-	if _, writeErr := io.WriteString(conn, fmt.Sprintf("get %s\r\n", key)); writeErr != nil {
-		return nil, writeErr
-	}
-
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, err
-	}
-	line = strings.TrimSpace(line)
-	if line == "END" {
-		return nil, errors.New("not found")
-	}
-	// VALUE <key> <flags> <bytes>
-	parts := strings.Fields(line)
-	if len(parts) != 4 || parts[0] != "VALUE" {
-		return nil, fmt.Errorf("unexpected memcached response: %s", line)
-	}
-	size, err := strconv.Atoi(parts[3])
-	if err != nil {
-		return nil, fmt.Errorf("invalid memcached size: %w", err)
-	}
-	payload := make([]byte, size+2) // include trailing CRLF
-	if _, readErr := io.ReadFull(reader, payload); readErr != nil {
-		return nil, readErr
-	}
-	endLine, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(endLine) != "END" {
-		return nil, fmt.Errorf("unexpected memcached terminator: %s", strings.TrimSpace(endLine))
-	}
-	return payload[:size], nil
+func (c *Adapter) Get(ctx context.Context, key string) ([]byte, error) {
+	return c.client.Get(ctx, key)
 }
 
 // Set stores a value with TTL.
-func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Duration) (err error) {
-	conn, err := c.connect(ctx, key)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := conn.Close(); err == nil && closeErr != nil {
-			err = closeErr
-		}
-	}()
-
-	exptime := ttlToSeconds(ttl)
-	cmd := fmt.Sprintf("set %s 0 %d %d\r\n", key, exptime, len(value))
-	if _, writeErr := io.WriteString(conn, cmd); writeErr != nil {
-		return writeErr
-	}
-	if _, writeErr := conn.Write(value); writeErr != nil {
-		return writeErr
-	}
-	if _, writeErr := io.WriteString(conn, "\r\n"); writeErr != nil {
-		return writeErr
-	}
-
-	reader := bufio.NewReader(conn)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(line) != "STORED" {
-		return fmt.Errorf("memcached set failed: %s", strings.TrimSpace(line))
-	}
-	return nil
+func (c *Adapter) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	return c.client.Set(ctx, key, value, ttl)
 }
 
 // Delete removes a value by key.
-func (c *Adapter) Delete(ctx context.Context, key string) (err error) {
-	conn, err := c.connect(ctx, key)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := conn.Close(); err == nil && closeErr != nil {
-			err = closeErr
-		}
-	}()
-
-	if _, writeErr := io.WriteString(conn, fmt.Sprintf("delete %s\r\n", key)); writeErr != nil {
-		return writeErr
-	}
-	reader := bufio.NewReader(conn)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-	switch strings.TrimSpace(line) {
-	case "DELETED":
-		return nil
-	case "NOT_FOUND":
-		return errors.New("not found")
-	default:
-		return fmt.Errorf("unexpected memcached delete response: %s", strings.TrimSpace(line))
-	}
+func (c *Adapter) Delete(ctx context.Context, key string) error {
+	return c.client.Delete(ctx, key)
 }
 
 // Touch refreshes TTL for an existing key.
-func (c *Adapter) Touch(ctx context.Context, key string, ttl time.Duration) (err error) {
-	conn, err := c.connect(ctx, key)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if closeErr := conn.Close(); err == nil && closeErr != nil {
-			err = closeErr
-		}
-	}()
-
-	exptime := ttlToSeconds(ttl)
-	if _, writeErr := io.WriteString(conn, fmt.Sprintf("touch %s %d\r\n", key, exptime)); writeErr != nil {
-		return writeErr
-	}
-	reader := bufio.NewReader(conn)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-	switch strings.TrimSpace(line) {
-	case "TOUCHED":
-		return nil
-	case "NOT_FOUND":
-		return errors.New("not found")
-	default:
-		return fmt.Errorf("unexpected memcached touch response: %s", strings.TrimSpace(line))
-	}
+func (c *Adapter) Touch(ctx context.Context, key string, ttl time.Duration) error {
+	return c.client.Touch(ctx, key, ttl)
 }
 
 // Close closes the client (no-op: each operation uses short-lived TCP connection).
 func (c *Adapter) Close() error {
-	return nil
-}
-
-func (c *Adapter) connect(ctx context.Context, key string) (net.Conn, error) {
-	target := c.pickAddress(key)
-	conn, err := c.dial(ctx, "tcp", target)
-	if err != nil {
-		return nil, err
-	}
-	deadline := time.Now().Add(c.timeout)
-	if deadlineFromCtx, ok := ctx.Deadline(); ok && deadlineFromCtx.Before(deadline) {
-		deadline = deadlineFromCtx
-	}
-	if err := conn.SetDeadline(deadline); err != nil {
-		if closeErr := conn.Close(); closeErr != nil {
-			return nil, errors.Join(err, closeErr)
-		}
-		return nil, err
-	}
-	return conn, nil
-}
-
-func (c *Adapter) pickAddress(key string) string {
-	if len(c.addresses) == 1 {
-		return c.addresses[0]
-	}
-	hash := fnv.New32a()
-	_, _ = hash.Write([]byte(key))
-	target := uint64(hash.Sum32()) % uint64(len(c.addresses))
-	for index := range c.addresses {
-		if uint64(index) == target {
-			return c.addresses[index]
-		}
-	}
-	return c.addresses[0]
-}
-
-func ttlToSeconds(ttl time.Duration) int {
-	if ttl <= 0 {
-		return 0
-	}
-
-	if ttl > memcachedAbsoluteTTLThreshold {
-		return int(time.Now().Add(ttl).Unix())
-	}
-
-	seconds := int(math.Ceil(ttl.Seconds()))
-	if seconds <= 0 {
-		return 1
-	}
-	return seconds
+	return c.client.Close()
 }

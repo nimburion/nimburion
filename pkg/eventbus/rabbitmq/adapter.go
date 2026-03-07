@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -98,6 +99,23 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	}
 
 	return a, nil
+}
+
+// NewFromEventBusConfig adapts the family config surface to the RabbitMQ provider config.
+func NewFromEventBusConfig(cfg eventbusconfig.Config, log logger.Logger) (*Adapter, error) {
+	url := cfg.URL
+	if url == "" && len(cfg.Brokers) > 0 {
+		url = cfg.Brokers[0]
+	}
+	return NewAdapter(Config{
+		URL:              url,
+		Exchange:         cfg.Exchange,
+		ExchangeType:     cfg.ExchangeType,
+		QueueName:        cfg.QueueName,
+		RoutingKey:       cfg.RoutingKey,
+		OperationTimeout: cfg.OperationTimeout,
+		ConsumerTag:      cfg.ConsumerTag,
+	}, log)
 }
 
 // Publish sends a message to the configured exchange.

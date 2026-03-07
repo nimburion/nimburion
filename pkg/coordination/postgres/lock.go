@@ -24,7 +24,7 @@ func coordinationError(kind error, message string) error {
 }
 
 const (
-	defaultPostgresLockTable     = "nimburion_scheduler_locks"
+	defaultPostgresLockTable     = "nimburion_coordination_locks"
 	defaultPostgresLockOperation = 3 * time.Second
 )
 
@@ -63,7 +63,7 @@ func NewPostgresLockProvider(cfg PostgresLockProviderConfig, log logger.Logger) 
 	}
 	cfg.normalize()
 	if !validTableName.MatchString(cfg.Table) {
-		return nil, coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid scheduler postgres table name %q", cfg.Table))
+		return nil, coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid postgres lock table name %q", cfg.Table))
 	}
 
 	db, err := sql.Open("postgres", cfg.URL)
@@ -102,7 +102,7 @@ func newPostgresLockProviderWithDB(db *sql.DB, cfg PostgresLockProviderConfig, l
 	}
 	cfg.normalize()
 	if !validTableName.MatchString(cfg.Table) {
-		return nil, coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid scheduler postgres table name %q", cfg.Table))
+		return nil, coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid postgres lock table name %q", cfg.Table))
 	}
 	return &PostgresLockProvider{
 		db:     db,
@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS %s (
 
 func (p *PostgresLockProvider) validatedTableName() (string, error) {
 	if !validTableName.MatchString(p.config.Table) {
-		return "", coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid scheduler postgres table name %q", p.config.Table))
+		return "", coordinationError(coordination.ErrValidation, fmt.Sprintf("invalid postgres lock table name %q", p.config.Table))
 	}
 	return p.config.Table, nil
 }

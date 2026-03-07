@@ -12,6 +12,7 @@ The package owns:
 - minimal OpenAPI spec assembly and file writing
 - HTTP handlers for serving generated specs
 - Swagger UI serving for management surfaces
+- the `openapi` CLI command contribution owned by the HTTP/OpenAPI family
 
 ## Composition And Wiring Expectations
 
