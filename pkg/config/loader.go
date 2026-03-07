@@ -97,8 +97,6 @@ func (l *ViperLoader) bindEnvVars(v *viper.Viper) error {
 		bindErr = v.BindEnv(args...)
 	}
 
-	// Router
-	bind("router_type", l.prefixedEnv("ROUTER_TYPE"))
 	bind("service.name", l.prefixedEnv("SERVICE_NAME"))
 	bind("service.environment", l.prefixedEnv("SERVICE_ENVIRONMENT"), l.prefixedEnv("ENVIRONMENT"))
 
@@ -509,8 +507,6 @@ func (l *ViperLoader) defaultServiceName(fallback string) string {
 
 // setDefaults sets default values in Viper from the default config
 func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
-	// Router defaults
-	v.SetDefault("router_type", cfg.RouterType)
 	v.SetDefault("service.name", l.defaultServiceName(cfg.Service.Name))
 	v.SetDefault("service.environment", cfg.Service.Environment)
 
@@ -803,12 +799,6 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 	// Normalize CORS AllowOrigins (remove empty strings)
 	cfg.CORS.AllowOrigins = normalizeStringSlice(cfg.CORS.AllowOrigins)
 	cfg.Observability.RequestLogging.Fields = normalizeStringSlice(cfg.Observability.RequestLogging.Fields)
-
-	// Validate Auth configuration
-	validRouterTypes := []string{"nethttp", "gin", "gorilla"}
-	if !contains(validRouterTypes, strings.ToLower(cfg.RouterType)) {
-		errs = append(errs, fmt.Errorf("invalid router_type: %s (must be one of: %v)", cfg.RouterType, validRouterTypes))
-	}
 
 	// Validate Auth configuration
 	if cfg.Auth.Enabled {

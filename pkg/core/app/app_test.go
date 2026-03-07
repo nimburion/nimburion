@@ -293,6 +293,7 @@ func TestRunExecutesFeatureContributionsWithoutEditingBaseRuntime(t *testing.T) 
 
 	a, err := New(Options{
 		Features: []feature.Feature{demoFeature{record: record}},
+		Debug:    true,
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -326,5 +327,45 @@ func TestRunExecutesFeatureContributionsWithoutEditingBaseRuntime(t *testing.T) 
 	}
 	if !reflect.DeepEqual(steps, want) {
 		t.Fatalf("feature lifecycle order = %v, want %v", steps, want)
+	}
+}
+
+func TestPrepareSkipsIntrospectionContributionsWhenDebugDisabled(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(Options{
+		Features: []feature.Feature{demoFeature{record: func(string) {}}},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := a.Prepare(context.Background()); err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+
+	if _, ok := a.Runtime().Introspection.Get("feature"); ok {
+		t.Fatal("expected introspection entry to stay disabled without debug")
+	}
+}
+
+func TestPrepareRegistersIntrospectionContributionsWhenDebugEnabled(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(Options{
+		Features: []feature.Feature{demoFeature{record: func(string) {}}},
+		Debug:    true,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := a.Prepare(context.Background()); err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+
+	value, ok := a.Runtime().Introspection.Get("feature")
+	if !ok || value != "enabled" {
+		t.Fatalf("introspection entry = %v, %v; want enabled, true", value, ok)
 	}
 }

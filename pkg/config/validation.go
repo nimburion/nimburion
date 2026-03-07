@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/nimburion/nimburion/pkg/audit"
 )
 
 // Validate checks if the configuration is valid
@@ -355,9 +357,8 @@ func formatStructWithMask(v, mask reflect.Value, prefix string) string {
 			}
 		default:
 			displayValue := value.Interface()
-			// Check if this field has a non-zero value in secrets
 			if shouldRedact(maskValue) {
-				displayValue = "***"
+				displayValue = audit.MaskedValue
 			}
 			sb.WriteString(prefix)
 			sb.WriteString(fieldName)
@@ -375,21 +376,8 @@ func shouldRedact(v reflect.Value) bool {
 	if !v.IsValid() {
 		return false
 	}
-
-	switch v.Kind() {
-	case reflect.String:
-		return v.String() != ""
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() != 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() != 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() != 0
-	case reflect.Bool:
-		return v.Bool()
-	case reflect.Slice, reflect.Map:
-		return v.Len() > 0
-	default:
+	if !v.CanInterface() {
 		return false
 	}
+	return audit.ShouldRedact(v.Interface())
 }

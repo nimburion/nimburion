@@ -5,7 +5,6 @@ import "time"
 // DefaultConfig returns a Config with sensible default values
 func DefaultConfig() *Config {
 	return &Config{
-		RouterType: "gin",
 		Service: ServiceConfig{
 			Name:        "app",
 			Environment: "production",

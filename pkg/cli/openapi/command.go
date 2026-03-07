@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/nimburion/nimburion/pkg/config"
+	serveropenapi "github.com/nimburion/nimburion/pkg/http/openapi"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	serveropenapi "github.com/nimburion/nimburion/pkg/server/openapi"
-	"github.com/nimburion/nimburion/pkg/server/router"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

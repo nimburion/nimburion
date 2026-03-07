@@ -2,10 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/config"
+	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	"github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/jobs"
@@ -15,17 +17,27 @@ import (
 )
 
 type testCLIFeature struct {
-	command *cobra.Command
+	command           *cobra.Command
+	healthHook        feature.Hook
+	introspectionHook feature.Hook
 }
 
 func (f testCLIFeature) Name() string { return "cli-test" }
 
 func (f testCLIFeature) Contributions() feature.Contributions {
-	return feature.Contributions{
-		CommandRegistrations: []feature.CommandContribution{
+	contributions := feature.Contributions{}
+	if f.command != nil {
+		contributions.CommandRegistrations = []feature.CommandContribution{
 			{Name: "inspect", Command: f.command},
-		},
+		}
 	}
+	if f.healthHook.Name != "" || f.healthHook.Fn != nil {
+		contributions.HealthContributors = []feature.Hook{f.healthHook}
+	}
+	if f.introspectionHook.Name != "" || f.introspectionHook.Fn != nil {
+		contributions.IntrospectionContributors = []feature.Hook{f.introspectionHook}
+	}
+	return contributions
 }
 
 func TestResolveServiceNameValue(t *testing.T) {
@@ -277,8 +289,8 @@ func TestNewAppCommand_UsesRunAsPrimaryEntrypointAndKeepsServeAlias(t *testing.T
 	if runCmd == nil || runCmd.Name() != "run" {
 		t.Fatalf("expected run command, got %#v", runCmd)
 	}
-	if !runCmd.HasAlias("serve") {
-		t.Fatalf("expected serve alias on run command, aliases = %v", runCmd.Aliases)
+	if len(runCmd.Aliases) != 0 {
+		t.Fatalf("expected no aliases on run command, aliases = %v", runCmd.Aliases)
 	}
 }
 
@@ -302,6 +314,21 @@ func TestNewAppCommand_AddsFeatureContributedCommand(t *testing.T) {
 	}
 	if inspectCmd == nil || inspectCmd.Name() != "inspect" {
 		t.Fatalf("expected inspect command, got %#v", inspectCmd)
+	}
+}
+
+func TestNewAppCommand_AddsIntrospectCommand(t *testing.T) {
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+	})
+
+	introspectCmd, _, err := cmd.Find([]string{"introspect"})
+	if err != nil {
+		t.Fatalf("expected introspect command, got error: %v", err)
+	}
+	if introspectCmd == nil || introspectCmd.Name() != "introspect" {
+		t.Fatalf("expected introspect command, got %#v", introspectCmd)
 	}
 }
 
@@ -349,6 +376,72 @@ func TestHealthCheckResultError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "jobs-runtime") {
 		t.Fatalf("expected check name in error, got %v", err)
+	}
+}
+
+func TestRunHealthcheckWithRegistry_UsesFeatureHealthContributions(t *testing.T) {
+	registry := health.NewRegistry()
+	err := runHealthcheckWithRegistry(context.Background(), healthcheckRuntimeOptions{
+		name: "testapp",
+		cfg:  config.DefaultConfig(),
+		features: []feature.Feature{
+			testCLIFeature{
+				healthHook: feature.Hook{
+					Name: "feature-health",
+					Fn: func(_ context.Context, runtime feature.Runtime) error {
+						runtime.HealthRegistry().RegisterFunc("feature-health", func(_ context.Context) health.CheckResult {
+							return health.CheckResult{Name: "feature-health", Status: health.StatusHealthy}
+						})
+						return nil
+					},
+				},
+			},
+		},
+		registry: registry,
+	})
+	if err != nil {
+		t.Fatalf("runHealthcheckWithRegistry() error = %v", err)
+	}
+
+	if _, err := registry.CheckOne(context.Background(), "feature-health"); err != nil {
+		t.Fatalf("expected feature health check in shared registry, got %v", err)
+	}
+}
+
+func TestRunHealthcheckWithRegistry_ReturnsApplicationDependencyFailures(t *testing.T) {
+	err := runHealthcheckWithRegistry(context.Background(), healthcheckRuntimeOptions{
+		name:              "testapp",
+		cfg:               config.DefaultConfig(),
+		checkDependencies: func(context.Context, *config.Config, logger.Logger) error { return errors.New("backend unavailable") },
+	})
+	if err == nil || !strings.Contains(err.Error(), "application-dependencies") {
+		t.Fatalf("expected application dependency failure, got %v", err)
+	}
+}
+
+func TestCoreAppPrepareGatesIntrospectionOnDebug(t *testing.T) {
+	app, err := coreapp.New(coreapp.Options{
+		Name: "testapp",
+		Features: []feature.Feature{
+			testCLIFeature{
+				introspectionHook: feature.Hook{
+					Name: "feature-introspection",
+					Fn: func(_ context.Context, runtime feature.Runtime) error {
+						runtime.IntrospectionRegistry().Set("feature", "enabled")
+						return nil
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := app.Prepare(context.Background()); err != nil {
+		t.Fatalf("Prepare() error = %v", err)
+	}
+	if _, ok := app.Runtime().Introspection.Get("feature"); ok {
+		t.Fatal("expected introspection to stay disabled without debug")
 	}
 }
 
