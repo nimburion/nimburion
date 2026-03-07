@@ -106,8 +106,8 @@ The target package model is:
 | `pkg/middleware/compression` | `pkg/http/middleware/compression` | HTTP-specific middleware. |
 | `pkg/middleware/static` | `pkg/http/static` | Static asset serving is HTTP-specific. |
 | `pkg/middleware/ratelimit` | `pkg/http/ratelimit` with backend contracts in `pkg/cache` or `pkg/coordination` as needed | Keep HTTP policy separate from backend capability. |
-| `pkg/security` | `internal/safepath` plus HTTP/security-specific target packages | The current package is too broad for what it actually contains. |
-| `pkg/migrate` | `pkg/persistence/relational/migrate` + `pkg/cli/migrate` | Migration engine becomes relational; migrate command remains a CLI feature. |
+| `pkg/security` | `internal/safepath` plus HTTP/security-specific target packages | Completed on this branch. The old root is removed; filepath safety now lives in `internal/safepath`. |
+| `pkg/migrate` | `pkg/persistence/relational/migrate` | Migration engine and migrate CLI contribution now live in the relational family. |
 | `pkg/eventbus/factory` | removed | Use explicit constructors for Kafka, RabbitMQ, and SQS adapters. |
 | `pkg/jobs/factory` | removed | Use explicit constructors for jobs runtimes and backends. |
 | `pkg/scheduler` lock-provider implementations | `pkg/coordination/postgres`, `pkg/coordination/redis` | `pkg/scheduler` keeps scheduler runtime/task logic; distributed locks move to coordination. |
@@ -247,6 +247,8 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 
 ### Milestone 3B: gRPC Family Extraction
 
+> Current branch state: the full Wave `T3B.1` / `T3B.2` gRPC family is implemented on this branch under `pkg/grpc/*`.
+
 ### Scope
 
 - Make gRPC a first-class transport family instead of treating it as an HTTP-adjacent or generic server concern.
@@ -277,13 +279,14 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
   - debug-gated framework introspection
 - Add descriptor and CLI support for gRPC feature registration and runtime reporting.
 
-### Done
+### Done On This Branch
 
 - An application that does not use gRPC can ignore the entire `pkg/grpc` family.
 - A gRPC service can run through `Run` and feature-contributed commands without importing HTTP runtime packages unless it also uses HTTP.
 - Unary and streaming RPCs are both supported without collapsing them into one generic handler abstraction.
 - gRPC validation is explicitly layered.
 - gRPC health and reflection are optional family capabilities, not universal runtime assumptions.
+- Transport-specific auth glue, shared tenant propagation, and explicit stream helpers live under `pkg/grpc`, not under HTTP or core transport-agnostic packages.
 
 ### Milestone 4: HTTP Security, Middleware, Cache, And Session
 
@@ -480,6 +483,7 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 ### Done
 
 - Operational semantics are explicit instead of implicit health-check conventions.
+- `pkg/featureflag` exists on this branch and owns rollout-safe feature gating plus explicit runtime posture contracts.
 - Feature flags and rollout-safety concerns have a shared framework model.
 - Governance concerns such as retention and erasure have real contracts or orchestration hooks.
 - Multi-region and DR support is modeled through explicit posture metadata and validation, not only narrative guidance.
@@ -496,14 +500,14 @@ Future gRPC runtime work has no legacy source package to migrate. New gRPC trans
 
 - Keep `pkg/auth`, `pkg/email`, `pkg/i18n`, `pkg/version`, `pkg/resilience`, and `pkg/observability` public where the existing names are still correct.
 - Modularize concrete email providers into subpackages where useful.
-- Move the current `pkg/security/filepath.go` logic into `internal/safepath`.
+- Move the current `pkg/security/filepath.go` logic into `internal/safepath`. Completed on this branch.
 - Move relational migration engine code out of `pkg/migrate` and into `pkg/persistence/relational/migrate`.
-- Keep `pkg/cli/migrate` as the CLI feature package.
+- The migrate CLI contribution is owned by `pkg/persistence/relational/migrate`.
 - Delete obsolete package roots after replacement:
   - `pkg/store`
   - `pkg/configschema`
   - `pkg/controller`
-  - `pkg/security`
+  - `pkg/security` (completed on this branch)
   - `pkg/migrate`
   - old factory packages
 - Update package READMEs and top-level docs so they match the final taxonomy.

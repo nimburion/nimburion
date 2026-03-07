@@ -508,6 +508,8 @@ Every implementation PR created from this file should include the following chec
 
 ### T3B.1 Create `pkg/grpc/server`, `interceptor`, `status`, `validation`, `metadata`
 
+Status on this branch: implemented.
+
 - Stories: `3B.1` to `3B.5`
 - Depends on: `T1.2`, `T1.4`, `T0.1`
 - Outputs:
@@ -545,6 +547,8 @@ Every implementation PR created from this file should include the following chec
   - a gRPC-only service can run through `Run` without importing HTTP runtime packages
 
 ### T3B.2 Add gRPC health, reflection, auth, and stream semantics
+
+Status on this branch: implemented.
 
 - Stories: `3B.5` to `3B.7`
 - Depends on: `T3B.1`, `T1.5`
@@ -812,6 +816,8 @@ Every implementation PR created from this file should include the following chec
 
 ### T5.6 Create `pkg/featureflag` and explicit runtime posture contracts
 
+Status on this branch: implemented.
+
 - Stories: `9.1`, `9.2`, `9.3`
 - Depends on: `T1.5`, `T5.4`, `T5.5`
 - Outputs:
@@ -837,6 +843,8 @@ Every implementation PR created from this file should include the following chec
 
 ### T5.7 Add failure-injection, DR metadata, and operations hooks
 
+Status on this branch: implemented.
+
 - Stories: `9.4`, `9.5`, `11.1`, `11.2`, `11.3`
 - Depends on: `T5.6`
 - Outputs:
@@ -858,6 +866,8 @@ Every implementation PR created from this file should include the following chec
   - operations posture is explicit, testable, and documented where the framework makes promises
 
 ### T5.8 Non-Functional Verification Harnesses
+
+Status on this branch: implemented at the shared harness / lane level.
 
 - Stories: `12.1` to `12.6`
 - Depends on: `T5.2`, `T5.3`, `T5.7`
@@ -884,6 +894,8 @@ Every implementation PR created from this file should include the following chec
 ## Wave 6 - Descriptor, nimbctl, Shared Packages, Cleanup
 
 ### T6.1 Implement the service descriptor in Nimburion
+
+Status on this branch: implemented.
 
 - Stories: `3B.7`, `2.3`, `9.2`
 - Depends on: `T1.4`, `T2.4`, `T3.3`, `T3B.2`
@@ -961,6 +973,8 @@ Every implementation PR created from this file should include the following chec
 
 ### T6.4 Normalize shared public packages
 
+Status on this branch: implemented, including the `pkg/security` -> `internal/safepath` move.
+
 - Stories: `7.2`, `10.1`
 - Depends on: `T5.5`
 - Outputs:
@@ -993,7 +1007,7 @@ Every implementation PR created from this file should include the following chec
   - final package documentation
   - migration guide
 - Implementation:
-  - delete obsolete roots and factory packages:
+ - delete obsolete roots and factory packages:
     - `pkg/store`
     - `pkg/configschema`
     - `pkg/controller`

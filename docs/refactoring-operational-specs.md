@@ -187,6 +187,12 @@ Where the runtime exposes deployment posture or publishes orchestration metadata
 
 These values belong in runtime contracts and orchestration metadata, not only runbooks.
 
+Current branch state:
+
+- deployment posture metadata is modeled in `pkg/core/app`
+- startup, readiness, liveness, and degraded mode remain exposed through the shared health registry
+- runtime debug surfaces can expose posture metadata without scraping transport-specific implementations
+
 ### Recovery States
 
 The runtime model should support explicit recovery-oriented states when the feature participates in failover-sensitive flows:
@@ -217,6 +223,28 @@ The framework must define validation failures for unsupported combinations, for 
 - a runtime marked multi-region safe while using a single-instance-only coordination model
 - a failover-capable deployment without required durable state dependencies
 - cross-region replay claims without an idempotency or deduplication contract
+
+Current branch state:
+
+- runtime startup validates deployment posture metadata before startup completion
+- multi-region posture with single-instance leader-lock locality is rejected
+- replay-required posture without idempotency is rejected
+
+## Failure Injection Minimum Contract
+
+Failure injection must remain opt-in and target explicit runtime surfaces.
+
+The framework must define:
+
+- named injection targets
+- explicit injection modes
+- observability or introspection visibility for active injections
+
+Current branch state:
+
+- `pkg/core/app` exposes failure-injection targets for lifecycle hooks, runners, and shutdown hooks
+- supported modes are delay and forced error
+- active failure rules are visible through runtime introspection when debug surfaces are enabled
 
 ## gRPC Runtime Minimum Contract
 

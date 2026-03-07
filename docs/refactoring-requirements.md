@@ -9,7 +9,7 @@ Story-to-requirements/design/milestone mapping is tracked in [refactoring-tracea
 
 ## Status
 
-- `pkg/configschema` remains a legacy implementation area.
+- schema ownership has moved to `pkg/config/schema`; remaining config monolith cleanup is still in progress under `pkg/config`.
 - Former `pkg/repository` and `pkg/migrate` responsibilities already live under `pkg/persistence/relational` on this branch.
 - `pkg/store` has been removed on this branch; former shared backend adapters were split into role-specific packages under `pkg/cache/*` and `pkg/session/*`.
 - The former `pkg/server` responsibilities are already split across `pkg/http/server`, `pkg/http/router`, and `pkg/http/openapi` on this branch.
