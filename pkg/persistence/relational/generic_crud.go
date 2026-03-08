@@ -17,6 +17,10 @@ type SQLExecutor interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
+type placeholderFormatter interface {
+	Placeholder(index int) string
+}
+
 // GenericCrudRepository provides a generic implementation of CRUD operations for SQL databases
 type GenericCrudRepository[T any, ID comparable] struct {
 	executor  SQLExecutor
@@ -69,7 +73,7 @@ func (r *GenericCrudRepository[T, ID]) Create(ctx context.Context, entity *T) er
 	// Build INSERT query
 	placeholders := make([]string, len(columns))
 	for i := range placeholders {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		placeholders[i] = r.placeholder(i + 1)
 	}
 
 	query := fmt.Sprintf(
@@ -89,7 +93,7 @@ func (r *GenericCrudRepository[T, ID]) Create(ctx context.Context, entity *T) er
 
 // FindByID retrieves an entity by its ID
 func (r *GenericCrudRepository[T, ID]) FindByID(ctx context.Context, id ID) (*T, error) {
-	query := fmt.Sprintf("SELECT * FROM %s WHERE %s = $1", r.tableName, r.idColumn)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE %s = %s", r.tableName, r.idColumn, r.placeholder(1))
 
 	rows, err := r.executor.QueryContext(ctx, query, id)
 	if err != nil {
@@ -120,7 +124,7 @@ func (r *GenericCrudRepository[T, ID]) FindAll(ctx context.Context, opts QueryOp
 	if len(opts.Filter) > 0 {
 		whereClauses := []string{}
 		for field, value := range opts.Filter {
-			whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", field, argIndex))
+			whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", field, r.placeholder(argIndex)))
 			args = append(args, value)
 			argIndex++
 		}
@@ -138,7 +142,7 @@ func (r *GenericCrudRepository[T, ID]) FindAll(ctx context.Context, opts QueryOp
 
 	// Apply pagination
 	if opts.Pagination.PageSize > 0 {
-		query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+		query += fmt.Sprintf(" LIMIT %s OFFSET %s", r.placeholder(argIndex), r.placeholder(argIndex+1))
 		args = append(args, opts.Pagination.Limit(), opts.Pagination.Offset())
 	}
 
@@ -174,7 +178,7 @@ func (r *GenericCrudRepository[T, ID]) Count(ctx context.Context, filter Filter)
 	if len(filter) > 0 {
 		whereClauses := []string{}
 		for field, value := range filter {
-			whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", field, argIndex))
+			whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", field, r.placeholder(argIndex)))
 			args = append(args, value)
 			argIndex++
 		}
@@ -212,15 +216,15 @@ func (r *GenericCrudRepository[T, ID]) Update(ctx context.Context, entity *T) er
 	// Build UPDATE query
 	setClauses := make([]string, len(columns))
 	for i, col := range columns {
-		setClauses[i] = fmt.Sprintf("%s = $%d", col, i+1)
+		setClauses[i] = fmt.Sprintf("%s = %s", col, r.placeholder(i+1))
 	}
 
 	query := fmt.Sprintf(
-		"UPDATE %s SET %s WHERE %s = $%d",
+		"UPDATE %s SET %s WHERE %s = %s",
 		r.tableName,
 		strings.Join(setClauses, ", "),
 		r.idColumn,
-		len(values)+1,
+		r.placeholder(len(values)+1),
 	)
 
 	values = append(values, id)
@@ -258,20 +262,20 @@ func (r *GenericCrudRepository[T, ID]) updateWithOptimisticLock(
 	setClauses := make([]string, len(columns))
 	for i, col := range columns {
 		if col == "version" {
-			setClauses[i] = fmt.Sprintf("%s = $%d", col, i+1)
+			setClauses[i] = fmt.Sprintf("%s = %s", col, r.placeholder(i+1))
 			values[i] = newVersion
 		} else {
-			setClauses[i] = fmt.Sprintf("%s = $%d", col, i+1)
+			setClauses[i] = fmt.Sprintf("%s = %s", col, r.placeholder(i+1))
 		}
 	}
 
 	query := fmt.Sprintf(
-		"UPDATE %s SET %s WHERE %s = $%d AND version = $%d",
+		"UPDATE %s SET %s WHERE %s = %s AND version = %s",
 		r.tableName,
 		strings.Join(setClauses, ", "),
 		r.idColumn,
-		len(values)+1,
-		len(values)+2,
+		r.placeholder(len(values)+1),
+		r.placeholder(len(values)+2),
 	)
 
 	values = append(values, id, currentVersion)
@@ -289,7 +293,7 @@ func (r *GenericCrudRepository[T, ID]) updateWithOptimisticLock(
 	if rowsAffected == 0 {
 		// Check if entity exists
 		var actualVersion int64
-		checkQuery := fmt.Sprintf("SELECT version FROM %s WHERE %s = $1", r.tableName, r.idColumn)
+		checkQuery := fmt.Sprintf("SELECT version FROM %s WHERE %s = %s", r.tableName, r.idColumn, r.placeholder(1))
 		err := r.executor.QueryRowContext(ctx, checkQuery, id).Scan(&actualVersion)
 		if err == sql.ErrNoRows {
 			return sql.ErrNoRows
@@ -310,7 +314,7 @@ func (r *GenericCrudRepository[T, ID]) updateWithOptimisticLock(
 
 // Delete removes an entity from the database by its ID
 func (r *GenericCrudRepository[T, ID]) Delete(ctx context.Context, id ID) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE %s = $1", r.tableName, r.idColumn)
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s = %s", r.tableName, r.idColumn, r.placeholder(1))
 
 	result, err := r.executor.ExecContext(ctx, query, id)
 	if err != nil {
@@ -327,6 +331,13 @@ func (r *GenericCrudRepository[T, ID]) Delete(ctx context.Context, id ID) error 
 	}
 
 	return nil
+}
+
+func (r *GenericCrudRepository[T, ID]) placeholder(index int) string {
+	if formatter, ok := r.executor.(placeholderFormatter); ok {
+		return formatter.Placeholder(index)
+	}
+	return fmt.Sprintf("$%d", index)
 }
 
 // ReflectionMapper provides a basic entity mapper using reflection

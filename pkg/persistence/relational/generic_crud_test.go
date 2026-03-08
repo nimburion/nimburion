@@ -28,6 +28,14 @@ func (e *TestEntity) SetVersion(version int64) {
 // TestEntityMapper is a custom mapper for TestEntity
 type TestEntityMapper struct{}
 
+type mysqlPlaceholderExecutor struct {
+	*sql.DB
+}
+
+func (mysqlPlaceholderExecutor) Placeholder(int) string {
+	return "?"
+}
+
 func (m *TestEntityMapper) ToRow(entity *TestEntity) ([]string, []interface{}, error) {
 	return []string{"id", "name", "status", "version"},
 		[]interface{}{entity.ID, entity.Name, entity.Status, entity.Version},
@@ -122,6 +130,49 @@ func TestGenericCrudRepository_Create(t *testing.T) {
 				t.Errorf("unfulfilled expectations: %v", err)
 			}
 		})
+	}
+}
+
+func TestGenericCrudRepository_UsesExecutorPlaceholderFormat(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec("INSERT INTO test_entities \\(id, name, status, version\\) VALUES \\(\\?, \\?, \\?, \\?\\)").
+		WithArgs(int64(1), "Test", "active", int64(0)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM test_entities WHERE status = \\?").
+		WithArgs("active").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+
+	repo := NewGenericCrudRepository[TestEntity, int64](
+		mysqlPlaceholderExecutor{DB: db},
+		"test_entities",
+		"id",
+		&TestEntityMapper{},
+	)
+
+	if createErr := repo.Create(context.Background(), &TestEntity{
+		ID:      1,
+		Name:    "Test",
+		Status:  "active",
+		Version: 0,
+	}); createErr != nil {
+		t.Fatalf("Create() error = %v", createErr)
+	}
+
+	count, err := repo.Count(context.Background(), Filter{"status": "active"})
+	if err != nil {
+		t.Fatalf("Count() error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected count 1, got %d", count)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unfulfilled expectations: %v", err)
 	}
 }
 

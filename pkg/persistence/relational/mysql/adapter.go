@@ -71,6 +71,11 @@ func (a *Adapter) DB() *sql.DB {
 	return a.db
 }
 
+// Placeholder returns the positional placeholder syntax for MySQL.
+func (a *Adapter) Placeholder(_ int) string {
+	return "?"
+}
+
 // Ping checks basic connectivity to MySQL.
 func (a *Adapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
@@ -160,12 +165,10 @@ func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interf
 
 // QueryRowContext runs a query that returns at most one row.
 func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	queryCtx, cancel := a.withQueryTimeout(ctx)
-	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
-		return tx.QueryRowContext(queryCtx, query, args...)
+		return tx.QueryRowContext(ctx, query, args...)
 	}
-	return a.db.QueryRowContext(queryCtx, query, args...)
+	return a.db.QueryRowContext(ctx, query, args...)
 }
 
 func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

@@ -80,6 +80,11 @@ func (a *Adapter) DB() *sql.DB {
 	return a.db
 }
 
+// Placeholder returns the positional placeholder syntax for PostgreSQL.
+func (a *Adapter) Placeholder(index int) string {
+	return fmt.Sprintf("$%d", index)
+}
+
 // Ping verifies the database connection is alive
 func (a *Adapter) Ping(ctx context.Context) error {
 	return a.db.PingContext(ctx)
@@ -197,12 +202,10 @@ func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interf
 // QueryRowContext executes a query that returns a single row with the transaction from context if available
 // Otherwise uses the regular database connection
 func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	queryCtx, cancel := a.withQueryTimeout(ctx)
-	defer cancel()
 	if tx, ok := GetTx(ctx); ok {
-		return tx.QueryRowContext(queryCtx, query, args...)
+		return tx.QueryRowContext(ctx, query, args...)
 	}
-	return a.db.QueryRowContext(queryCtx, query, args...)
+	return a.db.QueryRowContext(ctx, query, args...)
 }
 
 func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

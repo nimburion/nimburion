@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -30,6 +31,59 @@ func TestPing_WhenClosed(t *testing.T) {
 	a := &Adapter{closed: true, logger: &mockLogger{}}
 	if err := a.Ping(context.Background()); err == nil {
 		t.Fatal("expected error when closed")
+	}
+}
+
+func TestOperations_WhenClosed(t *testing.T) {
+	a := &Adapter{closed: true, logger: &mockLogger{}}
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "put item",
+			run: func() error {
+				_, err := a.PutItem(context.Background(), &dynamodb.PutItemInput{})
+				return err
+			},
+		},
+		{
+			name: "get item",
+			run: func() error {
+				_, err := a.GetItem(context.Background(), &dynamodb.GetItemInput{})
+				return err
+			},
+		},
+		{
+			name: "update item",
+			run: func() error {
+				_, err := a.UpdateItem(context.Background(), &dynamodb.UpdateItemInput{})
+				return err
+			},
+		},
+		{
+			name: "delete item",
+			run: func() error {
+				_, err := a.DeleteItem(context.Background(), &dynamodb.DeleteItemInput{})
+				return err
+			},
+		},
+		{
+			name: "query",
+			run: func() error {
+				_, err := a.Query(context.Background(), &dynamodb.QueryInput{})
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); err == nil {
+				t.Fatal("expected error when closed")
+			}
+		})
 	}
 }
 

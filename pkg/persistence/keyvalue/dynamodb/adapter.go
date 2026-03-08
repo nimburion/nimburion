@@ -82,11 +82,8 @@ func (a *Adapter) Client() *dynamodb.Client {
 
 // Ping checks basic connectivity to DynamoDB.
 func (a *Adapter) Ping(ctx context.Context) error {
-	a.mu.RLock()
-	closed := a.closed
-	a.mu.RUnlock()
-	if closed {
-		return fmt.Errorf("dynamodb adapter is closed")
+	if err := a.ensureOpen(); err != nil {
+		return err
 	}
 
 	opCtx, cancel := a.withOperationTimeout(ctx)
@@ -119,6 +116,9 @@ func (a *Adapter) Close() error {
 
 // PutItem proxies a PutItem request to DynamoDB.
 func (a *Adapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+	if err := a.ensureOpen(); err != nil {
+		return nil, err
+	}
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.PutItem(opCtx, input)
@@ -126,6 +126,9 @@ func (a *Adapter) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*d
 
 // GetItem proxies a GetItem request to DynamoDB.
 func (a *Adapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+	if err := a.ensureOpen(); err != nil {
+		return nil, err
+	}
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.GetItem(opCtx, input)
@@ -133,6 +136,9 @@ func (a *Adapter) GetItem(ctx context.Context, input *dynamodb.GetItemInput) (*d
 
 // UpdateItem proxies an UpdateItem request to DynamoDB.
 func (a *Adapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInput) (*dynamodb.UpdateItemOutput, error) {
+	if err := a.ensureOpen(); err != nil {
+		return nil, err
+	}
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.UpdateItem(opCtx, input)
@@ -140,6 +146,9 @@ func (a *Adapter) UpdateItem(ctx context.Context, input *dynamodb.UpdateItemInpu
 
 // DeleteItem proxies a DeleteItem request to DynamoDB.
 func (a *Adapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
+	if err := a.ensureOpen(); err != nil {
+		return nil, err
+	}
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.DeleteItem(opCtx, input)
@@ -147,9 +156,21 @@ func (a *Adapter) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInpu
 
 // Query proxies a Query request to DynamoDB.
 func (a *Adapter) Query(ctx context.Context, input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+	if err := a.ensureOpen(); err != nil {
+		return nil, err
+	}
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.client.Query(opCtx, input)
+}
+
+func (a *Adapter) ensureOpen() error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.closed {
+		return fmt.Errorf("dynamodb adapter is closed")
+	}
+	return nil
 }
 
 func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
