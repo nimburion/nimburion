@@ -32,6 +32,30 @@ Use:
 
 The lane wrappers are the stable task-level entry points for `TASKS.md`. They currently shell out to `go test` with standard selection patterns and can be replaced later by more specialized wrappers without changing task language.
 
+## Pre-Merge Review Sweep
+
+For this worktree, the pre-merge production-readiness sweep is:
+
+```bash
+env GOCACHE=.cache/go-build go vet ./...
+env GOCACHE=.cache/go-build go test ./pkg/config ./pkg/cli
+env GOCACHE=.cache/go-build go test ./pkg/http/session ./pkg/http/server ./pkg/http/httpsignature
+env GOCACHE=.cache/go-build go test ./pkg/jobs ./pkg/scheduler ./pkg/http/openapi
+env GOCACHE=.cache/go-build go test ./pkg/reliability/idempotency ./internal/emailkit
+env GOCACHE=.cache/go-build go test ./pkg/persistence/relational ./pkg/persistence/relational/mysql ./pkg/persistence/relational/migrate ./pkg/persistence/keyvalue/dynamodb
+env GOCACHE=.cache/go-build go test ./pkg/cache ./pkg/session
+env GOCACHE=.cache/go-build go test ./pkg/cache/redis -run 'TestAdapter_MapGetError_NotFoundMapsToCacheMiss|TestAdapter_WithOperationTimeout|TestAdapter_Integration'
+env GOCACHE=.cache/go-build go test ./pkg/session/redis -run 'TestAdapter_MapGetError_NotFoundMapsToSessionErrNotFound|TestAdapter_WithOperationTimeout|TestAdapter_Integration'
+env GOCACHE=.cache/go-build go test ./pkg/persistence/relational/postgres -run TestAdapter_Integration
+env GOCACHE=.cache/go-build go test ./...
+```
+
+Notes:
+
+- `GOCACHE=.cache/go-build` keeps verification artifacts local to the worktree.
+- Redis and PostgreSQL integration tests now skip cleanly when Docker is unavailable.
+- The final `go test ./...` is the confidence sweep after the targeted regression packages pass.
+
 ## Current Test Modes
 
 ### Build Gate
