@@ -52,6 +52,38 @@ func TestSessionMiddleware_CreatesSessionCookie(t *testing.T) {
 	}
 }
 
+func TestSessionMiddleware_AutoCreateDisabledDoesNotEmitCookie(t *testing.T) {
+	store := rolesession.NewInMemoryStore()
+	r := nethttp.NewRouter()
+	r.Use(Middleware(Config{
+		Enabled:    true,
+		Store:      store,
+		TTL:        time.Hour,
+		AutoCreate: false,
+	}))
+	r.GET("/ok", func(c router.Context) error {
+		s, ok := FromContext(c)
+		if !ok || s == nil {
+			t.Fatalf("expected session in context")
+		}
+		if s.ID() != "" {
+			t.Fatalf("expected empty session id when auto creation is disabled")
+		}
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if cookie := findLastCookieByName(w.Result(), "sid"); cookie != nil {
+		t.Fatalf("expected no session cookie when auto creation is disabled")
+	}
+}
+
 func TestSessionMiddleware_PersistsValuesAcrossRequests(t *testing.T) {
 	store := rolesession.NewInMemoryStore()
 	r := nethttp.NewRouter()

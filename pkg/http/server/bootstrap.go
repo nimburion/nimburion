@@ -70,6 +70,9 @@ type HTTPServers struct {
 
 // BuildHTTPServers constructs framework HTTP servers from config/options.
 func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
+	if opts == nil {
+		return nil, errors.New("options are required")
+	}
 	if opts.Config == nil {
 		opts.Config = config.DefaultConfig()
 	}
@@ -272,7 +275,7 @@ func runStartupHooks(ctx context.Context, opts *RunHTTPServersOptions) error {
 	return lifecycleApp.Run(ctx)
 }
 
-func runShutdownHooks(opts *RunHTTPServersOptions) error {
+func runShutdownHooks(ctx context.Context, opts *RunHTTPServersOptions) error {
 	timeout := opts.ShutdownHookTimeout
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -286,7 +289,9 @@ func runShutdownHooks(opts *RunHTTPServersOptions) error {
 	if err != nil {
 		return err
 	}
-	return lifecycleApp.Run(context.Background())
+	shutdownCtx, cancel := shutdownContextFromParent(ctx)
+	defer cancel()
+	return lifecycleApp.Run(shutdownCtx)
 }
 
 func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {

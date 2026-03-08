@@ -53,6 +53,13 @@ func NewManagementServer(
 	metricsRegistry *metrics.Registry,
 	validator auth.JWTValidator,
 ) (*ManagementServer, error) {
+	if healthRegistry == nil {
+		healthRegistry = health.NewRegistry()
+	}
+	if metricsRegistry == nil {
+		metricsRegistry = metrics.NewRegistry()
+	}
+
 	// Apply standard middleware stack (lighter than public API)
 	r.Use(
 		requestid.RequestID(),

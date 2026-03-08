@@ -48,6 +48,9 @@ func NewServer(cfg Config, router router.Router, logger logger.Logger) *Server {
 // If the context is cancelled, Start will call Shutdown to gracefully stop the server.
 // Returns an error if the server fails to start or if shutdown fails.
 func (s *Server) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),
 		Handler:      s.router,
@@ -81,7 +84,9 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("server failed to start: %w", err)
 	case <-ctx.Done():
 		// Context cancelled, initiate graceful shutdown
-		return s.Shutdown(context.Background())
+		shutdownCtx, cancel := shutdownContextFromParent(ctx)
+		defer cancel()
+		return s.Shutdown(shutdownCtx)
 	}
 }
 
@@ -92,6 +97,9 @@ func (s *Server) Start(ctx context.Context) error {
 //
 // Returns an error if the shutdown process fails.
 func (s *Server) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.logger.Info(fmt.Sprintf("shutting down server on %s", s.httpServer.Addr))
 
 	// Create a timeout context for shutdown
@@ -105,4 +113,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info(fmt.Sprintf("server on %s shutdown complete ", s.httpServer.Addr))
 
 	return nil
+}
+
+func shutdownContextFromParent(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		return context.Background(), func() {}
+	}
+
+	base := context.WithoutCancel(parent)
+	if deadline, ok := parent.Deadline(); ok {
+		return context.WithDeadline(base, deadline)
+	}
+	return base, func() {}
 }

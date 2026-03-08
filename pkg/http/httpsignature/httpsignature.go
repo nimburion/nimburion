@@ -192,9 +192,6 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 
 func normalizeConfig(cfg Config) Config {
 	def := DefaultConfig()
-	if cfg.KeyProvider == nil && cfg.NonceStore == nil && cfg.KeyIDHeader == "" && cfg.TimestampHeader == "" && cfg.NonceHeader == "" && cfg.SignatureHeader == "" && cfg.MaxClockSkew == 0 && cfg.NonceTTL == 0 && len(cfg.ExcludedPathPrefixes) == 0 {
-		return def
-	}
 	if strings.TrimSpace(cfg.KeyIDHeader) == "" {
 		cfg.KeyIDHeader = def.KeyIDHeader
 	}

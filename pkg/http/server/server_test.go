@@ -191,6 +191,29 @@ func TestServerContextCancellation(t *testing.T) {
 	}
 }
 
+func TestShutdownContextFromParent_PreservesDeadlineWithoutCancellation(t *testing.T) {
+	parent, cancelParent := context.WithTimeout(context.Background(), time.Second)
+	cancelParent()
+
+	shutdownCtx, cancel := shutdownContextFromParent(parent)
+	defer cancel()
+
+	if shutdownCtx.Err() != nil {
+		t.Fatalf("expected shutdown context to ignore parent cancellation, got %v", shutdownCtx.Err())
+	}
+	parentDeadline, ok := parent.Deadline()
+	if !ok {
+		t.Fatal("expected parent deadline")
+	}
+	gotDeadline, ok := shutdownCtx.Deadline()
+	if !ok {
+		t.Fatal("expected shutdown deadline to be preserved")
+	}
+	if !gotDeadline.Equal(parentDeadline) {
+		t.Fatalf("expected preserved deadline %v, got %v", parentDeadline, gotDeadline)
+	}
+}
+
 // TestServerShutdownTimeout tests that shutdown respects timeout
 func TestServerShutdownTimeout(t *testing.T) {
 	r := nethttp.NewRouter()

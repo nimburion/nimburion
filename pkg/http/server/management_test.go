@@ -76,6 +76,34 @@ func TestNewManagementServer(t *testing.T) {
 	}
 }
 
+func TestNewManagementServer_DefaultsNilRegistries(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:         9090,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	r := nethttp.NewRouter()
+	log, err := logger.NewZapLogger(logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	mgmtServer, err := NewManagementServer(cfg, r, log, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("expected no error creating management server, got %v", err)
+	}
+	if mgmtServer.healthRegistry == nil {
+		t.Fatal("expected default health registry")
+	}
+	if mgmtServer.metricsRegistry == nil {
+		t.Fatal("expected default metrics registry")
+	}
+}
+
 // TestManagementServer_HealthEndpoint tests the /health endpoint
 // Requirements: 30.1, 30.3
 func TestManagementServer_HealthEndpoint(t *testing.T) {

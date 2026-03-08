@@ -149,6 +149,49 @@ func TestMiddleware_PreservesRequestBody(t *testing.T) {
 	}
 }
 
+func TestMiddleware_RequireNonceFalseAllowsMissingNonce(t *testing.T) {
+	cfg := Config{
+		KeyProvider:     StaticKeyProvider{"device-1": "secret-1"},
+		RequireNonce:    false,
+		MaxClockSkew:    DefaultConfig().MaxClockSkew,
+		NonceTTL:        DefaultConfig().NonceTTL,
+		SignatureHeader: DefaultConfig().SignatureHeader,
+		KeyIDHeader:     DefaultConfig().KeyIDHeader,
+		TimestampHeader: DefaultConfig().TimestampHeader,
+	}
+
+	r := nethttp.NewRouter()
+	r.Use(Middleware(cfg))
+	r.POST("/hook", func(c router.Context) error { return c.String(http.StatusOK, "ok") })
+
+	body := `{"value":42}`
+	req := httptest.NewRequest(http.MethodPost, "/hook", strings.NewReader(body))
+	applySignedHeaders(req, normalizeConfig(cfg), "device-1", "secret-1", body, time.Now().UTC(), "")
+	req.Header.Del(DefaultConfig().NonceHeader)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when nonce is optional, got %d", rec.Code)
+	}
+}
+
+func TestMiddleware_DisabledRemainsDisabledWithEmptyConfig(t *testing.T) {
+	cfg := Config{Enabled: false}
+
+	r := nethttp.NewRouter()
+	r.Use(Middleware(cfg))
+	r.POST("/hook", func(c router.Context) error { return c.String(http.StatusOK, "ok") })
+
+	req := httptest.NewRequest(http.MethodPost, "/hook", strings.NewReader(`{"value":42}`))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected disabled middleware to pass through, got %d", rec.Code)
+	}
+}
+
 func applySignedHeaders(req *http.Request, cfg Config, keyID string, secret string, body string, ts time.Time, nonce string) {
 	timestamp := ts.UTC().Format(time.RFC3339)
 	payload := canonicalPayload(req.Method, req.URL.EscapedPath(), req.URL.RawQuery, timestamp, nonce, []byte(body))

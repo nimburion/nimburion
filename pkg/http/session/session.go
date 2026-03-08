@@ -39,6 +39,8 @@ type Session struct {
 	dirty     bool
 	destroyed bool
 	renewed   bool
+	createErr error
+	onCreate  func(string)
 }
 
 // DefaultConfig returns safe defaults for server-side sessions.
@@ -72,6 +74,12 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 			s := &Session{
 				id:   sessionID,
 				data: map[string]string{},
+				onCreate: func(id string) {
+					if id == "" || c.Response().Written() {
+						return
+					}
+					writeSessionCookie(c.Response(), cfg, id)
+				},
 			}
 
 			if sessionID != "" {
@@ -148,6 +156,10 @@ func (s *Session) Set(key, value string) {
 	if s == nil || strings.TrimSpace(key) == "" {
 		return
 	}
+	s.ensureID()
+	if s.createErr != nil {
+		return
+	}
 	s.data[key] = value
 	s.dirty = true
 }
@@ -174,6 +186,10 @@ func (s *Session) Values() map[string]string {
 // Renew rotates the session id at the end of the current request.
 func (s *Session) Renew() {
 	if s == nil {
+		return
+	}
+	s.ensureID()
+	if s.createErr != nil {
 		return
 	}
 	s.renewed = true
@@ -207,15 +223,15 @@ func normalizeConfig(cfg Config) Config {
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = def.IdleTimeout
 	}
-	if !cfg.AutoCreate {
-		cfg.AutoCreate = def.AutoCreate
-	}
 	return cfg
 }
 
 func commit(c router.Context, cfg Config, previousID string, s *Session) error {
-	if s == nil || s.id == "" {
+	if s == nil {
 		return nil
+	}
+	if s.createErr != nil {
+		return s.createErr
 	}
 
 	if s.destroyed {
@@ -231,6 +247,16 @@ func commit(c router.Context, cfg Config, previousID string, s *Session) error {
 	}
 
 	targetID := s.id
+	if targetID == "" {
+		if !s.dirty && !s.renewed {
+			return nil
+		}
+		newID, err := generateSessionID()
+		if err != nil {
+			return err
+		}
+		targetID = newID
+	}
 	if s.renewed {
 		newID, err := generateSessionID()
 		if err != nil {
@@ -256,6 +282,21 @@ func commit(c router.Context, cfg Config, previousID string, s *Session) error {
 	}
 	s.id = targetID
 	return nil
+}
+
+func (s *Session) ensureID() {
+	if s == nil || s.id != "" || s.createErr != nil {
+		return
+	}
+	newID, err := generateSessionID()
+	if err != nil {
+		s.createErr = err
+		return
+	}
+	s.id = newID
+	if s.onCreate != nil {
+		s.onCreate(newID)
+	}
 }
 
 func readSessionID(req *http.Request, cookieName string) string {

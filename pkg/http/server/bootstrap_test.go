@@ -46,6 +46,16 @@ func TestBuildHTTPServers_ManagementEnabled(t *testing.T) {
 	}
 }
 
+func TestBuildHTTPServers_RequiresOptions(t *testing.T) {
+	servers, err := BuildHTTPServers(nil)
+	if err == nil || err.Error() != "options are required" {
+		t.Fatalf("expected explicit options error, got %v", err)
+	}
+	if servers != nil {
+		t.Fatalf("expected nil servers when options are missing")
+	}
+}
+
 func TestBuildHTTPServers_RegistersVersionEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Management.Enabled = true
@@ -259,7 +269,7 @@ func TestRunShutdownHooks_BestEffortAndAggregatesErrors(t *testing.T) {
 	}
 
 	runs := atomic.Int32{}
-	joinedErr := runShutdownHooks(&RunHTTPServersOptions{
+	joinedErr := runShutdownHooks(context.Background(), &RunHTTPServersOptions{
 		Logger: log,
 		ShutdownHooks: []LifecycleHook{
 			{
@@ -296,7 +306,7 @@ func TestRunShutdownHooks_UsesDefaultTimeout(t *testing.T) {
 		t.Fatalf("create logger: %v", err)
 	}
 
-	joinedErr := runShutdownHooks(&RunHTTPServersOptions{
+	joinedErr := runShutdownHooks(context.Background(), &RunHTTPServersOptions{
 		Logger:              log,
 		ShutdownHookTimeout: 0,
 		ShutdownHooks: []LifecycleHook{
