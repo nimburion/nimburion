@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	"github.com/nimburion/nimburion/pkg/session"
 )
 
 // TestProperty15_CacheOperationsWithTTL verifies that cache operations with TTL work correctly.
@@ -122,8 +124,7 @@ func TestProperty15_CacheOperationsWithTTL(t *testing.T) {
 			// Retrieve after expiration
 			_, err = adapter.Get(ctx, kv.key)
 
-			// Should return "key not found" error
-			return err != nil && strings.Contains(err.Error(), "key not found")
+			return errors.Is(err, session.ErrNotFound)
 		},
 		genRedisConfig,
 		genKeyValue,
