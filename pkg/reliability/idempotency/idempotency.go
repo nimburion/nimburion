@@ -30,6 +30,16 @@ type Store interface {
 	CleanupProcessedBefore(ctx context.Context, before time.Time, limit int) (int, error)
 }
 
+// AtomicStore provides a safe non-transactional execution path for stores that
+// can guarantee duplicate suppression under contention.
+type AtomicStore interface {
+	ExecuteAtomically(ctx context.Context, scope, key string, handler func(context.Context) error) (bool, error)
+}
+
+// ErrAtomicExecutionRequired reports that ExecuteOnce requires a store capable
+// of suppressing duplicates atomically under contention.
+var ErrAtomicExecutionRequired = errors.New("non-transactional idempotency requires a store with atomic execution support; use ExecuteOnceTransactional or provide an AtomicStore")
+
 type Guard struct {
 	store Store
 }
@@ -54,21 +64,11 @@ func (g *Guard) ExecuteOnce(ctx context.Context, scope, key string, handler func
 	if handler == nil {
 		return false, errors.New("handler is required")
 	}
-
-	processed, err := g.store.IsProcessed(ctx, scope, key)
-	if err != nil {
-		return false, fmt.Errorf("check processed key failed: %w", err)
+	atomicStore, ok := g.store.(AtomicStore)
+	if !ok {
+		return false, ErrAtomicExecutionRequired
 	}
-	if processed {
-		return false, nil
-	}
-	if err := handler(ctx); err != nil {
-		return false, err
-	}
-	if err := g.store.MarkProcessed(ctx, scope, key, time.Now().UTC()); err != nil {
-		return false, fmt.Errorf("mark processed key failed: %w", err)
-	}
-	return true, nil
+	return atomicStore.ExecuteAtomically(ctx, scope, key, handler)
 }
 
 type TxStore interface {

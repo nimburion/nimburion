@@ -26,6 +26,7 @@ This package is transport-neutral. HTTP, event consumers, and jobs workers adapt
 
 - duplicate control is explicit and scope-based
 - the contract assumes at-least-once upstream delivery
+- non-transactional execution requires a store that explicitly provides atomic duplicate suppression under contention
 - transactional helpers keep business effects and idempotency markers in one boundary when supported
 
 ## Testing Expectations
