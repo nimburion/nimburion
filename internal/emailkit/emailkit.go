@@ -100,21 +100,21 @@ func MapContent(msg email.Message) []map[string]string {
 
 func BuildMIMEMessage(msg email.Message) []byte {
 	var b strings.Builder
-	b.WriteString("From: " + msg.From + "\r\n")
-	if len(msg.To) > 0 {
-		b.WriteString("To: " + strings.Join(msg.To, ", ") + "\r\n")
+	b.WriteString("From: " + sanitizeHeaderValue(msg.From) + "\r\n")
+	if to := sanitizeAddressList(msg.To); len(to) > 0 {
+		b.WriteString("To: " + strings.Join(to, ", ") + "\r\n")
 	}
-	if len(msg.Cc) > 0 {
-		b.WriteString("Cc: " + strings.Join(msg.Cc, ", ") + "\r\n")
+	if cc := sanitizeAddressList(msg.Cc); len(cc) > 0 {
+		b.WriteString("Cc: " + strings.Join(cc, ", ") + "\r\n")
 	}
-	if msg.ReplyTo != "" {
-		b.WriteString("Reply-To: " + msg.ReplyTo + "\r\n")
+	if replyTo := sanitizeHeaderValue(msg.ReplyTo); replyTo != "" {
+		b.WriteString("Reply-To: " + replyTo + "\r\n")
 	}
-	b.WriteString("Subject: " + msg.Subject + "\r\n")
+	b.WriteString("Subject: " + sanitizeHeaderValue(msg.Subject) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	for k, v := range msg.Headers {
-		key := strings.TrimSpace(k)
-		value := strings.TrimSpace(v)
+		key := sanitizeHeaderName(k)
+		value := sanitizeHeaderValue(v)
 		if key == "" || value == "" {
 			continue
 		}
@@ -143,6 +143,34 @@ func BuildMIMEMessage(msg email.Message) []byte {
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
 	b.WriteString(text)
 	return []byte(b.String())
+}
+
+func sanitizeHeaderName(value string) string {
+	name := strings.TrimSpace(value)
+	if name == "" || strings.ContainsAny(name, "\r\n:") {
+		return ""
+	}
+	return name
+}
+
+func sanitizeHeaderValue(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	trimmed = strings.ReplaceAll(trimmed, "\r", " ")
+	trimmed = strings.ReplaceAll(trimmed, "\n", " ")
+	return strings.Join(strings.Fields(trimmed), " ")
+}
+
+func sanitizeAddressList(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if sanitized := sanitizeHeaderValue(value); sanitized != "" {
+			out = append(out, sanitized)
+		}
+	}
+	return out
 }
 
 func MapMailchimpRecipients(to, cc, bcc []string) []map[string]string {
