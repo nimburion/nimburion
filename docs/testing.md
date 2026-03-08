@@ -15,6 +15,7 @@ make test-fast
 make test-integration
 make test-parallel
 make test-coverage
+make test-review-sweep
 ```
 
 Use:
@@ -29,6 +30,7 @@ Use:
 - `make test-integration` when external services are required
 - `make test-parallel` for a full parallel run
 - `make test-coverage` for coverage output
+- `make test-review-sweep` for the documented pre-merge production-readiness sweep
 
 The lane wrappers are the stable task-level entry points for `TASKS.md`. They currently shell out to `go test` with standard selection patterns and can be replaced later by more specialized wrappers without changing task language.
 

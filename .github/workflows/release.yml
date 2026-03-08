@@ -33,7 +33,6 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10.1
-        continue-on-error: true
 
   security:
     name: Security Scan
@@ -49,11 +48,11 @@ jobs:
           go-version: '1.25.x'
           cache: true
 
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
       - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
-        with:
-          args: './...'
-        continue-on-error: true
+        run: gosec ./...
 
       - name: Check for vulnerabilities
         run: |
@@ -61,12 +60,11 @@ jobs:
           govulncheck ./...
 
   test:
-    name: Run Tests
+    name: Run Verification
     uses: ./.github/workflows/reusable-test.yml
     with:
       go-version: '1.25.x'
       coverage-threshold: 50
-      with-services: true
     permissions:
       contents: read
 

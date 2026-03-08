@@ -32,14 +32,12 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.10.1
-        continue-on-error: true
 
   test:
-    name: Run Tests
+    name: Run Verification
     uses: ./.github/workflows/reusable-test.yml
     with:
       go-version: '1.25.x'
       coverage-threshold: 50
-      with-services: false
     permissions:
       contents: read

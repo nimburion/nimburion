@@ -1,7 +1,7 @@
 .PHONY: help lint lint-fix lint-critical security tidy verify ci-local \
 	test test-fast test-integration test-parallel test-coverage test-coverage-html \
 	test-build test-fast-lane test-integration-lane test-contract-lane test-nonfunctional-lane \
-	test-group-server test-group-store test-group-middleware test-group-eventbus
+	test-review-sweep
 
 TEST_PKG ?= ./...
 TEST_RUN ?=
@@ -54,17 +54,18 @@ test-contract-lane: ## Contract verification lane; set TEST_PKG=./path/... or TE
 test-nonfunctional-lane: ## Non-functional lane; set TEST_PKG=./path/... or TEST_RUN='Performance|...'
 	go test $(TEST_PKG) -run '$(if $(TEST_RUN),$(TEST_RUN),Performance|Load|Soak|Resilience|Security|Compatibility|Race|Ordering)'
 
-test-group-server: ## Test server packages only
-	go test ./pkg/server/... -p $$(nproc 2>/dev/null || sysctl -n hw.ncpu) -count=1 -v
-
-test-group-store: ## Test store packages only
-	go test ./pkg/store/... ./pkg/repository/... -p $$(nproc 2>/dev/null || sysctl -n hw.ncpu) -count=1 -v
-
-test-group-middleware: ## Test middleware packages only
-	go test ./pkg/middleware/... -p $$(nproc 2>/dev/null || sysctl -n hw.ncpu) -count=1 -v
-
-test-group-eventbus: ## Test eventbus packages only
-	go test ./pkg/eventbus/... ./pkg/jobs/... ./pkg/realtime/... -p $$(nproc 2>/dev/null || sysctl -n hw.ncpu) -count=1 -v
+test-review-sweep: ## Run the documented pre-merge review sweep
+	env GOCACHE=.cache/go-build go vet ./...
+	env GOCACHE=.cache/go-build go test ./pkg/config ./pkg/cli
+	env GOCACHE=.cache/go-build go test ./pkg/http/session ./pkg/http/server ./pkg/http/httpsignature
+	env GOCACHE=.cache/go-build go test ./pkg/jobs ./pkg/scheduler ./pkg/http/openapi
+	env GOCACHE=.cache/go-build go test ./pkg/reliability/idempotency ./internal/emailkit
+	env GOCACHE=.cache/go-build go test ./pkg/persistence/relational ./pkg/persistence/relational/mysql ./pkg/persistence/relational/migrate ./pkg/persistence/keyvalue/dynamodb
+	env GOCACHE=.cache/go-build go test ./pkg/cache ./pkg/session
+	env GOCACHE=.cache/go-build go test ./pkg/cache/redis -run 'TestAdapter_MapGetError_NotFoundMapsToCacheMiss|TestAdapter_WithOperationTimeout|TestAdapter_Integration'
+	env GOCACHE=.cache/go-build go test ./pkg/session/redis -run 'TestAdapter_MapGetError_NotFoundMapsToSessionErrNotFound|TestAdapter_WithOperationTimeout|TestAdapter_Integration'
+	env GOCACHE=.cache/go-build go test ./pkg/persistence/relational/postgres -run TestAdapter_Integration
+	env GOCACHE=.cache/go-build go test ./...
 
 security: ## Run security checks
 	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
