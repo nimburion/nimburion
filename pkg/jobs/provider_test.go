@@ -86,6 +86,20 @@ func TestNewRuntimeFromConfig_RedisRequiresURL(t *testing.T) {
 	}
 }
 
+func TestNewRuntimeFromConfig_EventBusBackendRequiresEventBusType(t *testing.T) {
+	_, err := NewRuntimeFromConfig(
+		jobsconfig.Config{Backend: jobsconfig.BackendEventBus},
+		eventbusconfig.Config{},
+		&providerTestLogger{},
+	)
+	if err == nil {
+		t.Fatal("expected missing eventbus type error")
+	}
+	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
+		t.Fatalf("expected eventbus type validation error, got %v", err)
+	}
+}
+
 func TestNewBackendFromConfig_UnsupportedBackend(t *testing.T) {
 	_, err := NewBackendFromConfig(
 		jobsconfig.Config{Backend: "unknown"},
@@ -108,6 +122,20 @@ func TestNewBackendFromConfig_RedisRequiresURL(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "redis url is required") {
 		t.Fatalf("expected redis url error, got %v", err)
+	}
+}
+
+func TestNewBackendFromConfig_EventBusBackendRequiresEventBusType(t *testing.T) {
+	_, err := NewBackendFromConfig(
+		jobsconfig.Config{Backend: jobsconfig.BackendEventBus},
+		eventbusconfig.Config{},
+		&providerTestLogger{},
+	)
+	if err == nil {
+		t.Fatal("expected missing eventbus type error")
+	}
+	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
+		t.Fatalf("expected eventbus type validation error, got %v", err)
 	}
 }
 

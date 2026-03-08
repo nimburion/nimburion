@@ -11,11 +11,10 @@ import (
 	httprouter "github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 // ConfigLoader loads the service config using command flags.
-type ConfigLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
+type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
 // CommandFeatureOptions defines the inputs required to contribute the OpenAPI command.
 type CommandFeatureOptions struct {
@@ -71,7 +70,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 }
 
 func runGenerate(cmd *cobra.Command, opts CommandFeatureOptions, outputPath string, titleOverride string) error {
-	cfg, _, err := opts.LoadConfig(cmd.Flags())
+	cfg, _, err := opts.LoadConfig(cmd)
 	if err != nil {
 		return err
 	}

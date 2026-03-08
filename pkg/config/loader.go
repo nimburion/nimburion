@@ -15,11 +15,18 @@ type Loader interface {
 	Validate(*Config) error
 }
 
+// ValidationRequirements captures opt-in cross-family validation rules that
+// should only run when a specific feature/runtime is actually in use.
+type ValidationRequirements struct {
+	RequireJobsEventBus bool
+}
+
 // ViperLoader implements Loader using Viper for configuration management
 type ViperLoader struct {
-	configFile     string
-	envPrefix      string
-	appNameDefault string
+	configFile             string
+	envPrefix              string
+	appNameDefault         string
+	validationRequirements ValidationRequirements
 }
 
 // NewViperLoader creates a new ViperLoader
@@ -38,6 +45,15 @@ func (l *ViperLoader) WithAppNameDefault(appName string) *ViperLoader {
 		return l
 	}
 	l.appNameDefault = strings.TrimSpace(appName)
+	return l
+}
+
+// WithValidationRequirements enables feature-aware validation rules.
+func (l *ViperLoader) WithValidationRequirements(req ValidationRequirements) *ViperLoader {
+	if l == nil {
+		return l
+	}
+	l.validationRequirements = req
 	return l
 }
 
@@ -154,6 +170,15 @@ func (l *ViperLoader) Validate(cfg *Config) error {
 		bus := strings.ToLower(strings.TrimSpace(cfg.SSE.Bus))
 		if bus == "eventbus" && strings.TrimSpace(cfg.EventBus.Type) == "" {
 			errs = append(errs, errors.New("eventbus.type is required when sse.bus=eventbus"))
+		}
+	}
+	if l != nil && l.validationRequirements.RequireJobsEventBus {
+		backend := strings.ToLower(strings.TrimSpace(cfg.Jobs.Backend))
+		if backend == "" {
+			backend = "eventbus"
+		}
+		if backend == "eventbus" && strings.TrimSpace(cfg.EventBus.Type) == "" {
+			errs = append(errs, errors.New("eventbus.type is required when jobs.backend=eventbus"))
 		}
 	}
 	// Validate Scheduler configuration

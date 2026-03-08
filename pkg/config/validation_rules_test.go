@@ -88,6 +88,15 @@ func TestConfigValidate_Rules(t *testing.T) {
 			wantErr: "",
 		},
 		{
+			name: "default eventbus backend does not require eventbus type globally",
+			cfg: Config{
+				Jobs: jobsconfig.Config{
+					Backend: jobsconfig.BackendEventBus,
+				},
+			},
+			wantErr: "",
+		},
+		{
 			name: "invalid jobs backend",
 			cfg: Config{
 				Jobs: jobsconfig.Config{Backend: "invalid"},
@@ -162,6 +171,22 @@ func TestConfigValidate_Rules(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
 			}
 		})
+	}
+}
+
+func TestConfigValidate_FeatureAwareJobsEventBusRequirement(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Jobs.Backend = jobsconfig.BackendEventBus
+	cfg.EventBus.Type = ""
+
+	err := NewViperLoader("", "APP").WithValidationRequirements(ValidationRequirements{
+		RequireJobsEventBus: true,
+	}).Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error when jobs eventbus requirement is enabled")
+	}
+	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

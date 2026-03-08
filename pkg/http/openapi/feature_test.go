@@ -12,12 +12,11 @@ import (
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 func TestNewCommandFeature_NilWhenRegisterRoutesMissing(t *testing.T) {
 	feature := NewCommandFeature(CommandFeatureOptions{
-		LoadConfig: func(_ *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			return nil, nil, nil
 		},
 	})
@@ -47,7 +46,7 @@ func TestNewCommandFeature_ContributesGenerateCommand(t *testing.T) {
 		RegisterRoutes: func(r router.Router, _ *config.Config) {
 			r.GET("/ping", func(c router.Context) error { return nil })
 		},
-		LoadConfig: func(_ *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			return &config.Config{
 				App: appconfig.AppConfig{Name: "svc"},
 			}, nil, nil

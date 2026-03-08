@@ -8,7 +8,6 @@ import (
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -18,7 +17,7 @@ const (
 )
 
 // ConfigLoader loads config and logger for contributed cache commands.
-type ConfigLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
+type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
 // Cleaner executes the cache clean operation owned by the cache family.
 type Cleaner func(ctx context.Context, cfg *config.Config, log logger.Logger, pattern string) error
@@ -66,7 +65,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "clean",
 		Short: "Clean cache entries",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}

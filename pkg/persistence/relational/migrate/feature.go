@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/nimburion/nimburion/pkg/config"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 // ConfigLoader loads config and logger for contributed migration commands.
-type ConfigLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
+type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
 // CommandRunner executes a migration subcommand owned by a feature family.
 type CommandRunner func(ctx context.Context, cfg *config.Config, log logger.Logger, direction string, args []string) error
@@ -22,6 +22,7 @@ type CommandRunner func(ctx context.Context, cfg *config.Config, log logger.Logg
 type CommandFeatureOptions struct {
 	LoadConfig ConfigLoader
 	Run        CommandRunner
+	EnvPrefix  string
 }
 
 type commandFeature struct {
@@ -60,10 +61,10 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			Use:   use,
 			Short: short,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if err := setMigrationPathEnv(migrationsPath); err != nil {
+				if err := setMigrationPathEnv(opts.EnvPrefix, migrationsPath); err != nil {
 					return err
 				}
-				cfg, log, err := opts.LoadConfig(cmd.Flags())
+				cfg, log, err := opts.LoadConfig(cmd)
 				if err != nil {
 					return err
 				}
@@ -79,15 +80,27 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	return commandFeature{command: migrateCmd}
 }
 
-func setMigrationPathEnv(migrationsPath string) error {
+func setMigrationPathEnv(envPrefix, migrationsPath string) error {
 	if migrationsPath == "" {
 		return nil
 	}
-	if err := os.Setenv("APP_MIGRATIONS_PATH", migrationsPath); err != nil {
-		return fmt.Errorf("set APP_MIGRATIONS_PATH: %w", err)
+	prefix := resolveEnvPrefix(envPrefix)
+	migrationsEnv := prefix + "_MIGRATIONS_PATH"
+	platformMigrationsEnv := prefix + "_PLATFORM_MIGRATIONS_PATH"
+
+	if err := os.Setenv(migrationsEnv, migrationsPath); err != nil {
+		return fmt.Errorf("set %s: %w", migrationsEnv, err)
 	}
-	if err := os.Setenv("APP_PLATFORM_MIGRATIONS_PATH", migrationsPath); err != nil {
-		return fmt.Errorf("set APP_PLATFORM_MIGRATIONS_PATH: %w", err)
+	if err := os.Setenv(platformMigrationsEnv, migrationsPath); err != nil {
+		return fmt.Errorf("set %s: %w", platformMigrationsEnv, err)
 	}
 	return nil
+}
+
+func resolveEnvPrefix(prefix string) string {
+	trimmed := strings.TrimSpace(prefix)
+	if trimmed == "" {
+		return "APP"
+	}
+	return strings.ToUpper(trimmed)
 }

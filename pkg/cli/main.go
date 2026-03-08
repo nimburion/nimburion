@@ -99,7 +99,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&appNameOverride, "app-name", "", "application name override")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", opts.Debug, "enable framework debug surfaces such as introspection")
 
-	loadConfig := func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+	loadConfig := func(cmd *cobra.Command) (*config.Config, logger.Logger, error) {
 		if opts.ConfigPathResolved != nil {
 			opts.ConfigPathResolved(cfgPath)
 		}
@@ -108,7 +108,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			opts.EnvPrefix,
 			secretFilePath,
 			opts.ValidateConfig,
-			flags,
+			cmd,
 			opts.ConfigExtensions,
 			opts.Name,
 			appNameOverride,
@@ -152,7 +152,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			Use:   "run",
 			Short: "Run the application",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, log, err := loadConfig(cmd.Flags())
+				cfg, log, err := loadConfig(cmd)
 				if err != nil {
 					return err
 				}
@@ -169,7 +169,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 		Use:   "healthcheck",
 		Short: "Check connectivity to framework and service dependencies",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := loadConfig(cmd.Flags())
+			cfg, log, err := loadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -195,7 +195,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			if !debug {
 				return errors.New("framework introspection is disabled; rerun with --debug")
 			}
-			cfg, log, err := loadConfig(cmd.Flags())
+			cfg, log, err := loadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -270,8 +270,10 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 				opts.ConfigPathResolved(cfgPath)
 			}
 			cfg := &config.Config{}
+			req := deriveValidationRequirements(cmd)
 			provider := config.NewConfigProvider(cfgPath, opts.EnvPrefix).
 				WithAppNameDefault(opts.Name).
+				WithValidationRequirements(req).
 				WithFlags(cmd.Flags())
 			if _, err := provider.LoadWithSecrets(cfg, opts.ConfigExtensions...); err != nil {
 				return fmt.Errorf("load config: %w", err)
@@ -282,7 +284,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 					return fmt.Errorf("custom validation failed: %w", err)
 				}
 			}
-			if err := config.NewViperLoader("", opts.EnvPrefix).Validate(cfg); err != nil {
+			if err := config.NewViperLoader("", opts.EnvPrefix).WithValidationRequirements(req).Validate(cfg); err != nil {
 				return fmt.Errorf("configuration validation failed: %w", err)
 			}
 			fmt.Println("✓ Configuration is valid")
@@ -836,7 +838,7 @@ func LoadConfigAndLogger(
 	envPrefix,
 	secretFilePath string,
 	customValidator func(*config.Config) error,
-	flags *pflag.FlagSet,
+	cmd *cobra.Command,
 	extensions []any,
 	defaultAppName string,
 	appNameOverride string,
@@ -847,9 +849,15 @@ func LoadConfigAndLogger(
 	if err := applySecretFileFlag(envPrefix, secretFilePath); err != nil {
 		return nil, nil, err
 	}
+	var flags *pflag.FlagSet
+	if cmd != nil {
+		flags = cmd.Flags()
+	}
+	req := deriveValidationRequirements(cmd)
 	cfg := &config.Config{}
 	provider := config.NewConfigProvider(cfgPath, envPrefix).
 		WithAppNameDefault(defaultAppName).
+		WithValidationRequirements(req).
 		WithFlags(flags)
 	if _, err := provider.LoadWithSecrets(cfg, extensions...); err != nil {
 		return nil, nil, fmt.Errorf("load config: %w", err)
@@ -874,6 +882,24 @@ func LoadConfigAndLogger(
 
 	logConfigIfDebug(log, cfg)
 	return cfg, log, nil
+}
+
+func deriveValidationRequirements(cmd *cobra.Command) config.ValidationRequirements {
+	if cmd == nil {
+		return config.ValidationRequirements{}
+	}
+
+	path := strings.Fields(strings.TrimSpace(cmd.CommandPath()))
+	if len(path) >= 2 {
+		path = path[1:]
+	}
+	joined := strings.Join(path, " ")
+
+	switch joined {
+	case "jobs worker", "jobs enqueue", "jobs dlq list", "jobs dlq replay", "scheduler run", "scheduler trigger":
+		return config.ValidationRequirements{RequireJobsEventBus: true}
+	}
+	return config.ValidationRequirements{}
 }
 
 func applySecretFileFlag(envPrefix, secretFilePath string) error {

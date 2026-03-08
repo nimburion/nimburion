@@ -56,6 +56,9 @@ func newRuntimeFromConfig(
 	if backend == "" {
 		backend = jobsconfig.BackendEventBus
 	}
+	if err := validateConfigCompatibility(backend, eventBusCfg); err != nil {
+		return nil, err
+	}
 
 	switch backend {
 	case jobsconfig.BackendEventBus:
@@ -90,6 +93,9 @@ func newBackendFromConfig(
 	if backend == "" {
 		backend = jobsconfig.BackendEventBus
 	}
+	if err := validateConfigCompatibility(backend, eventBusCfg); err != nil {
+		return nil, err
+	}
 
 	switch backend {
 	case jobsconfig.BackendEventBus:
@@ -115,6 +121,16 @@ func newBackendFromConfig(
 	default:
 		return nil, fmt.Errorf("unsupported jobs.backend %q (supported: %s, %s)", cfg.Backend, jobsconfig.BackendEventBus, jobsconfig.BackendRedis)
 	}
+}
+
+func validateConfigCompatibility(backend string, eventBusCfg eventbusconfig.Config) error {
+	if backend != jobsconfig.BackendEventBus {
+		return nil
+	}
+	if strings.TrimSpace(eventBusCfg.Type) == "" {
+		return fmt.Errorf("eventbus.type is required when jobs.backend=%s", jobsconfig.BackendEventBus)
+	}
+	return nil
 }
 
 func newEventBusFromConfig(

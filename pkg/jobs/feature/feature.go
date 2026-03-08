@@ -19,7 +19,6 @@ import (
 	jobsfamilyconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -30,7 +29,8 @@ const (
 	policyScheduled               = "scheduled"
 )
 
-type ConfigLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
+// ConfigLoader loads config and logger for contributed jobs commands.
+type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
 type RuntimeFactory func(
 	cfg jobsfamilyconfig.Config,
@@ -119,7 +119,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			if opts.ConfigureWorker == nil {
 				return errors.New("configure worker callback is required for jobs worker command")
 			}
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -224,7 +224,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "enqueue",
 		Short: "Enqueue a job manually",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -303,7 +303,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "list",
 		Short: "List dead-letter queue entries",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -341,7 +341,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "replay",
 		Short: "Replay dead-letter queue entries",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}

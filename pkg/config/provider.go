@@ -46,6 +46,15 @@ func (p *ConfigProvider) WithAppNameDefault(appName string) *ConfigProvider {
 	return p
 }
 
+// WithValidationRequirements enables feature-aware validation rules.
+func (p *ConfigProvider) WithValidationRequirements(req ValidationRequirements) *ConfigProvider {
+	if p == nil || p.loader == nil {
+		return p
+	}
+	p.loader.WithValidationRequirements(req)
+	return p
+}
+
 // ConfigFile returns the path to the config file that was loaded, or empty string if none.
 func (p *ConfigProvider) ConfigFile() string {
 	if p.loader == nil {

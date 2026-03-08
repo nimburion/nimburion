@@ -23,7 +23,6 @@ import (
 	relationalmigrate "github.com/nimburion/nimburion/pkg/persistence/relational/migrate"
 	"github.com/nimburion/nimburion/pkg/scheduler"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 type testCLIFeature struct {
@@ -98,6 +97,39 @@ func TestResolveServiceNameValue(t *testing.T) {
 	}
 }
 
+func TestDeriveValidationRequirements(t *testing.T) {
+	tests := []struct {
+		path                 []string
+		wantJobsEventBusRule bool
+	}{
+		{path: []string{"jobs", "worker"}, wantJobsEventBusRule: true},
+		{path: []string{"jobs", "enqueue"}, wantJobsEventBusRule: true},
+		{path: []string{"jobs", "dlq", "list"}, wantJobsEventBusRule: true},
+		{path: []string{"jobs", "dlq", "replay"}, wantJobsEventBusRule: true},
+		{path: []string{"scheduler", "run"}, wantJobsEventBusRule: true},
+		{path: []string{"scheduler", "trigger"}, wantJobsEventBusRule: true},
+		{path: []string{"scheduler", "validate"}, wantJobsEventBusRule: false},
+		{path: []string{"config", "validate"}, wantJobsEventBusRule: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.path, "_"), func(t *testing.T) {
+			root := &cobra.Command{Use: "app"}
+			current := root
+			for _, segment := range tt.path {
+				next := &cobra.Command{Use: segment}
+				current.AddCommand(next)
+				current = next
+			}
+
+			got := deriveValidationRequirements(current)
+			if got.RequireJobsEventBus != tt.wantJobsEventBusRule {
+				t.Fatalf("deriveValidationRequirements(%q) RequireJobsEventBus = %v, want %v", current.CommandPath(), got.RequireJobsEventBus, tt.wantJobsEventBusRule)
+			}
+		})
+	}
+}
+
 func TestNewAppCommand_AddsCompletionByDefault(t *testing.T) {
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
@@ -121,7 +153,7 @@ func TestNewAppCommand_AddsCompletionByDefault(t *testing.T) {
 
 func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
 	jobsFeature := jobsfeature.NewCommandFeature(jobsfeature.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -149,7 +181,7 @@ func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
 
 func TestNewAppCommand_AddsJobsOpsCommands(t *testing.T) {
 	jobsFeature := jobsfeature.NewCommandFeature(jobsfeature.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -188,7 +220,7 @@ func TestNewAppCommand_AddsJobsOpsCommands(t *testing.T) {
 
 func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
 	schedulerFeature := scheduler.NewCommandFeature(scheduler.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -216,7 +248,7 @@ func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
 
 func TestNewAppCommand_AddsSchedulerOpsCommands(t *testing.T) {
 	schedulerFeature := scheduler.NewCommandFeature(scheduler.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -307,7 +339,7 @@ func TestNewAppCommand_AddsFeatureContributedCommand(t *testing.T) {
 
 func TestNewAppCommand_AddsCacheFromFeatureContribution(t *testing.T) {
 	cacheFeature := cache.NewCommandFeature(cache.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -345,7 +377,7 @@ func TestNewAppCommand_DoesNotAddMigrateWithoutFeatureContribution(t *testing.T)
 
 func TestNewAppCommand_AddsMigrateFromFeatureContribution(t *testing.T) {
 	migrateFeature := relationalmigrate.NewCommandFeature(relationalmigrate.CommandFeatureOptions{
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
@@ -464,7 +496,7 @@ func TestNewAppCommand_AddsOpenAPIFromFeatureContribution(t *testing.T) {
 		RegisterRoutes: func(r router.Router, _ *config.Config) {
 			r.GET("/ping", func(c router.Context) error { return nil })
 		},
-		LoadConfig: func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error) {
+		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},

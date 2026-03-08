@@ -22,7 +22,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	schedulerfamilyconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -33,7 +32,7 @@ const (
 )
 
 // ConfigLoader loads config and logger for contributed scheduler commands.
-type ConfigLoader func(flags *pflag.FlagSet) (*config.Config, logger.Logger, error)
+type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
 // JobsRuntimeFactory creates the jobs runtime used by scheduler commands.
 type JobsRuntimeFactory func(
@@ -113,7 +112,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "run",
 		Short: "Run distributed scheduler",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -165,7 +164,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "validate",
 		Short: "Validate scheduler tasks and runtime configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := opts.LoadConfig(cmd.Flags())
+			cfg, _, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
@@ -193,7 +192,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 		Use:   "trigger",
 		Short: "Trigger one scheduler task manually",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, log, err := opts.LoadConfig(cmd.Flags())
+			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
 			}
