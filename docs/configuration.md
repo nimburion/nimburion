@@ -1,5 +1,9 @@
 # Configuration Management
 
+This document describes the current configuration model and environment variable surface used by the repository.
+
+For package ownership and extension rules around configuration, see [architecture.md](./architecture.md).
+
 The Go Microservices Framework uses a hierarchical configuration system built on [Viper](https://github.com/spf13/viper) that supports multiple configuration sources with clear precedence rules.
 
 ## Configuration Precedence
@@ -11,6 +15,122 @@ Configuration values are loaded in the following order (highest to lowest priori
 3. **Default Values** - Built-in sensible defaults
 
 This precedence model follows the [12-Factor App](https://12factor.net/config) methodology and enables flexible deployment across different environments.
+
+## Secrets Files
+
+Nimburion supports separating sensitive configuration values into a dedicated secrets file for better security and GitOps workflows.
+
+### Precedence
+
+Secrets files sit between environment variables and the main config file:
+
+```text
+ENV variables > secrets file > config file > defaults
+```
+
+### File Discovery
+
+The secrets file is discovered using these rules:
+
+1. `APP_SECRETS_FILE=/path/to/secrets.yaml`
+2. same directory as the main config file
+3. current directory, using `secrets.yaml`, `secrets.yml`, `secrets.json`, or `secrets.toml`
+
+### Example
+
+`config.yaml`:
+
+```yaml
+database:
+  type: postgres
+  host: localhost
+  port: 5432
+  database_name: myapp
+  max_open_conns: 25
+
+cache:
+  type: redis
+  max_conns: 10
+
+auth:
+  enabled: true
+  issuer: https://auth.example.com
+  audience: my-service
+```
+
+`secrets.yaml`:
+
+```yaml
+database:
+  url: postgres://user:password@localhost:5432/myapp
+
+cache:
+  url: redis://:password@localhost:6379
+
+auth:
+  jwks_url: https://auth.example.com/.well-known/jwks.json
+```
+
+Merged result:
+
+```yaml
+database:
+  type: postgres
+  host: localhost
+  port: 5432
+  database_name: myapp
+  max_open_conns: 25
+  url: postgres://user:password@localhost:5432/myapp
+
+cache:
+  type: redis
+  max_conns: 10
+  url: redis://:password@localhost:6379
+
+auth:
+  enabled: true
+  issuer: https://auth.example.com
+  audience: my-service
+  jwks_url: https://auth.example.com/.well-known/jwks.json
+```
+
+### Usage
+
+In code:
+
+```go
+loader := config.NewViperLoader("config.yaml", "APP")
+cfg, secrets, err := loader.LoadWithSecrets()
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(cfg.Redacted(secrets))
+```
+
+From the CLI:
+
+```bash
+myservice config show
+myservice config show --show-secrets
+myservice config validate
+```
+
+### Operational Notes
+
+- keep non-sensitive settings in the main config file
+- keep secrets in a separate file that is not committed to Git
+- environment variables still override both config files
+- `cfg.Redacted(secrets)` masks any field whose non-zero value came from the secrets file
+
+Typical `.gitignore` entries:
+
+```text
+secrets.yaml
+secrets.yml
+secrets.json
+secrets.toml
+```
 
 ## Environment Variables
 
@@ -25,10 +145,6 @@ All environment variables use the `APP_` prefix and follow a hierarchical naming
 
 #### Router Configuration
 
-- `APP_ROUTER_TYPE` - Router type: `nethttp`, `gin`, `gorilla` (default: `nethttp`)
-  - Example: `APP_ROUTER_TYPE=nethttp`
-  - Example: `APP_ROUTER_TYPE=gin`
-  - Example: `APP_ROUTER_TYPE=gorilla`
 
 #### HTTP Server Configuration
 
@@ -48,7 +164,7 @@ All environment variables use the `APP_` prefix and follow a hierarchical naming
 - `APP_MGMT_TLS_CERT_FILE` - Server certificate path for management mTLS
 - `APP_MGMT_TLS_KEY_FILE` - Server private key path for management mTLS
 - `APP_MGMT_TLS_CA_FILE` - CA certificate path used to verify client certificates
-  Legacy aliases:
+  Historical aliases removed on this branch:
   `APP_MANAGEMENT_PORT`, `APP_MANAGEMENT_READ_TIMEOUT`, `APP_MANAGEMENT_WRITE_TIMEOUT`, `APP_MANAGEMENT_AUTH_ENABLED`, `APP_MANAGEMENT_MTLS_ENABLED`
 
 When `APP_MGMT_AUTH_ENABLED=true`, `APP_AUTH_ENABLED` must also be `true`.
@@ -373,8 +489,8 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 - `APP_DB_ACCESS_KEY_ID` - AWS access key (optional)
 - `APP_DB_SECRET_ACCESS_KEY` - AWS secret key (optional)
 - `APP_DB_SESSION_TOKEN` - AWS session token (optional)
-  Legacy aliases:
-  all `APP_DATABASE_*` equivalents are supported for backward compatibility.
+  Historical aliases removed on this branch:
+  all `APP_DATABASE_*` equivalents have been retired in favor of `APP_DB_*`.
 
 | Config key | Env ufficiale | Alias legacy |
 | --- | --- | --- |
@@ -583,11 +699,11 @@ When `APP_MGMT_MTLS_ENABLED=true`, all three TLS file paths are required.
 
 #### Observability Configuration
 
-- `APP_SERVICE_NAME` - Service name for the application identity.
-  With `cli.NewServiceCommand`, if not set, the default is `ServiceCommandOptions.Name`.
+- `APP_APP_NAME` - Application name for the runtime identity.
+  With `cli.NewAppCommand`, if not set, the default is `AppCommandOptions.Name`.
 - `APP_OBSERVABILITY_LOG_LEVEL` - Log level: debug, info, warn, error (default: info)
 - `APP_OBSERVABILITY_LOG_FORMAT` - Log format: json, text (default: json)
-- `APP_OBSERVABILITY_SERVICE_NAME` - Optional tracing service-name override (default: falls back to `service.name`)
+- `APP_OBSERVABILITY_SERVICE_NAME` - Optional tracing service-name override (default: falls back to `app.name`)
 - `APP_OBSERVABILITY_TRACING_ENABLED` - Enable tracing (default: false)
 - `APP_OBSERVABILITY_TRACING_SAMPLE_RATE` - Trace sample rate (default: 0.1)
 - `APP_OBSERVABILITY_TRACING_ENDPOINT` - OpenTelemetry endpoint (required if tracing enabled)
@@ -616,9 +732,9 @@ The framework supports YAML, JSON, and TOML configuration files. YAML is recomme
 ### Example YAML Configuration
 
 ```yaml
-service:
-  # optional with cli.NewServiceCommand, defaults to ServiceCommandOptions.Name
-  name: "my-service"
+app:
+  # optional with cli.NewAppCommand, defaults to AppCommandOptions.Name
+  name: "my-app"
   environment: "development"
 
 http:
@@ -925,7 +1041,7 @@ Ensure environment variables use the correct prefix (`APP_`) and naming conventi
 Correct: `APP_HTTP_PORT=9000`
 Incorrect: `HTTP_PORT=9000`
 
-If you still use `APP_MANAGEMENT_*` or `APP_DATABASE_*`, they are accepted as legacy aliases, but `APP_MGMT_*` and `APP_DB_*` take precedence when both are set.
+`APP_MANAGEMENT_*` and `APP_DATABASE_*` are no longer accepted on this branch. Use `APP_MGMT_*` and `APP_DB_*`.
 
 ### Validation Errors
 

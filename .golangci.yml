@@ -1,35 +1,43 @@
 version: "2"
 
 linters:
+  default: standard
   enable:
+    - bidichk
+    - copyloopvar
     - errcheck
+    - errorlint
     - gosec
     - govet
-    - staticcheck
-    - revive
-    - gocritic
     - ineffassign
+    - misspell
+    - nolintlint
+    - revive
+    - rowserrcheck
+    - staticcheck
     - unused
+
   settings:
+    copyloopvar:
+      check-alias: true
+
     errcheck:
-      # Ignore these functions where errors are typically not critical
       exclude-functions:
-        - (io.Closer).Close
         - (*database/sql.Rows).Close
         - (*go.uber.org/zap.Logger).Sync
-      # Check type assertions
       check-type-assertions: true
-      # Check blank assignments
       check-blank: true
 
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+
     gosec:
-      excludes:
-        # Allow InsecureSkipVerify when explicitly documented
-        - G402
       config:
         G101:
-          # Ignore false positives for struct field names
-          pattern: "(?i)(password|secret|token|key|api_key)"
+          pattern: "(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|secret[_-]?key)"
           ignore_entropy: false
           entropy_threshold: "80.0"
           per_char_threshold: "3.0"
@@ -39,10 +47,22 @@ linters:
       enable:
         - shadow
         - nilness
+        - stdversion
+        - waitgroup
+
+    misspell:
+      locale: US
+
+    nolintlint:
+      require-explanation: true
+      allow-unused: false
 
     revive:
+      enable-default-rules: true
+      directives:
+        - name: specify-disable-reason
+          severity: error
       rules:
-        # Disable some noisy rules
         - name: exported
           disabled: false
           arguments:
@@ -50,30 +70,175 @@ linters:
         - name: package-comments
           disabled: true
 
+    rowserrcheck:
+      packages:
+        - github.com/jmoiron/sqlx
+
     staticcheck:
-      checks: ["all", "-SA1029"] # Temporarily disable context key check while migrating
+      checks:
+        - all
+        - -SA1029 # tienilo spento solo finché stai migrando le context keys
+
   exclusions:
-    # Exclude test files from some checks
+    generated: strict
+    warn-unused: true
     rules:
       - path: _test\.go
         linters:
           - errcheck
           - gosec
-          - govet
 
-      # Exclude generated files
-      - path: ".*\\.pb\\.go$"
-        linters:
-          - all
-
-      # Specific exclusions
-      - text: "G101.*test" # Ignore hardcoded credentials in tests
+      - text: "G101.*test"
         linters:
           - gosec
 
-      - text: "SA1029.*test" # Ignore context keys in tests
+      - path: "pkg/core/errors/errors\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
         linters:
-          - staticcheck
+          - revive
+
+      - path: "pkg/core/errors/errors_test\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/version/semver\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/version/doc\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/version/info\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/email/smtp/provider\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/http/middleware/metrics/metrics\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/http/middleware/metrics/metrics_test\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/observability/metrics/http\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/observability/metrics/http_test\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/observability/metrics/registry\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/observability/metrics/registry_test\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/grpc/stream/stream\\.go$"
+        text: "context-as-argument: context.Context should be the first parameter of a function"
+        linters:
+          - revive
+
+      - path: "pkg/auth/oauth2\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/email/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/eventbus/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/eventbus/sqs/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/keyvalue/dynamodb/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/object/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/object/s3/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/search/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/search/opensearch/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/http/session/oauth_tokens\\.go$"
+        text: "G101: Potential hardcoded credentials"
+        linters:
+          - gosec
+
+      - path: "pkg/http/cache/cache\\.go$"
+        text: "G101: Potential hardcoded credentials"
+        linters:
+          - gosec
+
+    paths:
+      - vendor
+      - testdata
+      - ".*\\.pb\\.go$"
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+  settings:
+    gofumpt:
+      module-path: github.com/nimburion/nimburion
+      extra-rules: true
+
+    goimports:
+      local-prefixes:
+        - github.com/nimburion/nimburion
+
+  exclusions:
+    generated: strict
+    warn-unused: true
     paths:
       - vendor
       - testdata
@@ -82,7 +247,19 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  uniq-by-line: true
 
 run:
-  timeout: 5m
+  timeout: 10m
+  relative-path-mode: gomod
+  modules-download-mode: readonly
   tests: true
+
+# Per rollout graduale su repo legacy, usa invece:
+# issues:
+#   max-issues-per-linter: 0
+#   max-same-issues: 0
+#   uniq-by-line: true
+#   new: true
+#   new-from-merge-base: main
+#   whole-files: true

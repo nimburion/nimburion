@@ -1,0 +1,178 @@
+package mongodb
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
+)
+
+// Adapter provides MongoDB connectivity.
+type Adapter struct {
+	client   *mongo.Client
+	database string
+	logger   logger.Logger
+	timeout  time.Duration
+	mu       sync.RWMutex
+	closed   bool
+}
+
+// Config holds MongoDB adapter configuration.
+type Config struct {
+	URL              string
+	Database         string
+	ConnectTimeout   time.Duration
+	OperationTimeout time.Duration
+}
+
+// NewAdapter creates a MongoDB storage adapter.
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("mongodb URL is required")
+	}
+	if cfg.Database == "" {
+		return nil, fmt.Errorf("mongodb database is required")
+	}
+	if cfg.ConnectTimeout == 0 {
+		cfg.ConnectTimeout = 5 * time.Second
+	}
+	if cfg.OperationTimeout <= 0 {
+		cfg.OperationTimeout = 5 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConnectTimeout)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.URL))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to mongodb: %w", err)
+	}
+
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping mongodb: %w", err),
+				fmt.Errorf("failed to disconnect mongodb client after ping failure: %w", disconnectErr),
+			)
+		}
+		return nil, fmt.Errorf("failed to ping mongodb: %w", err)
+	}
+
+	log.Info("MongoDB connection established", "database", cfg.Database)
+	return &Adapter{
+		client:   client,
+		database: cfg.Database,
+		logger:   log,
+		timeout:  cfg.OperationTimeout,
+	}, nil
+}
+
+// Client returns the underlying MongoDB client.
+func (a *Adapter) Client() *mongo.Client {
+	return a.client
+}
+
+// Database returns the configured MongoDB database handle.
+func (a *Adapter) Database() *mongo.Database {
+	return a.client.Database(a.database)
+}
+
+// Collection returns a collection handle from the configured database.
+func (a *Adapter) Collection(name string) *mongo.Collection {
+	return a.Database().Collection(name)
+}
+
+// Ping checks basic connectivity to MongoDB.
+func (a *Adapter) Ping(ctx context.Context) error {
+	a.mu.RLock()
+	closed := a.closed
+	a.mu.RUnlock()
+	if closed {
+		return fmt.Errorf("mongodb adapter is closed")
+	}
+	return a.client.Ping(ctx, readpref.Primary())
+}
+
+// HealthCheck verifies the adapter is operational.
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := a.Ping(hcCtx); err != nil {
+		a.logger.Error("MongoDB health check failed", "error", err)
+		return fmt.Errorf("mongodb health check failed: %w", err)
+	}
+	return nil
+}
+
+// Close disconnects the MongoDB client.
+func (a *Adapter) Close() error {
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return nil
+	}
+	a.closed = true
+	a.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := a.client.Disconnect(ctx); err != nil {
+		return fmt.Errorf("failed to close mongodb connection: %w", err)
+	}
+	return nil
+}
+
+// InsertOne inserts a document into the target collection.
+func (a *Adapter) InsertOne(ctx context.Context, collection string, doc interface{}) (*mongo.InsertOneResult, error) {
+	opCtx, cancel := a.withOperationTimeout(ctx)
+	defer cancel()
+	return a.Collection(collection).InsertOne(opCtx, doc)
+}
+
+// FindOne decodes a single document from the target collection.
+func (a *Adapter) FindOne(ctx context.Context, collection string, filter, result interface{}) error {
+	opCtx, cancel := a.withOperationTimeout(ctx)
+	defer cancel()
+	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)
+}
+
+// UpdateOne updates a single document in the target collection.
+func (a *Adapter) UpdateOne(ctx context.Context, collection string, filter, update interface{}) (*mongo.UpdateResult, error) {
+	opCtx, cancel := a.withOperationTimeout(ctx)
+	defer cancel()
+	return a.Collection(collection).UpdateOne(opCtx, filter, update)
+}
+
+// DeleteOne deletes a single document from the target collection.
+func (a *Adapter) DeleteOne(ctx context.Context, collection string, filter interface{}) (*mongo.DeleteResult, error) {
+	opCtx, cancel := a.withOperationTimeout(ctx)
+	defer cancel()
+	return a.Collection(collection).DeleteOne(opCtx, filter)
+}
+
+// EnsureCollection checks that the target collection is reachable.
+func (a *Adapter) EnsureCollection(ctx context.Context, name string) error {
+	opCtx, cancel := a.withOperationTimeout(ctx)
+	defer cancel()
+	_, err := a.Database().Collection(name).CountDocuments(opCtx, bson.D{})
+	return err
+}
+
+func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if a.timeout <= 0 {
+		return ctx, func() {}
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
+	return context.WithTimeout(ctx, a.timeout)
+}

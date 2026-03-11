@@ -3,6 +3,8 @@ package scheduler
 import (
 	"errors"
 	"fmt"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 var (
@@ -22,9 +24,67 @@ var (
 	ErrClosed = errors.New("scheduler closed")
 )
 
+func init() {
+	coreerrors.RegisterCanonicalizer(func(err error) (*coreerrors.AppError, bool) {
+		switch {
+		case errors.Is(err, ErrValidation):
+			return coreerrors.NewValidationWithCode("validation.scheduler", err.Error(), nil, nil), true
+		case errors.Is(err, ErrConflict):
+			return coreerrors.New("scheduler.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409), true
+		case errors.Is(err, ErrNotFound):
+			return coreerrors.New("scheduler.not_found", nil, err).WithMessage(err.Error()).WithHTTPStatus(404), true
+		case errors.Is(err, ErrRetryable):
+			return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		case errors.Is(err, ErrInvalidArgument):
+			return coreerrors.New("argument.scheduler.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400), true
+		case errors.Is(err, ErrNotInitialized):
+			return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		case errors.Is(err, ErrClosed):
+			return coreerrors.NewClosed(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		default:
+			return nil, false
+		}
+	})
+}
+
 func schedulerError(kind error, message string) error {
-	if message == "" {
-		return kind
+	switch {
+	case errors.Is(kind, ErrValidation):
+		return coreerrors.New("validation.scheduler", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(400)
+	case errors.Is(kind, ErrConflict):
+		return coreerrors.New("scheduler.conflict", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(409)
+	case errors.Is(kind, ErrNotFound):
+		return coreerrors.New("scheduler.not_found", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(404)
+	case errors.Is(kind, ErrRetryable):
+		return coreerrors.NewRetryable(messageOrDefault(message, kind.Error()), kind).
+			WithDetails(map[string]interface{}{"family": "scheduler"})
+	case errors.Is(kind, ErrInvalidArgument):
+		return coreerrors.New("argument.scheduler.invalid", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(400)
+	case errors.Is(kind, ErrNotInitialized):
+		return coreerrors.NewNotInitialized(messageOrDefault(message, kind.Error()), kind).
+			WithDetails(map[string]interface{}{"family": "scheduler"})
+	case errors.Is(kind, ErrClosed):
+		return coreerrors.NewClosed(messageOrDefault(message, kind.Error()), kind).
+			WithDetails(map[string]interface{}{"family": "scheduler"})
+	default:
+		if message == "" {
+			return kind
+		}
+		return fmt.Errorf("%w: %s", kind, message)
 	}
-	return fmt.Errorf("%w: %s", kind, message)
+}
+
+func messageOrDefault(message, fallback string) string {
+	if message != "" {
+		return message
+	}
+	return fallback
 }

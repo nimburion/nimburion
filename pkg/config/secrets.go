@@ -66,8 +66,9 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 
 	// Environment variables override everything
 	v.SetEnvPrefix(l.envPrefix)
-	l.bindLegacyEnvVars()
-	l.bindEnvVars(v)
+	if err := l.bindEnvVars(v); err != nil {
+		return nil, nil, fmt.Errorf("failed to bind environment variables: %w", err)
+	}
 
 	// Unmarshal final config
 	var cfg Config

@@ -132,7 +132,7 @@ func TestExchangeRefreshToken_OmitsOptionalFieldsWhenEmpty(t *testing.T) {
 }
 
 func TestExchangeAuthorizationCode_ReturnsErrorOnNon2xx(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"error":"access_denied"}`))
 	}))
@@ -152,4 +152,3 @@ func TestExchangeAuthorizationCode_ReturnsErrorOnNon2xx(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-

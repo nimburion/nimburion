@@ -32,7 +32,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			var target TestMessage
 
 			err := serializer.Deserialize(invalidData, &target)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for invalid data, got nil")
@@ -57,7 +57,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			var target TestMessage
 
 			err := serializer.Deserialize([]byte{}, &target)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for empty data, got nil")
@@ -80,7 +80,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			serializer := NewJSONSerializer()
 
 			err := serializer.Deserialize(data, nil)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for nil target, got nil")
@@ -104,7 +104,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			serializer := NewJSONSerializer()
 
 			_, err := serializer.Serialize(nil)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for nil value, got nil")
@@ -132,7 +132,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			invalidData := []byte{0x80 | seed} // High bit set but no continuation byte
 
 			err := serializer.Deserialize(invalidData, target)
-			
+
 			// Should return an error for truncated data
 			if err == nil {
 				// Empty or all-zero data might be valid (default values)
@@ -156,7 +156,6 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			target := &wrapperspb.StringValue{}
 
 			err := serializer.Deserialize([]byte{}, target)
-			
 			// Should NOT return an error - empty data is valid for protobuf
 			if err != nil {
 				t.Logf("Expected no error for empty data, got: %v", err)
@@ -179,7 +178,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			serializer := NewProtobufSerializer()
 
 			err := serializer.Deserialize(data, nil)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for nil target, got nil")
@@ -203,7 +202,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			serializer := NewProtobufSerializer()
 
 			_, err := serializer.Serialize(nil)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for nil value, got nil")
@@ -227,7 +226,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 
 			// Try to serialize a regular string (not a proto.Message)
 			_, err := serializer.Serialize(str)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for non-protobuf type, got nil")
@@ -252,7 +251,7 @@ func TestProperty_SerializationErrorHandling(t *testing.T) {
 			var target string // Not a proto.Message
 
 			err := serializer.Deserialize(data, &target)
-			
+
 			// Should return an error
 			if err == nil {
 				t.Logf("Expected error for non-protobuf target, got nil")

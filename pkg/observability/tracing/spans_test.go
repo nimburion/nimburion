@@ -13,26 +13,26 @@ import (
 
 func setupTestTracer(t *testing.T) *tracetest.SpanRecorder {
 	t.Helper()
-	
+
 	spanRecorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(spanRecorder),
 	)
 	otel.SetTracerProvider(provider)
-	
+
 	return spanRecorder
 }
 
 func TestStartDatabaseSpan(t *testing.T) {
 	recorder := setupTestTracer(t)
 	ctx := context.Background()
-	
+
 	tests := []struct {
-		name           string
-		operation      SpanOperation
-		opts           []DatabaseSpanOption
-		expectedName   string
-		expectedAttrs  map[string]interface{}
+		name          string
+		operation     SpanOperation
+		opts          []DatabaseSpanOption
+		expectedName  string
+		expectedAttrs map[string]interface{}
 	}{
 		{
 			name:         "query without options",
@@ -74,27 +74,27 @@ func TestStartDatabaseSpan(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder.Reset()
-			
+
 			_, span := StartDatabaseSpan(ctx, tt.operation, tt.opts...)
 			if span == nil {
 				t.Fatal("expected span to be non-nil")
 			}
 			span.End()
-			
+
 			spans := recorder.Ended()
 			if len(spans) != 1 {
 				t.Fatalf("expected 1 span, got %d", len(spans))
 			}
-			
+
 			recordedSpan := spans[0]
 			if recordedSpan.Name() != tt.expectedName {
 				t.Errorf("expected span name %q, got %q", tt.expectedName, recordedSpan.Name())
 			}
-			
+
 			// Check attributes
 			attrs := recordedSpan.Attributes()
 			for key, expectedValue := range tt.expectedAttrs {
@@ -119,13 +119,13 @@ func TestStartDatabaseSpan(t *testing.T) {
 func TestStartMessagingSpan(t *testing.T) {
 	recorder := setupTestTracer(t)
 	ctx := context.Background()
-	
+
 	tests := []struct {
-		name           string
-		operation      SpanOperation
-		opts           []MessagingSpanOption
-		expectedName   string
-		expectedAttrs  map[string]interface{}
+		name          string
+		operation     SpanOperation
+		opts          []MessagingSpanOption
+		expectedName  string
+		expectedAttrs map[string]interface{}
 	}{
 		{
 			name:         "publish without options",
@@ -144,8 +144,8 @@ func TestStartMessagingSpan(t *testing.T) {
 			},
 			expectedName: "MSG messaging.publish orders.created",
 			expectedAttrs: map[string]interface{}{
-				"messaging.operation":    "messaging.publish",
-				"messaging.destination":  "orders.created",
+				"messaging.operation":   "messaging.publish",
+				"messaging.destination": "orders.created",
 			},
 		},
 		{
@@ -167,27 +167,27 @@ func TestStartMessagingSpan(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder.Reset()
-			
+
 			_, span := StartMessagingSpan(ctx, tt.operation, tt.opts...)
 			if span == nil {
 				t.Fatal("expected span to be non-nil")
 			}
 			span.End()
-			
+
 			spans := recorder.Ended()
 			if len(spans) != 1 {
 				t.Fatalf("expected 1 span, got %d", len(spans))
 			}
-			
+
 			recordedSpan := spans[0]
 			if recordedSpan.Name() != tt.expectedName {
 				t.Errorf("expected span name %q, got %q", tt.expectedName, recordedSpan.Name())
 			}
-			
+
 			// Check attributes
 			attrs := recordedSpan.Attributes()
 			for key, expectedValue := range tt.expectedAttrs {
@@ -212,13 +212,13 @@ func TestStartMessagingSpan(t *testing.T) {
 func TestStartCacheSpan(t *testing.T) {
 	recorder := setupTestTracer(t)
 	ctx := context.Background()
-	
+
 	tests := []struct {
-		name           string
-		operation      SpanOperation
-		opts           []CacheSpanOption
-		expectedName   string
-		expectedAttrs  map[string]interface{}
+		name          string
+		operation     SpanOperation
+		opts          []CacheSpanOption
+		expectedName  string
+		expectedAttrs map[string]interface{}
 	}{
 		{
 			name:         "get without options",
@@ -258,27 +258,27 @@ func TestStartCacheSpan(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder.Reset()
-			
+
 			_, span := StartCacheSpan(ctx, tt.operation, tt.opts...)
 			if span == nil {
 				t.Fatal("expected span to be non-nil")
 			}
 			span.End()
-			
+
 			spans := recorder.Ended()
 			if len(spans) != 1 {
 				t.Fatalf("expected 1 span, got %d", len(spans))
 			}
-			
+
 			recordedSpan := spans[0]
 			if recordedSpan.Name() != tt.expectedName {
 				t.Errorf("expected span name %q, got %q", tt.expectedName, recordedSpan.Name())
 			}
-			
+
 			// Check attributes
 			attrs := recordedSpan.Attributes()
 			for key, expectedValue := range tt.expectedAttrs {
@@ -303,36 +303,36 @@ func TestStartCacheSpan(t *testing.T) {
 func TestRecordError(t *testing.T) {
 	recorder := setupTestTracer(t)
 	ctx := context.Background()
-	
+
 	tracer := otel.Tracer("test")
 	_, span := tracer.Start(ctx, "test-span")
-	
+
 	testErr := errors.New("test error")
 	RecordError(span, testErr)
 	span.End()
-	
+
 	spans := recorder.Ended()
 	if len(spans) != 1 {
 		t.Fatalf("expected 1 span, got %d", len(spans))
 	}
-	
+
 	recordedSpan := spans[0]
-	
+
 	// Check that error was recorded
 	events := recordedSpan.Events()
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event (error), got %d", len(events))
 	}
-	
+
 	if events[0].Name != "exception" {
 		t.Errorf("expected event name 'exception', got %q", events[0].Name)
 	}
-	
+
 	// Check span status
 	if recordedSpan.Status().Code != codes.Error {
 		t.Errorf("expected span status Error, got %v", recordedSpan.Status().Code)
 	}
-	
+
 	if recordedSpan.Status().Description != testErr.Error() {
 		t.Errorf("expected span status description %q, got %q", testErr.Error(), recordedSpan.Status().Description)
 	}
@@ -341,20 +341,20 @@ func TestRecordError(t *testing.T) {
 func TestRecordSuccess(t *testing.T) {
 	recorder := setupTestTracer(t)
 	ctx := context.Background()
-	
+
 	tracer := otel.Tracer("test")
 	_, span := tracer.Start(ctx, "test-span")
-	
+
 	RecordSuccess(span)
 	span.End()
-	
+
 	spans := recorder.Ended()
 	if len(spans) != 1 {
 		t.Fatalf("expected 1 span, got %d", len(spans))
 	}
-	
+
 	recordedSpan := spans[0]
-	
+
 	// Check span status
 	if recordedSpan.Status().Code != codes.Ok {
 		t.Errorf("expected span status Ok, got %v", recordedSpan.Status().Code)

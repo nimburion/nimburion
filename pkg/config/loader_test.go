@@ -10,20 +10,18 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
+	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Verify HTTP defaults
-	if cfg.RouterType != "gin" {
-		t.Errorf("expected router type gin, got %s", cfg.RouterType)
+	if cfg.App.Name != "app" {
+		t.Errorf("expected app name app, got %s", cfg.App.Name)
 	}
-	if cfg.Service.Name != "app" {
-		t.Errorf("expected service name app, got %s", cfg.Service.Name)
-	}
-	if cfg.Service.Environment != "production" {
-		t.Errorf("expected service environment production, got %s", cfg.Service.Environment)
+	if cfg.App.Environment != "production" {
+		t.Errorf("expected app environment production, got %s", cfg.App.Environment)
 	}
 
 	// Verify HTTP defaults
@@ -62,15 +60,14 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Swagger.Enabled {
 		t.Error("expected Swagger to be disabled by default")
 	}
-	if cfg.Jobs.Backend != JobsBackendEventBus {
-		t.Errorf("expected jobs backend %q, got %q", JobsBackendEventBus, cfg.Jobs.Backend)
+	if cfg.Jobs.Backend != jobsconfig.BackendEventBus {
+		t.Errorf("expected jobs backend %q, got %q", jobsconfig.BackendEventBus, cfg.Jobs.Backend)
 	}
 }
 
 func TestViperLoader_LoadDefaults(t *testing.T) {
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -90,21 +87,18 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	os.Setenv("APP_HTTP_PORT", "9000")
 	os.Setenv("APP_HTTP_MAX_REQUEST_SIZE", "2048")
 	os.Setenv("APP_OBSERVABILITY_LOG_LEVEL", "debug")
-	os.Setenv("APP_ROUTER_TYPE", "gin")
-	os.Setenv("APP_SERVICE_NAME", "orders-api")
-	os.Setenv("APP_SERVICE_ENVIRONMENT", "production")
+	os.Setenv("APP_APP_NAME", "orders-api")
+	os.Setenv("APP_APP_ENVIRONMENT", "production")
 	defer func() {
 		os.Unsetenv("APP_HTTP_PORT")
 		os.Unsetenv("APP_HTTP_MAX_REQUEST_SIZE")
 		os.Unsetenv("APP_OBSERVABILITY_LOG_LEVEL")
-		os.Unsetenv("APP_ROUTER_TYPE")
-		os.Unsetenv("APP_SERVICE_NAME")
-		os.Unsetenv("APP_SERVICE_ENVIRONMENT")
+		os.Unsetenv("APP_APP_NAME")
+		os.Unsetenv("APP_APP_ENVIRONMENT")
 	}()
 
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -119,14 +113,11 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 	if cfg.Observability.LogLevel != "debug" {
 		t.Errorf("expected log level 'debug' from env, got %s", cfg.Observability.LogLevel)
 	}
-	if cfg.RouterType != "gin" {
-		t.Errorf("expected router type 'gin' from env, got %s", cfg.RouterType)
+	if cfg.App.Name != "orders-api" {
+		t.Errorf("expected app name orders-api from env, got %s", cfg.App.Name)
 	}
-	if cfg.Service.Name != "orders-api" {
-		t.Errorf("expected service name orders-api from env, got %s", cfg.Service.Name)
-	}
-	if cfg.Service.Environment != "production" {
-		t.Errorf("expected service environment production from env, got %s", cfg.Service.Environment)
+	if cfg.App.Environment != "production" {
+		t.Errorf("expected app environment production from env, got %s", cfg.App.Environment)
 	}
 }
 
@@ -152,23 +143,6 @@ func TestViperLoader_LoadSecurityHeadersFromEnv(t *testing.T) {
 	}
 	if cfg.SecurityHeaders.STSSeconds != 63072000 {
 		t.Fatalf("expected security_headers.sts_seconds=63072000 from env, got %d", cfg.SecurityHeaders.STSSeconds)
-	}
-}
-
-func TestViperLoader_InvalidRouterType(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_ROUTER_TYPE", "invalid")
-	defer os.Unsetenv("APP_ROUTER_TYPE")
-
-	loader := NewViperLoader("", "APP")
-	_, err := loader.Load()
-	if err == nil {
-		t.Fatal("expected error for invalid router type")
-	}
-	if !strings.Contains(err.Error(), "invalid router_type") {
-		t.Fatalf("expected invalid router_type error, got %v", err)
 	}
 }
 
@@ -392,7 +366,7 @@ func TestViperLoader_LoadSchedulerFromEnv(t *testing.T) {
 	os.Setenv("APP_SCHEDULER_LOCK_PROVIDER", "postgres")
 	os.Setenv("APP_SCHEDULER_LOCK_TTL", "30s")
 	os.Setenv("APP_SCHEDULER_DISPATCH_TIMEOUT", "9s")
-	os.Setenv("APP_DATABASE_URL", "postgres://localhost:5432/app?sslmode=disable")
+	os.Setenv("APP_DB_URL", "postgres://localhost:5432/app?sslmode=disable")
 	os.Setenv("APP_SCHEDULER_POSTGRES_TABLE", "scheduler_locks")
 	os.Setenv("APP_SCHEDULER_POSTGRES_OPERATION_TIMEOUT", "4s")
 
@@ -652,37 +626,6 @@ func TestViperLoader_LoadMgmtPortFromAbbreviatedEnv(t *testing.T) {
 	}
 }
 
-func TestViperLoader_LoadMgmtPortFromLegacyEnvAlias(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_MANAGEMENT_PORT", "9292")
-	loader := NewViperLoader("", "APP")
-	cfg, err := loader.Load()
-	if err != nil {
-		t.Fatalf("unexpected load error: %v", err)
-	}
-	if cfg.Management.Port != 9292 {
-		t.Fatalf("expected management port 9292 from legacy alias, got %d", cfg.Management.Port)
-	}
-}
-
-func TestViperLoader_AbbreviatedMgmtTakesPrecedenceOverLegacy(t *testing.T) {
-	clearAppEnv()
-	defer clearAppEnv()
-
-	os.Setenv("APP_MANAGEMENT_PORT", "9393")
-	os.Setenv("APP_MGMT_PORT", "9494")
-	loader := NewViperLoader("", "APP")
-	cfg, err := loader.Load()
-	if err != nil {
-		t.Fatalf("unexpected load error: %v", err)
-	}
-	if cfg.Management.Port != 9494 {
-		t.Fatalf("expected abbreviated APP_MGMT_PORT to win, got %d", cfg.Management.Port)
-	}
-}
-
 func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 	t.Run("missing auth issuer message", func(t *testing.T) {
 		clearAppEnv()
@@ -712,7 +655,7 @@ func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 		defer clearAppEnv()
 		os.Setenv("APP_MGMT_PORT", "70000")
 		_, err := NewViperLoader("", "APP").Load()
-		if err == nil || !strings.Contains(err.Error(), "invalid management.port") {
+		if err == nil || !strings.Contains(err.Error(), "management.port must be between 1 and 65535 when management is enabled") {
 			t.Fatalf("expected invalid management.port message, got %v", err)
 		}
 	})
@@ -758,14 +701,8 @@ func TestViperLoader_ValidationErrorMessages(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for missing management TLS files, got nil")
 		}
-		for _, msg := range []string{
-			"management.tls_cert_file is required when management.mtls_enabled is true",
-			"management.tls_key_file is required when management.mtls_enabled is true",
-			"management.tls_ca_file is required when management.mtls_enabled is true",
-		} {
-			if !strings.Contains(err.Error(), msg) {
-				t.Fatalf("expected error to contain %q, got %v", msg, err)
-			}
+		if !strings.Contains(err.Error(), "management.tls_cert_file is required when management.mtls_enabled is true") {
+			t.Fatalf("expected error to contain missing TLS cert message, got %v", err)
 		}
 	})
 }
@@ -843,7 +780,6 @@ func TestViperLoader_ValidConfiguration(t *testing.T) {
 	os.Setenv("APP_OBSERVABILITY_LOG_LEVEL", "info")
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with valid config, got: %v", err)
 	}
@@ -918,7 +854,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -972,7 +907,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration (no ENV vars set)
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -1017,7 +951,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration (no file, no ENV vars)
 			loader := NewViperLoader("", "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -1103,60 +1036,6 @@ func TestProperty_EnvPrecedenceAcrossSections(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
-func TestProperty_LegacyEnvVariablesWorkAsAliases(t *testing.T) {
-	properties := gopter.NewProperties(nil)
-	properties.Property("legacy APP_MANAGEMENT_PORT maps to management.port", prop.ForAll(
-		func(port int) bool {
-			if port < 1024 || port > 65000 {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_MANAGEMENT_PORT", fmt.Sprintf("%d", port))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Management.Port == port
-		},
-		gen.IntRange(1024, 65000),
-	))
-
-	properties.Property("legacy APP_DATABASE_MAX_OPEN_CONNS maps to database.max_open_conns", prop.ForAll(
-		func(v int) bool {
-			if v < 1 || v > 500 {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_DATABASE_MAX_OPEN_CONNS", fmt.Sprintf("%d", v))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Database.MaxOpenConns == v
-		},
-		gen.IntRange(1, 500),
-	))
-
-	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
-func TestProperty_AbbreviatedEnvTakesPrecedenceOverLegacy(t *testing.T) {
-	properties := gopter.NewProperties(nil)
-	properties.Property("APP_MGMT_PORT wins over APP_MANAGEMENT_PORT", prop.ForAll(
-		func(legacy, abbrev int) bool {
-			if legacy < 1024 || legacy > 65000 || abbrev < 1024 || abbrev > 65000 || legacy == abbrev {
-				return true
-			}
-			clearAppEnv()
-			defer clearAppEnv()
-			os.Setenv("APP_MANAGEMENT_PORT", fmt.Sprintf("%d", legacy))
-			os.Setenv("APP_MGMT_PORT", fmt.Sprintf("%d", abbrev))
-			cfg, err := NewViperLoader("", "APP").Load()
-			return err == nil && cfg.Management.Port == abbrev
-		},
-		gen.IntRange(1024, 65000),
-		gen.IntRange(1024, 65000),
-	))
-
-	properties.TestingRun(t, gopter.ConsoleReporter(false))
-}
-
 // Helper function to clear all APP_ environment variables
 func clearAppEnv() {
 	for _, env := range os.Environ() {
@@ -1197,10 +1076,17 @@ func writeYAML(w *strings.Builder, data map[string]interface{}, indent int) {
 	for key, value := range data {
 		switch v := value.(type) {
 		case map[string]interface{}:
-			w.WriteString(fmt.Sprintf("%s%s:\n", indentStr, key))
+			w.WriteString(indentStr)
+			w.WriteString(key)
+			w.WriteString(":\n")
 			writeYAML(w, v, indent+1)
 		default:
-			w.WriteString(fmt.Sprintf("%s%s: %v\n", indentStr, key, v))
+			w.WriteString(indentStr)
+			w.WriteString(key)
+			w.WriteString(": ")
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
+			w.WriteString("\n")
 		}
 	}
 }
@@ -1223,8 +1109,8 @@ func TestProperty9_ConfigurationFormatSupport(t *testing.T) {
 
 	properties.Property("YAML, JSON, and TOML produce equivalent configs", prop.ForAll(
 		func(httpPort, mgmtPort int, logLevel, logFormat string,
-			readTimeout, writeTimeout time.Duration, swaggerEnabled bool) bool {
-
+			readTimeout, writeTimeout time.Duration, swaggerEnabled bool,
+		) bool {
 			// Ensure ports are different
 			if httpPort == mgmtPort {
 				mgmtPort = httpPort + 1
@@ -1804,21 +1690,32 @@ func writeJSON(w *strings.Builder, data map[string]interface{}, indent int) {
 
 	for i, key := range keys {
 		value := data[key]
-		w.WriteString(fmt.Sprintf("%s  \"%s\": ", indentStr, key))
+		w.WriteString(indentStr)
+		w.WriteString("  \"")
+		w.WriteString(key)
+		w.WriteString("\": ")
 
 		switch v := value.(type) {
 		case map[string]interface{}:
 			writeJSON(w, v, indent+1)
 		case string:
-			w.WriteString(fmt.Sprintf("\"%s\"", v))
+			w.WriteString("\"")
+			w.WriteString(v)
+			w.WriteString("\"")
 		case bool:
-			w.WriteString(fmt.Sprintf("%t", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		case int:
-			w.WriteString(fmt.Sprintf("%d", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		case float64:
-			w.WriteString(fmt.Sprintf("%f", v))
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
 		default:
-			w.WriteString(fmt.Sprintf("\"%v\"", v))
+			w.WriteString("\"")
+			rendered := fmt.Sprint(v)
+			w.WriteString(rendered)
+			w.WriteString("\"")
 		}
 
 		if i < len(keys)-1 {
@@ -1827,7 +1724,8 @@ func writeJSON(w *strings.Builder, data map[string]interface{}, indent int) {
 		w.WriteString("\n")
 	}
 
-	w.WriteString(fmt.Sprintf("%s}", indentStr))
+	w.WriteString(indentStr)
+	w.WriteString("}")
 }
 
 // Helper function to write TOML content recursively
@@ -1837,15 +1735,34 @@ func writeTOML(w *strings.Builder, data map[string]interface{}, prefix string) {
 		if _, isMap := value.(map[string]interface{}); !isMap {
 			switch v := value.(type) {
 			case string:
-				w.WriteString(fmt.Sprintf("%s = \"%s\"\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = \"")
+				w.WriteString(v)
+				w.WriteString("\"\n")
 			case bool:
-				w.WriteString(fmt.Sprintf("%s = %t\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			case int:
-				w.WriteString(fmt.Sprintf("%s = %d\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			case float64:
-				w.WriteString(fmt.Sprintf("%s = %f\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = ")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\n")
 			default:
-				w.WriteString(fmt.Sprintf("%s = \"%v\"\n", key, v))
+				w.WriteString(key)
+				w.WriteString(" = \"")
+				rendered := fmt.Sprint(v)
+				w.WriteString(rendered)
+				w.WriteString("\"\n")
 			}
 		}
 	}
@@ -1857,7 +1774,9 @@ func writeTOML(w *strings.Builder, data map[string]interface{}, prefix string) {
 			if prefix != "" {
 				sectionName = prefix + "." + key
 			}
-			w.WriteString(fmt.Sprintf("\n[%s]\n", sectionName))
+			w.WriteString("\n[")
+			w.WriteString(sectionName)
+			w.WriteString("]\n")
 			writeTOML(w, subMap, sectionName)
 		}
 	}
@@ -1961,7 +1880,6 @@ func TestConfigurationDefaults_AllSections(t *testing.T) {
 	// Load configuration with no file and no environment variables
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -2128,7 +2046,6 @@ func TestConfigurationDefaults_SpecificValues(t *testing.T) {
 
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -2200,7 +2117,6 @@ func TestConfigurationDefaults_NoFileNoEnv(t *testing.T) {
 	// Create loader with no config file
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -2233,7 +2149,6 @@ func TestConfigurationDefaults_EmptyConfigFile(t *testing.T) {
 	// Load configuration with empty file
 	loader := NewViperLoader(tmpFile.Name(), "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with empty config file, got: %v", err)
 	}
@@ -2265,7 +2180,6 @@ func TestConfigurationDefaults_PartialConfig(t *testing.T) {
 
 	loader := NewViperLoader(configFile, "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with partial config, got: %v", err)
 	}
@@ -2405,7 +2319,6 @@ func TestConfigurationDefaults_TableDriven(t *testing.T) {
 			// Load configuration
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}

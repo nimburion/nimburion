@@ -1,0 +1,185 @@
+package mysql
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	// Register the MySQL database/sql driver.
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
+)
+
+// Adapter provides MySQL connectivity with pooled connections.
+type Adapter struct {
+	db     *sql.DB
+	logger logger.Logger
+	config Config
+}
+
+// Config holds MySQL configuration.
+type Config struct {
+	URL             string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+	QueryTimeout    time.Duration
+}
+
+// NewAdapter creates a MySQL storage adapter.
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("database URL is required")
+	}
+
+	db, err := sql.Open("mysql", cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open mysql database: %w", err)
+	}
+
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping mysql database: %w", err),
+				fmt.Errorf("failed to close mysql database after ping failure: %w", closeErr),
+			)
+		}
+		return nil, fmt.Errorf("failed to ping mysql database: %w", err)
+	}
+
+	log.Info("MySQL connection established",
+		"max_open_conns", cfg.MaxOpenConns,
+		"max_idle_conns", cfg.MaxIdleConns,
+		"conn_max_lifetime", cfg.ConnMaxLifetime,
+		"conn_max_idle_time", cfg.ConnMaxIdleTime,
+	)
+
+	return &Adapter{db: db, logger: log, config: cfg}, nil
+}
+
+// DB returns the underlying sql.DB handle.
+func (a *Adapter) DB() *sql.DB {
+	return a.db
+}
+
+// Placeholder returns the positional placeholder syntax for MySQL.
+func (a *Adapter) Placeholder(_ int) string {
+	return "?"
+}
+
+// Ping checks basic connectivity to MySQL.
+func (a *Adapter) Ping(ctx context.Context) error {
+	return a.db.PingContext(ctx)
+}
+
+// HealthCheck verifies the adapter is operational.
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	hcCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := a.db.PingContext(hcCtx); err != nil {
+		a.logger.Error("MySQL health check failed", "error", err)
+		return fmt.Errorf("mysql health check failed: %w", err)
+	}
+	return nil
+}
+
+// Close closes the database connection pool.
+func (a *Adapter) Close() error {
+	a.logger.Info("closing MySQL connection")
+	if err := a.db.Close(); err != nil {
+		a.logger.Error("failed to close MySQL connection", "error", err)
+		return fmt.Errorf("failed to close mysql connection: %w", err)
+	}
+	a.logger.Info("MySQL connection closed successfully")
+	return nil
+}
+
+type contextKey string
+
+const txContextKey contextKey = "mysql_tx"
+
+// GetTx returns the transaction stored in ctx, if any.
+func GetTx(ctx context.Context) (*sql.Tx, bool) {
+	tx, ok := ctx.Value(txContextKey).(*sql.Tx)
+	return tx, ok
+}
+
+// WithTransaction runs fn inside a database transaction.
+func (a *Adapter) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				a.logger.Error("failed to rollback transaction after panic", "panic", p, "rollback_error", rbErr)
+			}
+			panic(p)
+		}
+	}()
+
+	txCtx := context.WithValue(ctx, txContextKey, tx)
+	if err := fn(txCtx); err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return errors.Join(err, fmt.Errorf("failed to rollback transaction: %w", rbErr))
+		}
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
+}
+
+// ExecContext executes a statement using the active transaction when present.
+func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	queryCtx, cancel := a.withQueryTimeout(ctx)
+	defer cancel()
+	if tx, ok := GetTx(ctx); ok {
+		return tx.ExecContext(queryCtx, query, args...)
+	}
+	return a.db.ExecContext(queryCtx, query, args...)
+}
+
+// QueryContext runs a query using the active transaction when present.
+func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	queryCtx, cancel := a.withQueryTimeout(ctx)
+	defer cancel()
+	if tx, ok := GetTx(ctx); ok {
+		return tx.QueryContext(queryCtx, query, args...)
+	}
+	return a.db.QueryContext(queryCtx, query, args...)
+}
+
+// QueryRowContext runs a query that returns at most one row.
+func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	if tx, ok := GetTx(ctx); ok {
+		return tx.QueryRowContext(ctx, query, args...)
+	}
+	return a.db.QueryRowContext(ctx, query, args...)
+}
+
+func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if a.config.QueryTimeout <= 0 {
+		return ctx, func() {}
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
+	return context.WithTimeout(ctx, a.config.QueryTimeout)
+}

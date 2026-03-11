@@ -59,7 +59,7 @@ func TestProperty_CircuitBreakerStateMachine(t *testing.T) {
 
 			// Next execution should fail immediately with ErrCircuitBreakerOpen
 			err := cb.Execute(failingFn)
-			if err != ErrCircuitBreakerOpen {
+			if !errors.Is(err, ErrCircuitBreakerOpen) {
 				t.Logf("Expected ErrCircuitBreakerOpen, got %v", err)
 				return false
 			}
@@ -296,7 +296,7 @@ func TestProperty_CircuitBreakerStateMachine(t *testing.T) {
 				// If circuit should be open, verify it is
 				if shouldBeOpen && cb.GetState() != StateOpen {
 					// Unless we just had a success in Half-Open that closed it
-					if !(success && cb.GetState() == StateClosed) {
+					if !success || cb.GetState() != StateClosed {
 						t.Logf("Expected circuit to be Open at iteration %d, got %v", i, cb.GetState())
 						return false
 					}
@@ -305,7 +305,7 @@ func TestProperty_CircuitBreakerStateMachine(t *testing.T) {
 				// If circuit is open, next call should return ErrCircuitBreakerOpen
 				if cb.GetState() == StateOpen {
 					nextErr := cb.Execute(fn)
-					if nextErr != ErrCircuitBreakerOpen {
+					if !errors.Is(nextErr, ErrCircuitBreakerOpen) {
 						t.Logf("Expected ErrCircuitBreakerOpen when circuit is Open, got %v", nextErr)
 						return false
 					}

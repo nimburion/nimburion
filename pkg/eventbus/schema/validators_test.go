@@ -17,9 +17,11 @@ type fakeRegistry struct {
 func (f *fakeRegistry) Resolve(subject, version string, headers map[string]string) (*Descriptor, error) {
 	return f.resolveFn(subject, version, headers)
 }
+
 func (f *fakeRegistry) ValidatePayload(desc *Descriptor, payload []byte) error {
 	return f.validatePayloadFn(desc, payload)
 }
+
 func (f *fakeRegistry) ValidateHeaders(desc *Descriptor, headers map[string]string) error {
 	return f.validateHeadersFn(desc, headers)
 }
@@ -35,7 +37,7 @@ func TestNormalizeMode(t *testing.T) {
 
 func TestProducerValidator_EnrichesHeadersOnSuccess(t *testing.T) {
 	reg := &fakeRegistry{
-		resolveFn: func(subject, version string, headers map[string]string) (*Descriptor, error) {
+		resolveFn: func(subject, version string, _ map[string]string) (*Descriptor, error) {
 			if subject != "orders.created" || version != "v2" {
 				t.Fatalf("unexpected resolve args: %s %s", subject, version)
 			}

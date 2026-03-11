@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -55,7 +56,7 @@ func ExampleZapLogger_WithContext() {
 	defer log.Sync()
 
 	// Create a context with request ID (typically from middleware)
-	ctx := context.WithValue(context.Background(), "request_id", "req-abc-123")
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "req-abc-123")
 
 	// Create a logger that includes the request ID
 	requestLogger := log.WithContext(ctx)

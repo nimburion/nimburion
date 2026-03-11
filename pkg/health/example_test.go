@@ -13,7 +13,7 @@ type mockDatabase struct {
 	connected bool
 }
 
-func (db *mockDatabase) HealthCheck(ctx context.Context) error {
+func (db *mockDatabase) HealthCheck(_ context.Context) error {
 	if !db.connected {
 		return fmt.Errorf("database not connected")
 	}
@@ -25,7 +25,7 @@ type mockCache struct {
 	available bool
 }
 
-func (c *mockCache) HealthCheck(ctx context.Context) error {
+func (c *mockCache) HealthCheck(_ context.Context) error {
 	if !c.available {
 		return fmt.Errorf("cache unavailable")
 	}
@@ -85,7 +85,7 @@ func Example_customCheck() {
 	registry := health.NewRegistry()
 
 	// Register a custom health check using a function
-	registry.RegisterFunc("disk-space", func(ctx context.Context) health.CheckResult {
+	registry.RegisterFunc("disk-space", func(_ context.Context) health.CheckResult {
 		// Simulate checking disk space
 		freeSpacePercent := 75
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 )
 
 type workerTestLogger struct{}
@@ -20,6 +21,7 @@ func (l *workerTestLogger) Error(string, ...any) {}
 func (l *workerTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *workerTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }
@@ -44,6 +46,18 @@ type fakeBackend struct {
 	dlqLeases  []*Lease
 	renewCalls int
 	closeCalls int
+}
+
+type fakeQuarantineSink struct {
+	mu      sync.Mutex
+	records []*reliabilityretry.QuarantineRecord
+}
+
+func (s *fakeQuarantineSink) Quarantine(_ context.Context, record *reliabilityretry.QuarantineRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = append(s.records, record)
+	return nil
 }
 
 func newFakeBackend(buffer int) *fakeBackend {
@@ -118,7 +132,7 @@ func (b *fakeBackend) push(job *Job) {
 	b.deliveries <- fakeDelivery{job: cloneJob(job), lease: lease}
 }
 
-func (b *fakeBackend) snapshot() (acks int, nacks int, dlqs int, closeCalls int) {
+func (b *fakeBackend) snapshot() (acks, nacks, dlqs, closeCalls int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return len(b.acks), len(b.nacks), len(b.dlqLeases), b.closeCalls
@@ -246,6 +260,139 @@ func TestWorker_RetryThenDLQ(t *testing.T) {
 		select {
 		case <-deadline:
 			t.Fatalf("expected retry and dlq actions, got nacks=%d dlqs=%d", nacks, dlqs)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("worker start returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop")
+	}
+}
+
+func TestWorker_MissingHandlerMovesDirectlyToDLQWithoutRetry(t *testing.T) {
+	backend := newFakeBackend(4)
+	worker, err := NewWorker(backend, &workerTestLogger{}, WorkerConfig{
+		Queues:      []string{"payments"},
+		Concurrency: 1,
+		Retry: RetryPolicy{
+			MaxAttempts:    5,
+			InitialBackoff: time.Millisecond,
+			MaxBackoff:     2 * time.Millisecond,
+			AttemptTimeout: time.Second,
+		},
+		DLQ: DLQPolicy{
+			Enabled: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new worker: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- worker.Start(ctx)
+	}()
+
+	backend.push(&Job{
+		ID:          "job-missing-handler",
+		Name:        "invoice.generate",
+		Queue:       "payments",
+		Payload:     []byte(`{}`),
+		Attempt:     0,
+		MaxAttempts: 5,
+	})
+
+	deadline := time.After(2 * time.Second)
+	for {
+		acks, nacks, dlqs, _ := backend.snapshot()
+		if dlqs >= 1 {
+			if nacks != 0 {
+				t.Fatalf("expected no retries for poison failure, got nacks=%d", nacks)
+			}
+			if acks != 0 {
+				t.Fatalf("expected no ack for poison dlq path, got acks=%d", acks)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			_, nacks, dlqs, _ := backend.snapshot()
+			t.Fatalf("expected direct dlq, got nacks=%d dlqs=%d", nacks, dlqs)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("worker start returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop")
+	}
+}
+
+func TestWorker_MissingHandlerQuarantinesWhenSinkProvided(t *testing.T) {
+	backend := newFakeBackend(4)
+	sink := &fakeQuarantineSink{}
+	worker, err := NewWorker(backend, &workerTestLogger{}, WorkerConfig{
+		Queues:      []string{"payments"},
+		Concurrency: 1,
+		Retry: RetryPolicy{
+			MaxAttempts:    5,
+			InitialBackoff: time.Millisecond,
+			MaxBackoff:     2 * time.Millisecond,
+			AttemptTimeout: time.Second,
+		},
+		DLQ: DLQPolicy{
+			Enabled:    true,
+			Quarantine: sink,
+		},
+	})
+	if err != nil {
+		t.Fatalf("new worker: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- worker.Start(ctx)
+	}()
+
+	backend.push(&Job{
+		ID:          "job-missing-handler-quarantine",
+		Name:        "invoice.generate",
+		Queue:       "payments",
+		Payload:     []byte(`{}`),
+		Attempt:     0,
+		MaxAttempts: 5,
+	})
+
+	deadline := time.After(2 * time.Second)
+	for {
+		acks, nacks, dlqs, _ := backend.snapshot()
+		sink.mu.Lock()
+		records := len(sink.records)
+		sink.mu.Unlock()
+		if records >= 1 {
+			if acks != 1 || nacks != 0 || dlqs != 0 {
+				t.Fatalf("expected quarantine with ack and without retry/dlq, got acks=%d nacks=%d dlqs=%d", acks, nacks, dlqs)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("expected quarantine record")
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}

@@ -10,22 +10,22 @@ import (
 // TestPingChecker tests the ping checker implementation
 func TestPingChecker(t *testing.T) {
 	checker := NewPingChecker("ping")
-	
+
 	if checker.Name() != "ping" {
 		t.Errorf("Expected name 'ping', got '%s'", checker.Name())
 	}
-	
+
 	ctx := context.Background()
 	result := checker.Check(ctx)
-	
+
 	if result.Status != StatusHealthy {
 		t.Errorf("Expected status healthy, got %s", result.Status)
 	}
-	
+
 	if result.Name != "ping" {
 		t.Errorf("Expected result name 'ping', got '%s'", result.Name)
 	}
-	
+
 	if result.Message == "" {
 		t.Error("Expected message to be set")
 	}
@@ -41,7 +41,7 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusHealthy,
 			},
 		}
-		
+
 		checker2 := &mockChecker{
 			name: "sub-check-2",
 			result: CheckResult{
@@ -49,25 +49,25 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusHealthy,
 			},
 		}
-		
+
 		composite := NewCompositeChecker("composite", checker1, checker2)
-		
+
 		ctx := context.Background()
 		result := composite.Check(ctx)
-		
+
 		if result.Status != StatusHealthy {
 			t.Errorf("Expected status healthy, got %s", result.Status)
 		}
-		
+
 		if result.Name != "composite" {
 			t.Errorf("Expected name 'composite', got '%s'", result.Name)
 		}
-		
+
 		if composite.Name() != "composite" {
 			t.Errorf("Expected Name() to return 'composite', got '%s'", composite.Name())
 		}
 	})
-	
+
 	t.Run("one sub-check unhealthy", func(t *testing.T) {
 		checker1 := &mockChecker{
 			name: "sub-check-1",
@@ -76,7 +76,7 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusHealthy,
 			},
 		}
-		
+
 		checker2 := &mockChecker{
 			name: "sub-check-2",
 			result: CheckResult{
@@ -85,21 +85,21 @@ func TestCompositeChecker(t *testing.T) {
 				Error:  "failed",
 			},
 		}
-		
+
 		composite := NewCompositeChecker("composite", checker1, checker2)
-		
+
 		ctx := context.Background()
 		result := composite.Check(ctx)
-		
+
 		if result.Status != StatusUnhealthy {
 			t.Errorf("Expected status unhealthy, got %s", result.Status)
 		}
-		
+
 		if result.Error == "" {
 			t.Error("Expected error message to be set")
 		}
 	})
-	
+
 	t.Run("one sub-check degraded", func(t *testing.T) {
 		checker1 := &mockChecker{
 			name: "sub-check-1",
@@ -108,7 +108,7 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusHealthy,
 			},
 		}
-		
+
 		checker2 := &mockChecker{
 			name: "sub-check-2",
 			result: CheckResult{
@@ -116,17 +116,17 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusDegraded,
 			},
 		}
-		
+
 		composite := NewCompositeChecker("composite", checker1, checker2)
-		
+
 		ctx := context.Background()
 		result := composite.Check(ctx)
-		
+
 		if result.Status != StatusDegraded {
 			t.Errorf("Expected status degraded, got %s", result.Status)
 		}
 	})
-	
+
 	t.Run("unhealthy takes precedence over degraded", func(t *testing.T) {
 		checker1 := &mockChecker{
 			name: "sub-check-1",
@@ -135,7 +135,7 @@ func TestCompositeChecker(t *testing.T) {
 				Status: StatusDegraded,
 			},
 		}
-		
+
 		checker2 := &mockChecker{
 			name: "sub-check-2",
 			result: CheckResult{
@@ -144,23 +144,23 @@ func TestCompositeChecker(t *testing.T) {
 				Error:  "failed",
 			},
 		}
-		
+
 		composite := NewCompositeChecker("composite", checker1, checker2)
-		
+
 		ctx := context.Background()
 		result := composite.Check(ctx)
-		
+
 		if result.Status != StatusUnhealthy {
 			t.Errorf("Expected status unhealthy (takes precedence), got %s", result.Status)
 		}
 	})
-	
+
 	t.Run("empty composite", func(t *testing.T) {
 		composite := NewCompositeChecker("composite")
-		
+
 		ctx := context.Background()
 		result := composite.Check(ctx)
-		
+
 		if result.Status != StatusHealthy {
 			t.Errorf("Expected empty composite to be healthy, got %s", result.Status)
 		}
@@ -170,69 +170,69 @@ func TestCompositeChecker(t *testing.T) {
 // TestCustomChecker tests the custom checker implementation
 func TestCustomChecker(t *testing.T) {
 	t.Run("healthy check", func(t *testing.T) {
-		checkFunc := func(ctx context.Context) (Status, string, error) {
+		checkFunc := func(_ context.Context) (Status, string, error) {
 			return StatusHealthy, "All good", nil
 		}
-		
+
 		checker := NewCustomChecker("custom", checkFunc)
-		
+
 		if checker.Name() != "custom" {
 			t.Errorf("Expected name 'custom', got '%s'", checker.Name())
 		}
-		
+
 		ctx := context.Background()
 		result := checker.Check(ctx)
-		
+
 		if result.Status != StatusHealthy {
 			t.Errorf("Expected status healthy, got %s", result.Status)
 		}
-		
+
 		if result.Message != "All good" {
 			t.Errorf("Expected message 'All good', got '%s'", result.Message)
 		}
-		
+
 		if result.Error != "" {
 			t.Errorf("Expected no error, got '%s'", result.Error)
 		}
 	})
-	
+
 	t.Run("unhealthy check with error", func(t *testing.T) {
-		checkFunc := func(ctx context.Context) (Status, string, error) {
+		checkFunc := func(_ context.Context) (Status, string, error) {
 			return StatusUnhealthy, "Something wrong", errors.New("connection failed")
 		}
-		
+
 		checker := NewCustomChecker("custom", checkFunc)
-		
+
 		ctx := context.Background()
 		result := checker.Check(ctx)
-		
+
 		if result.Status != StatusUnhealthy {
 			t.Errorf("Expected status unhealthy, got %s", result.Status)
 		}
-		
+
 		if result.Message != "Something wrong" {
 			t.Errorf("Expected message 'Something wrong', got '%s'", result.Message)
 		}
-		
+
 		if result.Error == "" {
 			t.Error("Expected error to be set")
 		}
 	})
-	
+
 	t.Run("degraded check", func(t *testing.T) {
-		checkFunc := func(ctx context.Context) (Status, string, error) {
+		checkFunc := func(_ context.Context) (Status, string, error) {
 			return StatusDegraded, "Partially available", nil
 		}
-		
+
 		checker := NewCustomChecker("custom", checkFunc)
-		
+
 		ctx := context.Background()
 		result := checker.Check(ctx)
-		
+
 		if result.Status != StatusDegraded {
 			t.Errorf("Expected status degraded, got %s", result.Status)
 		}
-		
+
 		if result.Message != "Partially available" {
 			t.Errorf("Expected message 'Partially available', got '%s'", result.Message)
 		}
@@ -259,24 +259,24 @@ func TestAdapterChecker_Timeout(t *testing.T) {
 	slowAdapter := &slowCheckable{
 		delay: 200 * time.Millisecond,
 	}
-	
+
 	checker := NewAdapterChecker("slow-adapter", slowAdapter, 50*time.Millisecond)
-	
+
 	ctx := context.Background()
 	start := time.Now()
 	result := checker.Check(ctx)
 	duration := time.Since(start)
-	
+
 	// Check should timeout and return unhealthy
 	if result.Status != StatusUnhealthy {
 		t.Errorf("Expected status unhealthy due to timeout, got %s", result.Status)
 	}
-	
+
 	// Duration should be close to timeout, not the full 200ms
 	if duration > 100*time.Millisecond {
 		t.Errorf("Check took too long: %v, expected ~50ms", duration)
 	}
-	
+
 	if result.Error == "" {
 		t.Error("Expected error message for timeout")
 	}
@@ -284,20 +284,20 @@ func TestAdapterChecker_Timeout(t *testing.T) {
 
 // TestCheckerFunc tests the CheckerFunc type
 func TestCheckerFunc(t *testing.T) {
-	checkFunc := CheckerFunc(func(ctx context.Context) CheckResult {
+	checkFunc := CheckerFunc(func(_ context.Context) CheckResult {
 		return CheckResult{
 			Name:   "test",
 			Status: StatusHealthy,
 		}
 	})
-	
+
 	ctx := context.Background()
 	result := checkFunc.Check(ctx)
-	
+
 	if result.Status != StatusHealthy {
 		t.Errorf("Expected status healthy, got %s", result.Status)
 	}
-	
+
 	if checkFunc.Name() != "anonymous" {
 		t.Errorf("Expected name 'anonymous', got '%s'", checkFunc.Name())
 	}
@@ -306,12 +306,12 @@ func TestCheckerFunc(t *testing.T) {
 // TestCheckResult_Timestamp tests that check results include timestamps
 func TestCheckResult_Timestamp(t *testing.T) {
 	checker := NewPingChecker("ping")
-	
+
 	ctx := context.Background()
 	before := time.Now()
 	result := checker.Check(ctx)
 	after := time.Now()
-	
+
 	if result.Timestamp.Before(before) || result.Timestamp.After(after) {
 		t.Errorf("Timestamp %v is outside expected range [%v, %v]", result.Timestamp, before, after)
 	}
@@ -321,14 +321,15 @@ func TestCheckResult_Timestamp(t *testing.T) {
 func TestCheckResult_Duration(t *testing.T) {
 	adapter := &mockCheckable{err: nil}
 	adapterChecker := NewAdapterChecker("test", adapter, 5*time.Second)
-	
+
 	ctx := context.Background()
 	result := adapterChecker.Check(ctx)
-	
+
 	if result.Duration <= 0 {
 		t.Errorf("Expected positive duration, got %v", result.Duration)
 	}
 }
+
 // TestNewDatabaseChecker tests the database checker convenience function
 func TestNewDatabaseChecker(t *testing.T) {
 	adapter := &mockCheckable{err: nil}
@@ -442,4 +443,3 @@ func TestDependencyCheckers_WithFailures(t *testing.T) {
 		}
 	})
 }
-

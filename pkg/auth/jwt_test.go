@@ -9,24 +9,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
-
-// mockJWKSClient is a mock implementation of JWKSClient for testing.
-type mockJWKSClient struct {
-	keys map[string]interface{}
-	err  error
-}
-
-func (m *mockJWKSClient) GetKey(ctx context.Context, kid string) (interface{}, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	if key, ok := m.keys[kid]; ok {
-		return key, nil
-	}
-	return nil, jwt.ErrTokenInvalidId
-}
 
 // generateTestKeyPair generates an RSA key pair for testing.
 func generateTestKeyPair() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -86,7 +71,7 @@ func TestJWKSValidator_Validate_Success(t *testing.T) {
 	}
 
 	// Parse and validate manually to test extraction logic
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {
@@ -160,7 +145,7 @@ func TestJWKSValidator_Validate_ExpiredToken(t *testing.T) {
 	}
 
 	// Validate should fail due to expiration
-	_, err = jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	_, err = jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 
@@ -209,7 +194,7 @@ func TestJWKSValidator_Validate_InvalidIssuer(t *testing.T) {
 	}
 
 	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {
@@ -268,7 +253,7 @@ func TestJWKSValidator_Validate_InvalidAudience(t *testing.T) {
 	}
 
 	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {
@@ -461,11 +446,11 @@ func TestExtractClaims_NamespacedPermissionsMergedIntoScopes(t *testing.T) {
 	validator := NewJWKSValidator(nil, "", "", nil)
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"sub":   "user123",
-		"iss":   "https://issuer.example.com",
-		"aud":   "api-gateway",
-		"exp":   now.Add(1 * time.Hour).Unix(),
-		"scope": "openid",
+		"sub":                                   "user123",
+		"iss":                                   "https://issuer.example.com",
+		"aud":                                   "api-gateway",
+		"exp":                                   now.Add(1 * time.Hour).Unix(),
+		"scope":                                 "openid",
 		"https://example.localhost/permissions": []interface{}{"platform:tenant:read"},
 	})
 
@@ -600,13 +585,13 @@ func TestExtractClaims_NamespacedTenantID(t *testing.T) {
 
 	now := time.Now()
 	claims := jwt.MapClaims{
-		"sub": "user123",
-		"iss": "https://issuer.example.com",
-		"aud": "test-audience",
-		"exp": jwt.NewNumericDate(now.Add(1 * time.Hour)),
-		"iat": jwt.NewNumericDate(now),
+		"sub":                                 "user123",
+		"iss":                                 "https://issuer.example.com",
+		"aud":                                 "test-audience",
+		"exp":                                 jwt.NewNumericDate(now.Add(1 * time.Hour)),
+		"iat":                                 jwt.NewNumericDate(now),
 		"https://example.localhost/tenant_id": "tenant-dev",
-		"roles": []interface{}{"operator"},
+		"roles":                               []interface{}{"operator"},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

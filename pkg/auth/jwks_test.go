@@ -18,14 +18,15 @@ import (
 // mockLogger implements the logger.Logger interface for testing
 type mockLogger struct{}
 
-func (m *mockLogger) Debug(msg string, args ...any) {}
-func (m *mockLogger) Info(msg string, args ...any)  {}
-func (m *mockLogger) Warn(msg string, args ...any)  {}
-func (m *mockLogger) Error(msg string, args ...any) {}
-func (m *mockLogger) With(args ...any) logger.Logger {
+func (m *mockLogger) Debug(_ string, _ ...any) {}
+func (m *mockLogger) Info(_ string, _ ...any)  {}
+func (m *mockLogger) Warn(_ string, _ ...any)  {}
+func (m *mockLogger) Error(_ string, _ ...any) {}
+func (m *mockLogger) With(_ ...any) logger.Logger {
 	return m
 }
-func (m *mockLogger) WithContext(ctx context.Context) logger.Logger {
+
+func (m *mockLogger) WithContext(_ context.Context) logger.Logger {
 	return m
 }
 
@@ -40,7 +41,7 @@ func createTestJWKS(t *testing.T) (JWKSResponse, *rsa.PrivateKey) {
 	}
 
 	// Encode public key components
-	nBytes := privateKey.PublicKey.N.Bytes()
+	nBytes := privateKey.N.Bytes()
 	eBytes := big.NewInt(int64(privateKey.PublicKey.E)).Bytes()
 
 	jwk := JWK{
@@ -60,7 +61,7 @@ func TestJWKSClient_GetKey_Success(t *testing.T) {
 	jwksResp, _ := createTestJWKS(t)
 
 	// Create test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(jwksResp)
 	}))
@@ -92,7 +93,7 @@ func TestJWKSClient_GetKey_NotFound(t *testing.T) {
 	jwksResp, _ := createTestJWKS(t)
 
 	// Create test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(jwksResp)
 	}))
@@ -122,7 +123,7 @@ func TestJWKSClient_Caching(t *testing.T) {
 	requestCount := 0
 
 	// Create test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestCount++
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(jwksResp)
@@ -170,7 +171,7 @@ func TestJWKSClient_Caching(t *testing.T) {
 
 func TestJWKSClient_ServerError(t *testing.T) {
 	// Create test server that returns error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
@@ -188,7 +189,7 @@ func TestJWKSClient_ServerError(t *testing.T) {
 
 func TestJWKSClient_InvalidJSON(t *testing.T) {
 	// Create test server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("invalid json"))
 	}))
@@ -207,7 +208,7 @@ func TestJWKSClient_InvalidJSON(t *testing.T) {
 
 func TestJWKSClient_ContextCancellation(t *testing.T) {
 	// Create test server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		jwksResp, _ := createTestJWKS(t)
 		json.NewEncoder(w).Encode(jwksResp)
@@ -224,11 +225,11 @@ func TestJWKSClient_ContextCancellation(t *testing.T) {
 	// Try to get key - should timeout
 	_, err := client.GetKey(ctx, "test-key-1")
 	if err == nil {
-		t.Fatal("expected error when context is cancelled, got nil")
+		t.Fatal("expected error when context is canceled, got nil")
 	}
 }
 
-func TestJWKSClient_MultipleKeys(t *testing.T) {
+func TestJWKSClient_MultipleKeys(_ *testing.T) {
 	// Create JWKS with multiple keys
 	jwk1 := JWK{
 		Kid: "key-1",
@@ -252,7 +253,7 @@ func TestJWKSClient_MultipleKeys(t *testing.T) {
 	jwksResp := JWKSResponse{Keys: []JWK{jwk1, jwk2}}
 
 	// Create test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(jwksResp)
 	}))

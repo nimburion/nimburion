@@ -9,10 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/tracing"
+	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 	"github.com/nimburion/nimburion/pkg/resilience"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Worker configuration constants
@@ -43,24 +45,24 @@ type RetryPolicy struct {
 }
 
 func (c *RetryPolicy) normalize() {
-	if c.MaxAttempts <= 0 {
-		c.MaxAttempts = DefaultWorkerMaxAttempts
+	budget := reliabilityretry.Budget{
+		MaxAttempts:    c.MaxAttempts,
+		InitialBackoff: c.InitialBackoff,
+		MaxBackoff:     c.MaxBackoff,
+		AttemptTimeout: c.AttemptTimeout,
 	}
-	if c.InitialBackoff <= 0 {
-		c.InitialBackoff = DefaultWorkerInitialBackoff
-	}
-	if c.MaxBackoff <= 0 {
-		c.MaxBackoff = DefaultWorkerMaxBackoff
-	}
-	if c.AttemptTimeout <= 0 {
-		c.AttemptTimeout = DefaultWorkerAttemptTimeout
-	}
+	budget.Normalize(DefaultWorkerMaxAttempts, DefaultWorkerInitialBackoff, DefaultWorkerMaxBackoff, DefaultWorkerAttemptTimeout)
+	c.MaxAttempts = budget.MaxAttempts
+	c.InitialBackoff = budget.InitialBackoff
+	c.MaxBackoff = budget.MaxBackoff
+	c.AttemptTimeout = budget.AttemptTimeout
 }
 
 // DLQPolicy controls dead-letter queue behavior.
 type DLQPolicy struct {
 	Enabled     bool
 	QueueSuffix string
+	Quarantine  reliabilityretry.QuarantineSink
 }
 
 func (c *DLQPolicy) normalize() {
@@ -185,6 +187,7 @@ func (w *RuntimeWorker) Start(ctx context.Context) error {
 		w.lifecycleMu.Unlock()
 		return jobsError(ErrConflict, "worker already running")
 	}
+	// #nosec G118 -- cancel is stored on the worker and invoked during shutdown.
 	runCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
 	w.running = true
@@ -301,7 +304,7 @@ func (w *RuntimeWorker) process(ctx context.Context, job *Job, lease *Lease) err
 	if !found {
 		missingHandlerErr := jobsError(ErrNotFound, fmt.Sprintf("handler not registered for job %q", job.Name))
 		tracing.RecordError(span, missingHandlerErr)
-		return w.handleFailure(traceCtx, job, lease, missingHandlerErr)
+		return w.handleFailure(traceCtx, job, lease, reliabilityretry.Poison(missingHandlerErr))
 	}
 
 	stopRenew, renewDone := w.startLeaseRenewal(traceCtx, lease)
@@ -352,9 +355,24 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 	}
 
 	nextAttempt := job.Attempt + 1
-	if nextAttempt < maxAttempts {
-		backoff := exponentialBackoff(nextAttempt, w.config.Retry.InitialBackoff, w.config.Retry.MaxBackoff)
-		nextRun := time.Now().UTC().Add(backoff)
+	decision := reliabilityretry.Decide(
+		reliabilityretry.Classify(failure),
+		nextAttempt,
+		maxAttempts,
+		reliabilityretry.Budget{
+			MaxAttempts:    maxAttempts,
+			InitialBackoff: w.config.Retry.InitialBackoff,
+			MaxBackoff:     w.config.Retry.MaxBackoff,
+			AttemptTimeout: w.config.Retry.AttemptTimeout,
+		},
+		reliabilityretry.Policy{
+			DeadLetterEnabled: w.config.DLQ.Enabled,
+			QuarantineEnabled: w.config.DLQ.Quarantine != nil,
+		},
+	)
+
+	if decision.Disposition == reliabilityretry.DispositionDelayedRetry {
+		nextRun := time.Now().UTC().Add(decision.Delay)
 		if err := w.backend.Nack(ctx, lease, nextRun, failure); err != nil {
 			return errors.Join(jobsError(ErrRetryable, "nack failed"), err)
 		}
@@ -363,7 +381,31 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 		return nil
 	}
 
-	if w.config.DLQ.Enabled {
+	if decision.Disposition == reliabilityretry.DispositionDeadLetter || decision.Disposition == reliabilityretry.DispositionQuarantine {
+		if decision.Disposition == reliabilityretry.DispositionQuarantine && w.config.DLQ.Quarantine != nil {
+			record := &reliabilityretry.QuarantineRecord{
+				Scope:          "jobs",
+				Key:            job.Queue + ":" + job.ID,
+				Classification: decision.Classification,
+				Reason:         failure.Error(),
+				Attempt:        decision.Attempt,
+				MaxAttempts:    decision.MaxAttempts,
+				OccurredAt:     time.Now().UTC(),
+				Metadata: map[string]string{
+					"queue":    job.Queue,
+					"job_id":   job.ID,
+					"job_name": job.Name,
+				},
+			}
+			if err := w.config.DLQ.Quarantine.Quarantine(ctx, record); err != nil {
+				return errors.Join(jobsError(ErrRetryable, "quarantine failed"), err)
+			}
+			if err := w.backend.Ack(ctx, lease); err != nil {
+				return errors.Join(jobsError(ErrRetryable, "ack failed after quarantine"), err)
+			}
+			recordJobProcessed(job.Queue, job.Name, "quarantine")
+			return nil
+		}
 		if err := w.backend.MoveToDLQ(ctx, lease, failure); err != nil {
 			return errors.Join(jobsError(ErrRetryable, "dlq move failed"), err)
 		}
@@ -389,30 +431,6 @@ func (w *RuntimeWorker) lookupHandler(jobName string) (Handler, bool) {
 	return handler, ok
 }
 
-func exponentialBackoff(attempt int, initial, max time.Duration) time.Duration {
-	if initial <= 0 {
-		initial = DefaultWorkerInitialBackoff
-	}
-	if max <= 0 {
-		max = DefaultWorkerMaxBackoff
-	}
-	if attempt <= 0 {
-		return initial
-	}
-
-	backoff := initial
-	for idx := 1; idx < attempt; idx++ {
-		if backoff >= max/2 {
-			return max
-		}
-		backoff *= 2
-	}
-	if backoff > max {
-		return max
-	}
-	return backoff
-}
-
 func (w *RuntimeWorker) startLeaseRenewal(ctx context.Context, lease *Lease) (func(), <-chan error) {
 	done := make(chan error, 1)
 	if lease == nil {
@@ -421,6 +439,7 @@ func (w *RuntimeWorker) startLeaseRenewal(ctx context.Context, lease *Lease) (fu
 		return func() {}, done
 	}
 
+	// #nosec G118 -- cancel is returned to the caller, which stops lease renewal explicitly.
 	renewCtx, cancel := context.WithCancel(ctx)
 	interval := w.config.LeaseTTL / 2
 	if interval <= 0 {

@@ -1,0 +1,126 @@
+package config
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+)
+
+// Config configures HTTP locale negotiation.
+type Config struct {
+	Enabled          bool     `mapstructure:"enabled"`
+	DefaultLocale    string   `mapstructure:"default_locale"`
+	SupportedLocales []string `mapstructure:"supported_locales"`
+	QueryParam       string   `mapstructure:"query_param"`
+	HeaderName       string   `mapstructure:"header_name"`
+	FallbackMode     string   `mapstructure:"fallback_mode"`
+	CatalogPath      string   `mapstructure:"catalog_path"`
+}
+
+// Extension contributes the i18n config section as family-owned config surface.
+type Extension struct {
+	I18n Config `mapstructure:"i18n"`
+}
+
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
+func (Extension) DisabledCoreConfigSections() []string { return []string{"i18n"} }
+
+// ApplyDefaults registers default i18n configuration values.
+func (Extension) ApplyDefaults(v *viper.Viper) {
+	v.SetDefault("i18n.enabled", false)
+	v.SetDefault("i18n.default_locale", "en")
+	v.SetDefault("i18n.supported_locales", []string{"en"})
+	v.SetDefault("i18n.query_param", "lang")
+	v.SetDefault("i18n.header_name", "X-Locale")
+	v.SetDefault("i18n.fallback_mode", "base")
+}
+
+// BindEnv binds i18n configuration keys to environment variables.
+func (Extension) BindEnv(v *viper.Viper, prefix string) error {
+	return bindEnvPairs(v, prefix,
+		"i18n.enabled", "I18N_ENABLED",
+		"i18n.default_locale", "I18N_DEFAULT_LOCALE",
+		"i18n.supported_locales", "I18N_SUPPORTED_LOCALES",
+		"i18n.query_param", "I18N_QUERY_PARAM",
+		"i18n.header_name", "I18N_HEADER_NAME",
+		"i18n.fallback_mode", "I18N_FALLBACK_MODE",
+		"i18n.catalog_path", "I18N_CATALOG_PATH",
+	)
+}
+
+// Validate checks that enabled i18n configuration is coherent.
+func (e Extension) Validate() error {
+	if !e.I18n.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(e.I18n.DefaultLocale) == "" {
+		return validationError("validation.i18n.default_locale.required", "i18n.default_locale is required when i18n is enabled")
+	}
+	if len(e.I18n.SupportedLocales) == 0 {
+		return validationError("validation.i18n.supported_locales.required", "i18n.supported_locales must contain at least one locale when i18n is enabled")
+	}
+	if strings.TrimSpace(e.I18n.QueryParam) == "" {
+		return validationError("validation.i18n.query_param.required", "i18n.query_param is required when i18n is enabled")
+	}
+	if strings.TrimSpace(e.I18n.HeaderName) == "" {
+		return validationError("validation.i18n.header_name.required", "i18n.header_name is required when i18n is enabled")
+	}
+	normalizedSupported := make([]string, 0, len(e.I18n.SupportedLocales))
+	for index, locale := range e.I18n.SupportedLocales {
+		trimmed := strings.TrimSpace(locale)
+		if trimmed == "" {
+			return validationErrorf("validation.i18n.supported_locales.empty", "i18n.supported_locales[%d] cannot be empty", index)
+		}
+		normalizedSupported = append(normalizedSupported, strings.ToLower(trimmed))
+	}
+	validFallbackModes := []string{"base", "default"}
+	if !contains(validFallbackModes, strings.ToLower(strings.TrimSpace(e.I18n.FallbackMode))) {
+		return validationErrorf("validation.i18n.fallback_mode.invalid", "invalid i18n.fallback_mode: %s (must be one of: %v)", e.I18n.FallbackMode, validFallbackModes)
+	}
+	defaultLocale := strings.ToLower(strings.TrimSpace(e.I18n.DefaultLocale))
+	if defaultLocale != "" && len(normalizedSupported) > 0 && !contains(normalizedSupported, defaultLocale) {
+		return validationError("validation.i18n.default_locale.membership", "i18n.default_locale must be included in i18n.supported_locales")
+	}
+	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
+}
+
+func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
+			return err
+		}
+		values = values[2:]
+	}
+	return nil
+}
+
+func prefixedEnv(prefix, suffix string) string {
+	if strings.TrimSpace(prefix) == "" {
+		return suffix
+	}
+	return strings.TrimSpace(prefix) + "_" + suffix
+}
+
+func contains(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
+}

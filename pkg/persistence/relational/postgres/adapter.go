@@ -1,0 +1,220 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
+)
+
+// Adapter provides PostgreSQL database connectivity with connection pooling
+type Adapter struct {
+	db     *sql.DB
+	logger logger.Logger
+	config Config
+}
+
+// Config holds PostgreSQL connection configuration
+type Config struct {
+	URL             string
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+	QueryTimeout    time.Duration
+}
+
+// NewAdapter creates a new PostgreSQL adapter with connection pooling
+func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("database URL is required")
+	}
+
+	// Open database connection
+	db, err := sql.Open("postgres", cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	// Verify connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("failed to ping database: %w", err),
+				fmt.Errorf("failed to close database after ping failure: %w", closeErr),
+			)
+		}
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Info("PostgreSQL connection established",
+		"max_open_conns", cfg.MaxOpenConns,
+		"max_idle_conns", cfg.MaxIdleConns,
+		"conn_max_lifetime", cfg.ConnMaxLifetime,
+		"conn_max_idle_time", cfg.ConnMaxIdleTime,
+	)
+
+	return &Adapter{
+		db:     db,
+		logger: log,
+		config: cfg,
+	}, nil
+}
+
+// DB returns the underlying *sql.DB for direct access when needed
+func (a *Adapter) DB() *sql.DB {
+	return a.db
+}
+
+// Placeholder returns the positional placeholder syntax for PostgreSQL.
+func (a *Adapter) Placeholder(index int) string {
+	return fmt.Sprintf("$%d", index)
+}
+
+// Ping verifies the database connection is alive
+func (a *Adapter) Ping(ctx context.Context) error {
+	return a.db.PingContext(ctx)
+}
+
+// HealthCheck verifies the database connection is healthy with a timeout
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := a.db.PingContext(ctx); err != nil {
+		a.logger.Error("PostgreSQL health check failed", "error", err)
+		return fmt.Errorf("database health check failed: %w", err)
+	}
+
+	return nil
+}
+
+// Close gracefully closes the database connection
+func (a *Adapter) Close() error {
+	a.logger.Info("closing PostgreSQL connection")
+
+	if err := a.db.Close(); err != nil {
+		a.logger.Error("failed to close PostgreSQL connection", "error", err)
+		return fmt.Errorf("failed to close database connection: %w", err)
+	}
+
+	a.logger.Info("PostgreSQL connection closed successfully")
+	return nil
+}
+
+// WithTransaction executes the given function within a database transaction
+// If the function returns an error, the transaction is rolled back
+// Otherwise, the transaction is committed
+func (a *Adapter) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	// Begin transaction
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Handle panic during transaction
+	defer func() {
+		if p := recover(); p != nil {
+			// Rollback on panic
+			if rbErr := tx.Rollback(); rbErr != nil {
+				a.logger.Error("failed to rollback transaction after panic",
+					"panic", p,
+					"rollback_error", rbErr,
+				)
+			}
+			// Re-panic after rollback
+			panic(p)
+		}
+	}()
+
+	// Store transaction in context for nested operations
+	txCtx := context.WithValue(ctx, txContextKey, tx)
+
+	// Execute function within transaction
+	if err := fn(txCtx); err != nil {
+		// Rollback on error
+		if rbErr := tx.Rollback(); rbErr != nil {
+			a.logger.Error("failed to rollback transaction",
+				"original_error", err,
+				"rollback_error", rbErr,
+			)
+			return errors.Join(err, fmt.Errorf("failed to rollback transaction: %w", rbErr))
+		}
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// txContextKey is the key used to store transactions in context
+type contextKey string
+
+const txContextKey contextKey = "tx"
+
+// GetTx extracts a transaction from the context, if present
+// This allows nested operations to use the same transaction
+func GetTx(ctx context.Context) (*sql.Tx, bool) {
+	tx, ok := ctx.Value(txContextKey).(*sql.Tx)
+	return tx, ok
+}
+
+// ExecContext executes a query with the transaction from context if available
+// Otherwise uses the regular database connection
+func (a *Adapter) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	queryCtx, cancel := a.withQueryTimeout(ctx)
+	defer cancel()
+	if tx, ok := GetTx(ctx); ok {
+		return tx.ExecContext(queryCtx, query, args...)
+	}
+	return a.db.ExecContext(queryCtx, query, args...)
+}
+
+// QueryContext executes a query with the transaction from context if available
+// Otherwise uses the regular database connection
+func (a *Adapter) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	queryCtx, cancel := a.withQueryTimeout(ctx)
+	defer cancel()
+	if tx, ok := GetTx(ctx); ok {
+		return tx.QueryContext(queryCtx, query, args...)
+	}
+	return a.db.QueryContext(queryCtx, query, args...)
+}
+
+// QueryRowContext executes a query that returns a single row with the transaction from context if available
+// Otherwise uses the regular database connection
+func (a *Adapter) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	if tx, ok := GetTx(ctx); ok {
+		return tx.QueryRowContext(ctx, query, args...)
+	}
+	return a.db.QueryRowContext(ctx, query, args...)
+}
+
+func (a *Adapter) withQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if a.config.QueryTimeout <= 0 {
+		return ctx, func() {}
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
+	return context.WithTimeout(ctx, a.config.QueryTimeout)
+}

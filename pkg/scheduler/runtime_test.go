@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nimburion/nimburion/pkg/coordination"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -20,6 +22,7 @@ func (l *schedulerTestLogger) Error(string, ...any) {}
 func (l *schedulerTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *schedulerTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }
@@ -65,26 +68,28 @@ type fakeLockProvider struct {
 	renews        int
 }
 
-func (p *fakeLockProvider) Acquire(context.Context, string, time.Duration) (*LockLease, bool, error) {
+func (p *fakeLockProvider) Acquire(context.Context, string, time.Duration) (*coordination.LockLease, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.acquireResult {
 		return nil, false, nil
 	}
 	p.leaseCount++
-	return &LockLease{
+	return &coordination.LockLease{
 		Key:      "lock",
 		Token:    "token",
 		ExpireAt: time.Now().UTC().Add(time.Second),
 	}, true, nil
 }
-func (p *fakeLockProvider) Renew(context.Context, *LockLease, time.Duration) error {
+
+func (p *fakeLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.renews++
 	return nil
 }
-func (p *fakeLockProvider) Release(context.Context, *LockLease) error {
+
+func (p *fakeLockProvider) Release(context.Context, *coordination.LockLease) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.releases++
@@ -93,7 +98,7 @@ func (p *fakeLockProvider) Release(context.Context, *LockLease) error {
 func (p *fakeLockProvider) HealthCheck(context.Context) error { return nil }
 func (p *fakeLockProvider) Close() error                      { return nil }
 
-func (p *fakeLockProvider) counts() (leases int, renews int, releases int) {
+func (p *fakeLockProvider) counts() (leases, renews, releases int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.leaseCount, p.renews, p.releases
@@ -199,6 +204,14 @@ func TestRuntime_TriggerRejectsUnknownTask(t *testing.T) {
 		t.Fatal("expected trigger error for unknown task")
 	} else if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "scheduler.not_found" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 }
 
@@ -261,5 +274,13 @@ func TestRuntime_StartTwiceReturnsTypedConflict(t *testing.T) {
 		t.Fatal("expected second start error")
 	} else if !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "scheduler.conflict" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 }

@@ -13,10 +13,10 @@ type testLogger struct {
 	withs [][]any
 }
 
-func (l *testLogger) Debug(msg string, args ...any) { l.append(msg) }
-func (l *testLogger) Info(msg string, args ...any)  { l.append(msg) }
-func (l *testLogger) Warn(msg string, args ...any)  { l.append(msg) }
-func (l *testLogger) Error(msg string, args ...any) { l.append(msg) }
+func (l *testLogger) Debug(msg string, _ ...any) { l.append(msg) }
+func (l *testLogger) Info(msg string, _ ...any)  { l.append(msg) }
+func (l *testLogger) Warn(msg string, _ ...any)  { l.append(msg) }
+func (l *testLogger) Error(msg string, _ ...any) { l.append(msg) }
 
 func (l *testLogger) With(args ...any) Logger {
 	l.mu.Lock()

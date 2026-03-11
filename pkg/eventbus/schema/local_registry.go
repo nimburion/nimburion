@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/nimburion/nimburion/internal/safepath"
 )
 
 const headerSchemaMessage = "schema_message"
@@ -31,6 +33,10 @@ func NewLocalRegistry(descriptorPath string) (*LocalRegistry, error) {
 	if descriptorPath == "" {
 		return nil, errors.New("descriptor path is required")
 	}
+	if err := safepath.ValidateFilePath(descriptorPath, ""); err != nil {
+		return nil, fmt.Errorf("invalid descriptor path: %w", err)
+	}
+	// #nosec G304 -- descriptorPath is validated before being read.
 	raw, err := os.ReadFile(descriptorPath)
 	if err != nil {
 		return nil, fmt.Errorf("read descriptor set: %w", err)

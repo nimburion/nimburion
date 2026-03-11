@@ -62,7 +62,6 @@ func (cb *CircuitBreaker) Execute(fn func() error) error {
 	}
 
 	err := fn()
-
 	if err != nil {
 		cb.recordFailure()
 		return err
@@ -121,13 +120,14 @@ func (cb *CircuitBreaker) recordSuccess() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	if cb.state == StateHalfOpen {
+	switch cb.state {
+	case StateHalfOpen:
 		cb.successes++
 		// After a successful request in half-open, close the circuit
 		cb.state = StateClosed
 		cb.failures = 0
 		cb.successes = 0
-	} else if cb.state == StateClosed {
+	case StateClosed:
 		// Reset failure count on success in closed state
 		cb.failures = 0
 	}

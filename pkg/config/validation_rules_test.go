@@ -1,9 +1,18 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	authconfig "github.com/nimburion/nimburion/pkg/auth/config"
+	cacheconfig "github.com/nimburion/nimburion/pkg/cache/config"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
+	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
+	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
+	persistenceconfig "github.com/nimburion/nimburion/pkg/persistence/config"
+	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 )
 
 func TestConfigValidate_Rules(t *testing.T) {
@@ -15,65 +24,74 @@ func TestConfigValidate_Rules(t *testing.T) {
 		{
 			name: "management auth requires auth enabled",
 			cfg: Config{
-				Management: ManagementConfig{AuthEnabled: true},
-				Auth:       AuthConfig{Enabled: false},
+				Management: serverconfig.ManagementConfig{AuthEnabled: true},
+				Auth:       authconfig.Config{Enabled: false},
 			},
-			wantErr: "management.auth_enabled requires auth.enabled to be true",
+			wantErr: "auth.enabled must be true when management.auth_enabled is true",
 		},
 		{
 			name: "postgres requires database url",
 			cfg: Config{
-				Database: DatabaseConfig{Type: DatabaseTypePostgres},
+				Database: persistenceconfig.DatabaseConfig{Type: persistenceconfig.DatabaseTypePostgres},
 			},
-			wantErr: "database.url is required when database.type is set",
+			wantErr: "database.url is required when database.type is specified",
 		},
 		{
 			name: "mongodb requires database name",
 			cfg: Config{
-				Database: DatabaseConfig{
-					Type: DatabaseTypeMongoDB,
+				Database: persistenceconfig.DatabaseConfig{
+					Type: persistenceconfig.DatabaseTypeMongoDB,
 					URL:  "mongodb://localhost:27017",
 				},
 			},
-			wantErr: "database.database_name is required for MongoDB",
+			wantErr: "database.database_name is required when database.type is mongodb",
 		},
 		{
 			name: "dynamodb requires region",
 			cfg: Config{
-				Database: DatabaseConfig{
-					Type: DatabaseTypeDynamoDB,
+				Database: persistenceconfig.DatabaseConfig{
+					Type: persistenceconfig.DatabaseTypeDynamoDB,
 				},
 			},
-			wantErr: "database.region is required for DynamoDB",
+			wantErr: "database.region is required when database.type is dynamodb",
 		},
 		{
 			name: "redis cache requires url",
 			cfg: Config{
-				Cache: CacheConfig{Type: "redis"},
+				Cache: cacheconfig.Config{Type: "redis"},
 			},
 			wantErr: "cache.url is required when cache.type is redis",
 		},
 		{
 			name: "kafka eventbus requires brokers",
 			cfg: Config{
-				EventBus: EventBusConfig{Type: EventBusTypeKafka},
+				EventBus: eventbusconfig.Config{Type: eventbusconfig.EventBusTypeKafka},
 			},
-			wantErr: "eventbus.brokers is required for Kafka",
+			wantErr: "eventbus.brokers is required when eventbus.type is specified",
 		},
 		{
 			name: "valid dynamodb and sqs config",
 			cfg: Config{
-				Database: DatabaseConfig{
-					Type:   DatabaseTypeDynamoDB,
+				Database: persistenceconfig.DatabaseConfig{
+					Type:   persistenceconfig.DatabaseTypeDynamoDB,
 					Region: "eu-west-1",
 				},
-				EventBus: EventBusConfig{
-					Type:     EventBusTypeSQS,
+				EventBus: eventbusconfig.Config{
+					Type:     eventbusconfig.EventBusTypeSQS,
 					Region:   "eu-west-1",
 					QueueURL: "https://sqs.eu-west-1.amazonaws.com/123/queue",
 				},
-				Jobs: JobsConfig{
-					Backend: JobsBackendEventBus,
+				Jobs: jobsconfig.Config{
+					Backend: jobsconfig.BackendEventBus,
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "default eventbus backend does not require eventbus type globally",
+			cfg: Config{
+				Jobs: jobsconfig.Config{
+					Backend: jobsconfig.BackendEventBus,
 				},
 			},
 			wantErr: "",
@@ -81,16 +99,16 @@ func TestConfigValidate_Rules(t *testing.T) {
 		{
 			name: "invalid jobs backend",
 			cfg: Config{
-				Jobs: JobsConfig{Backend: "invalid"},
+				Jobs: jobsconfig.Config{Backend: "invalid"},
 			},
-			wantErr: "jobs.backend is invalid",
+			wantErr: "invalid jobs.backend",
 		},
 		{
 			name: "valid redis jobs backend",
 			cfg: Config{
-				Jobs: JobsConfig{
-					Backend: JobsBackendRedis,
-					Redis: JobsRedisConfig{
+				Jobs: jobsconfig.Config{
+					Backend: jobsconfig.BackendRedis,
+					Redis: jobsconfig.RedisConfig{
 						URL:    "redis://localhost:6379",
 						Prefix: "jobs:test",
 					},
@@ -101,12 +119,12 @@ func TestConfigValidate_Rules(t *testing.T) {
 		{
 			name: "scheduler redis requires connection url",
 			cfg: Config{
-				Scheduler: SchedulerConfig{
+				Scheduler: schedulerconfig.Config{
 					Enabled:         true,
-					LockProvider:    SchedulerLockProviderRedis,
+					LockProvider:    schedulerconfig.LockProviderRedis,
 					LockTTL:         time.Second,
 					DispatchTimeout: time.Second,
-					Redis: SchedulerRedisConfig{
+					Redis: schedulerconfig.RedisConfig{
 						Prefix:           "scheduler:locks",
 						OperationTimeout: time.Second,
 					},
@@ -117,15 +135,15 @@ func TestConfigValidate_Rules(t *testing.T) {
 		{
 			name: "valid scheduler postgres config",
 			cfg: Config{
-				Database: DatabaseConfig{
+				Database: persistenceconfig.DatabaseConfig{
 					URL: "postgres://localhost:5432/app?sslmode=disable",
 				},
-				Scheduler: SchedulerConfig{
+				Scheduler: schedulerconfig.Config{
 					Enabled:         true,
-					LockProvider:    SchedulerLockProviderPostgres,
+					LockProvider:    schedulerconfig.LockProviderPostgres,
 					LockTTL:         time.Second,
 					DispatchTimeout: time.Second,
-					Postgres: SchedulerPostgresConfig{
+					Postgres: schedulerconfig.PostgresConfig{
 						Table:            "scheduler_locks",
 						OperationTimeout: time.Second,
 					},
@@ -137,7 +155,9 @@ func TestConfigValidate_Rules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.cfg.Validate()
+			cfg := DefaultConfig()
+			mergeConfigForTest(t, cfg, tt.cfg)
+			err := NewViperLoader("", "APP").Validate(cfg)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got %v", err)
@@ -151,5 +171,76 @@ func TestConfigValidate_Rules(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
 			}
 		})
+	}
+}
+
+func TestConfigValidate_FeatureAwareJobsEventBusRequirement(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Jobs.Backend = jobsconfig.BackendEventBus
+	cfg.EventBus.Type = ""
+
+	err := NewViperLoader("", "APP").WithValidationRequirements(ValidationRequirements{
+		RequireJobsEventBus: true,
+	}).Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error when jobs eventbus requirement is enabled")
+	}
+	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func mergeConfigForTest(t *testing.T, dst *Config, overlay Config) {
+	t.Helper()
+	mergeValue(reflect.ValueOf(dst).Elem(), reflect.ValueOf(overlay))
+}
+
+func mergeValue(dst, src reflect.Value) {
+	if !src.IsValid() || isZeroValue(src) {
+		return
+	}
+
+	switch src.Kind() {
+	case reflect.Struct:
+		for i := 0; i < src.NumField(); i++ {
+			mergeValue(dst.Field(i), src.Field(i))
+		}
+	case reflect.Pointer:
+		if src.IsNil() {
+			return
+		}
+		if dst.IsNil() {
+			dst.Set(reflect.New(src.Elem().Type()))
+		}
+		mergeValue(dst.Elem(), src.Elem())
+	case reflect.Map, reflect.Slice:
+		if src.Len() == 0 {
+			return
+		}
+		dst.Set(src)
+	default:
+		if dst.CanSet() {
+			dst.Set(src)
+		}
+	}
+}
+
+func isZeroValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Invalid:
+		return true
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if !isZeroValue(v.Field(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Map, reflect.Slice:
+		return v.IsNil() || v.Len() == 0
+	case reflect.Pointer, reflect.Interface:
+		return v.IsNil()
+	default:
+		return v.IsZero()
 	}
 }

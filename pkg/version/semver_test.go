@@ -1,37 +1,41 @@
-package version
+package version_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/nimburion/nimburion/pkg/version"
+)
 
 func TestParse_Valid(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
 		want    string
-		compare SemVer
+		compare version.SemVer
 	}{
 		{
 			name:    "simple",
 			input:   "1.2.3",
 			want:    "1.2.3",
-			compare: SemVer{Major: 1, Minor: 2, Patch: 3},
+			compare: version.SemVer{Major: 1, Minor: 2, Patch: 3},
 		},
 		{
 			name:    "with prefix",
 			input:   "v2.0.1",
 			want:    "2.0.1",
-			compare: SemVer{Major: 2, Minor: 0, Patch: 1},
+			compare: version.SemVer{Major: 2, Minor: 0, Patch: 1},
 		},
 		{
 			name:    "prerelease and build",
 			input:   "1.0.0-rc.1+exp.sha",
 			want:    "1.0.0-rc.1+exp.sha",
-			compare: SemVer{Major: 1, Minor: 0, Patch: 0, PreRelease: "rc.1", Build: "exp.sha"},
+			compare: version.SemVer{Major: 1, Minor: 0, Patch: 0, PreRelease: "rc.1", Build: "exp.sha"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input)
+			got, err := version.Parse(tt.input)
 			if err != nil {
 				t.Fatalf("Parse(%q) returned error: %v", tt.input, err)
 			}
@@ -60,7 +64,7 @@ func TestParse_Invalid(t *testing.T) {
 
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
-			if _, err := Parse(input); err == nil {
+			if _, err := version.Parse(input); err == nil {
 				t.Fatalf("expected parse error for %q", input)
 			}
 		})
@@ -85,8 +89,8 @@ func TestSemVerCompare(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.left+"_vs_"+tt.right, func(t *testing.T) {
-			left := MustParse(tt.left)
-			right := MustParse(tt.right)
+			left := version.MustParse(tt.left)
+			right := version.MustParse(tt.right)
 
 			got := left.Compare(right)
 			if got != tt.want {
@@ -97,7 +101,7 @@ func TestSemVerCompare(t *testing.T) {
 }
 
 func TestSemVerNext(t *testing.T) {
-	v := MustParse("1.2.3-rc.1+meta")
+	v := version.MustParse("1.2.3-rc.1+meta")
 
 	if got := v.NextPatch().String(); got != "1.2.4" {
 		t.Fatalf("expected next patch 1.2.4, got %s", got)

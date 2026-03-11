@@ -36,7 +36,7 @@ The framework automatically records HTTP metrics when using the metrics middlewa
 
 ```go
 import (
-    "github.com/nimburion/nimburion/pkg/middleware"
+    "github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 // Apply metrics middleware to your router
@@ -143,8 +143,8 @@ package main
 import (
     "net/http"
     "github.com/nimburion/nimburion/pkg/observability/metrics"
-    "github.com/nimburion/nimburion/pkg/middleware"
-    "github.com/nimburion/nimburion/pkg/server/router"
+    "github.com/nimburion/nimburion/pkg/http/middleware"
+    "github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func main() {

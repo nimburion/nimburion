@@ -49,7 +49,7 @@ func TestNormalizeKey(t *testing.T) {
 func TestLocalRegistry_ValidateHeaders(t *testing.T) {
 	reg := &LocalRegistry{}
 	desc := &Descriptor{SchemaID: "test.Message", SchemaHash: "abc123"}
-	
+
 	err := reg.ValidateHeaders(desc, map[string]string{
 		"schema_id":   "test.Message",
 		"schema_hash": "abc123",
@@ -62,7 +62,7 @@ func TestLocalRegistry_ValidateHeaders(t *testing.T) {
 func TestLocalRegistry_ValidateHeadersMismatch(t *testing.T) {
 	reg := &LocalRegistry{}
 	desc := &Descriptor{SchemaID: "test.Message", SchemaHash: "abc123"}
-	
+
 	err := reg.ValidateHeaders(desc, map[string]string{
 		"schema_id":   "wrong.Message",
 		"schema_hash": "abc123",

@@ -2,13 +2,16 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/eventbus"
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/segmentio/kafka-go"
+
+	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 // Adapter implements the eventbus.EventBus interface for Apache Kafka.
@@ -96,6 +99,15 @@ func NewAdapter(cfg Config, logger logger.Logger) (*Adapter, error) {
 		config:    cfg,
 		closed:    false,
 	}, nil
+}
+
+// NewFromEventBusConfig adapts the family config surface to the Kafka provider config.
+func NewFromEventBusConfig(cfg eventbusconfig.Config, log logger.Logger) (*Adapter, error) {
+	return NewAdapter(Config{
+		Brokers:          cfg.Brokers,
+		OperationTimeout: cfg.OperationTimeout,
+		GroupID:          cfg.GroupID,
+	}, log)
 }
 
 // Publish sends a single message to the specified topic.
@@ -344,12 +356,20 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to kafka broker: %w", err)
 	}
-	defer conn.Close()
 
 	// Try to fetch broker metadata
 	_, err = conn.Brokers()
 	if err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return errors.Join(
+				fmt.Errorf("failed to fetch broker metadata: %w", err),
+				fmt.Errorf("failed to close kafka health check connection: %w", closeErr),
+			)
+		}
 		return fmt.Errorf("failed to fetch broker metadata: %w", err)
+	}
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("failed to close kafka health check connection: %w", err)
 	}
 
 	return nil
@@ -369,7 +389,7 @@ func (a *Adapter) consumeMessages(ctx context.Context, topic string, reader *kaf
 			// Fetch message with timeout
 			msg, err := reader.FetchMessage(ctx)
 			if err != nil {
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					return
 				}
 				a.logger.Error("failed to fetch message",

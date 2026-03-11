@@ -118,6 +118,9 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 	if client == nil {
 		client = http.DefaultClient
 	}
+	if err := validateHTTPURL(tokenURL); err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -125,11 +128,16 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
+	// #nosec G704 -- tokenURL is validated as an absolute HTTP(S) URL before the request is sent.
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ignoreCloseError(closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -150,9 +158,21 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 }
 
 func isValidAbsoluteURL(raw string) bool {
+	return validateHTTPURL(raw) == nil
+}
+
+func ignoreCloseError(_ error) {}
+
+func validateHTTPURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return false
+		return err
 	}
-	return parsed.Scheme != "" && parsed.Host != ""
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return errors.New("url must use http or https")
+	}
+	if parsed.Host == "" {
+		return errors.New("url host is required")
+	}
+	return nil
 }

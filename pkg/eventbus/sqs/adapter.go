@@ -12,7 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+
 	"github.com/nimburion/nimburion/pkg/eventbus"
+	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -40,9 +42,7 @@ type Config struct {
 	VisibilityTimeout int32
 }
 
-// Cosa fa: crea adapter SQS con supporto endpoint custom e long polling.
-// Cosa NON fa: non crea code o policy IAM.
-// Esempio minimo: adapter, err := sqs.NewAdapter(cfg, log)
+// NewAdapter creates an SQS-backed event bus adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("aws region is required")
@@ -92,6 +92,23 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	return adapter, nil
 }
 
+// NewFromEventBusConfig adapts the family config surface to the SQS provider config.
+func NewFromEventBusConfig(cfg eventbusconfig.Config, log logger.Logger) (*Adapter, error) {
+	return NewAdapter(Config{
+		Region:            cfg.Region,
+		QueueURL:          cfg.QueueURL,
+		Endpoint:          cfg.Endpoint,
+		AccessKeyID:       cfg.AccessKeyID,
+		SecretAccessKey:   cfg.SecretAccessKey,
+		SessionToken:      cfg.SessionToken,
+		OperationTimeout:  cfg.OperationTimeout,
+		WaitTimeSeconds:   cfg.WaitTimeSeconds,
+		MaxMessages:       cfg.MaxMessages,
+		VisibilityTimeout: cfg.VisibilityTimeout,
+	}, log)
+}
+
+// Publish sends a message to the resolved queue.
 func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -118,6 +135,7 @@ func (a *Adapter) Publish(ctx context.Context, topic string, message *eventbus.M
 	return nil
 }
 
+// PublishBatch sends multiple messages in SQS batches.
 func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
 	a.mu.RLock()
 	if a.closed {
@@ -156,6 +174,7 @@ func (a *Adapter) PublishBatch(ctx context.Context, topic string, messages []*ev
 	return nil
 }
 
+// Subscribe starts polling the resolved queue for messages.
 func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -166,6 +185,7 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 		return fmt.Errorf("already subscribed to topic: %s", topic)
 	}
 
+	// #nosec G118 -- cancel is stored in the subscription registry for unsubscribe/close.
 	subCtx, cancel := context.WithCancel(ctx)
 	a.subs[topic] = cancel
 	queueURL := a.resolveQueueURL(topic)
@@ -204,13 +224,16 @@ func (a *Adapter) pollLoop(ctx context.Context, queueURL string, handler eventbu
 					continue
 				}
 				if m.ReceiptHandle != nil {
-					_, _ = a.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
+					if _, err := a.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle}); err != nil {
+						a.logger.Error("failed to delete sqs message", "error", err)
+					}
 				}
 			}
 		}
 	}
 }
 
+// Unsubscribe stops polling for the given topic.
 func (a *Adapter) Unsubscribe(topic string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -223,6 +246,7 @@ func (a *Adapter) Unsubscribe(topic string) error {
 	return nil
 }
 
+// HealthCheck verifies that the configured queue is reachable.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
 	if a.closed {
@@ -245,6 +269,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close stops active polling loops.
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

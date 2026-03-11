@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 func TestTaskValidate(t *testing.T) {
@@ -86,5 +88,12 @@ func TestNextRunForSchedule_InvalidCronField(t *testing.T) {
 	}
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.scheduler" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }

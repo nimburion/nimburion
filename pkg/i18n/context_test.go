@@ -21,7 +21,7 @@ func TestGetLocaleDefault(t *testing.T) {
 }
 
 func TestGetLocaleNilContext(t *testing.T) {
-	locale := GetLocale(nil)
+	locale := GetLocale(context.TODO())
 	if locale != "" {
 		t.Errorf("expected empty string, got %s", locale)
 	}
@@ -38,7 +38,7 @@ func TestWithTranslator(t *testing.T) {
 }
 
 func TestTranslatorFromContextNil(t *testing.T) {
-	tr := TranslatorFromContext(nil)
+	tr := TranslatorFromContext(context.TODO())
 	if tr == nil {
 		t.Fatal("expected fallback translator, got nil")
 	}

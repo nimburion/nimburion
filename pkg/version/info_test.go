@@ -1,42 +1,44 @@
-package version
+package version_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/nimburion/nimburion/pkg/version"
 )
 
 func TestCurrent_Defaults(t *testing.T) {
-	oldVersion := AppVersion
-	oldCommit := GitCommit
-	oldBuildTime := BuildTime
+	oldVersion := version.AppVersion
+	oldCommit := version.GitCommit
+	oldBuildTime := version.BuildTime
 	t.Cleanup(func() {
-		AppVersion = oldVersion
-		GitCommit = oldCommit
-		BuildTime = oldBuildTime
+		version.AppVersion = oldVersion
+		version.GitCommit = oldCommit
+		version.BuildTime = oldBuildTime
 	})
 
-	AppVersion = ""
-	GitCommit = ""
-	BuildTime = ""
+	version.AppVersion = ""
+	version.GitCommit = ""
+	version.BuildTime = ""
 
-	info := Current("")
+	info := version.Current("")
 
-	if info.Service != Unknown {
-		t.Fatalf("expected service %q, got %q", Unknown, info.Service)
+	if info.Service != version.Unknown {
+		t.Fatalf("expected service %q, got %q", version.Unknown, info.Service)
 	}
-	if info.Version != DevelopmentVersion {
-		t.Fatalf("expected version %q, got %q", DevelopmentVersion, info.Version)
+	if info.Version != version.DevelopmentVersion {
+		t.Fatalf("expected version %q, got %q", version.DevelopmentVersion, info.Version)
 	}
-	if info.Commit != Unknown {
-		t.Fatalf("expected commit %q, got %q", Unknown, info.Commit)
+	if info.Commit != version.Unknown {
+		t.Fatalf("expected commit %q, got %q", version.Unknown, info.Commit)
 	}
-	if info.BuildTime != Unknown {
-		t.Fatalf("expected build_time %q, got %q", Unknown, info.BuildTime)
+	if info.BuildTime != version.Unknown {
+		t.Fatalf("expected build_time %q, got %q", version.Unknown, info.BuildTime)
 	}
 }
 
 func TestInfo_SemVer(t *testing.T) {
-	info := Info{
+	info := version.Info{
 		Service: "orders",
 		Version: "v1.4.0",
 	}
@@ -52,7 +54,7 @@ func TestInfo_SemVer(t *testing.T) {
 
 func TestInfo_ParseBuildTime(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	info := Info{
+	info := version.Info{
 		BuildTime: now.Format(time.RFC3339),
 	}
 
@@ -64,4 +66,3 @@ func TestInfo_ParseBuildTime(t *testing.T) {
 		t.Fatalf("expected %s, got %s", now, parsed)
 	}
 }
-

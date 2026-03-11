@@ -1,6 +1,6 @@
 module github.com/nimburion/nimburion
 
-go 1.25.5
+go 1.25.8
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -179,6 +179,6 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/grpc v1.79.2 // indirect
+	google.golang.org/grpc v1.79.2
 	gopkg.in/yaml.v3 v3.0.1
 )
