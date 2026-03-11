@@ -112,6 +112,11 @@ linters:
         linters:
           - revive
 
+      - path: "pkg/version/info\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
       - path: "pkg/email/smtp/provider\\.go$"
         text: "var-naming: avoid package names that conflict with Go standard library package names"
         linters:
