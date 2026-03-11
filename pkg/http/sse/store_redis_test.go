@@ -10,7 +10,7 @@ func TestNewRedisStore_ValidationAndConnectivity(t *testing.T) {
 		t.Fatal("expected error for empty redis url")
 	}
 
-	_, err := NewRedisStore(RedisStoreConfig{URL: "redis://localhost:6379/0"})
+	_, err := NewRedisStore(RedisStoreConfig{URL: "redis://127.0.0.1:1/0"})
 	if err == nil {
 		t.Fatal("expected connection validation error")
 	}
