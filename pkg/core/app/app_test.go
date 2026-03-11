@@ -180,6 +180,8 @@ func TestRunExecutesShutdownHooksInReverseOrder(t *testing.T) {
 func TestRunNormalizesNilContext(t *testing.T) {
 	t.Parallel()
 
+	var nilCtx context.Context
+
 	a, err := New(Options{
 		Runners: []Runner{{
 			Name: "runtime",
@@ -195,8 +197,8 @@ func TestRunNormalizesNilContext(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	if err := a.Run(nil); err != nil {
-		t.Fatalf("Run(nil) error = %v", err)
+	if err := a.Run(nilCtx); err != nil {
+		t.Fatalf("Run(nil context) error = %v", err)
 	}
 }
 
