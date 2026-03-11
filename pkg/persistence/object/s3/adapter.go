@@ -3,7 +3,6 @@ package s3
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -66,10 +66,10 @@ type Adapter struct {
 // NewAdapter creates a new S3 adapter and verifies bucket accessibility.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if strings.TrimSpace(cfg.Bucket) == "" {
-		return nil, errors.New("s3 bucket is required")
+		return nil, coreerrors.NewValidationWithCode("validation.object.s3.bucket.required", "s3 bucket is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.Region) == "" {
-		return nil, errors.New("aws region is required")
+		return nil, coreerrors.NewValidationWithCode("validation.object.s3.region.required", "aws region is required", nil, nil)
 	}
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 10 * time.Second
@@ -87,7 +87,8 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), loadOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load aws config: %w", err)
+		return nil, coreerrors.NewRetryable("failed to load aws config", err).
+			WithDetails(map[string]interface{}{"family": "object_s3"})
 	}
 
 	clientOptions := make([]func(*awss3.Options), 0, 2)
@@ -129,7 +130,8 @@ func (a *Adapter) Ping(ctx context.Context) error {
 		Bucket: aws.String(a.config.Bucket),
 	})
 	if err != nil {
-		return fmt.Errorf("s3 ping failed: %w", err)
+		return coreerrors.NewRetryable("s3 ping failed", err).
+			WithDetails(map[string]interface{}{"family": "object_s3"})
 	}
 	return nil
 }
@@ -141,10 +143,10 @@ func (a *Adapter) Upload(ctx context.Context, key string, body io.Reader, conten
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return "", errors.New("object key is required")
+		return "", coreerrors.NewInvalidArgument("object key is required", nil)
 	}
 	if body == nil {
-		return "", errors.New("object body is required")
+		return "", coreerrors.NewInvalidArgument("object body is required", nil)
 	}
 
 	opCtx, cancel := a.withOperationTimeout(ctx)
@@ -164,7 +166,8 @@ func (a *Adapter) Upload(ctx context.Context, key string, body io.Reader, conten
 
 	resp, err := a.client.PutObject(opCtx, input)
 	if err != nil {
-		return "", fmt.Errorf("failed to upload object %q: %w", key, err)
+		return "", coreerrors.NewRetryable(fmt.Sprintf("failed to upload object %q", key), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "key": key})
 	}
 	return strings.Trim(strings.TrimSpace(aws.ToString(resp.ETag)), "\""), nil
 }
@@ -181,7 +184,7 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return nil, "", errors.New("object key is required")
+		return nil, "", coreerrors.NewInvalidArgument("object key is required", nil)
 	}
 
 	opCtx, cancel := a.withOperationTimeout(ctx)
@@ -192,7 +195,8 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to download object %q: %w", key, err)
+		return nil, "", coreerrors.NewRetryable(fmt.Sprintf("failed to download object %q", key), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "key": key})
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -202,7 +206,8 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to read object %q: %w", key, err)
+		return nil, "", coreerrors.NewRetryable(fmt.Sprintf("failed to read object %q", key), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "key": key})
 	}
 
 	return payload, aws.ToString(resp.ContentType), nil
@@ -217,7 +222,7 @@ func (a *Adapter) Delete(ctx context.Context, key string) error {
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return errors.New("object key is required")
+		return coreerrors.NewInvalidArgument("object key is required", nil)
 	}
 
 	opCtx, cancel := a.withOperationTimeout(ctx)
@@ -228,7 +233,8 @@ func (a *Adapter) Delete(ctx context.Context, key string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to delete object %q: %w", key, err)
+		return coreerrors.NewRetryable(fmt.Sprintf("failed to delete object %q", key), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "key": key})
 	}
 	return nil
 }
@@ -251,7 +257,8 @@ func (a *Adapter) List(ctx context.Context, prefix string, maxKeys int32) ([]Obj
 		MaxKeys: aws.Int32(maxKeys),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list objects with prefix %q: %w", prefix, err)
+		return nil, coreerrors.NewRetryable(fmt.Sprintf("failed to list objects with prefix %q", prefix), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "prefix": prefix})
 	}
 
 	out := make([]ObjectInfo, 0, len(resp.Contents))
@@ -268,7 +275,7 @@ func (a *Adapter) PresignGetURL(ctx context.Context, key string, expiry time.Dur
 	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		return "", errors.New("object key is required")
+		return "", coreerrors.NewInvalidArgument("object key is required", nil)
 	}
 	if expiry <= 0 {
 		expiry = a.config.PresignExpiry
@@ -284,7 +291,8 @@ func (a *Adapter) PresignGetURL(ctx context.Context, key string, expiry time.Dur
 		opts.Expires = expiry
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to presign object %q: %w", key, err)
+		return "", coreerrors.NewRetryable(fmt.Sprintf("failed to presign object %q", key), err).
+			WithDetails(map[string]interface{}{"family": "object_s3", "key": key})
 	}
 	return resp.URL, nil
 }
@@ -295,7 +303,8 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	defer cancel()
 	if err := a.Ping(hcCtx); err != nil {
 		a.logger.Error("S3 health check failed", "error", err)
-		return fmt.Errorf("s3 health check failed: %w", err)
+		return coreerrors.NewUnavailable("s3 health check failed", err).
+			WithDetails(map[string]interface{}{"family": "object_s3"})
 	}
 	return nil
 }
@@ -319,7 +328,8 @@ func (a *Adapter) ensureOpen() error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {
-		return errors.New("s3 adapter is closed")
+		return coreerrors.NewClosed("s3 adapter is closed", nil).
+			WithDetails(map[string]interface{}{"family": "object_s3"})
 	}
 	return nil
 }

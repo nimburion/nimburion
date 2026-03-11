@@ -1,8 +1,6 @@
 package response
 
 import (
-	"net/http"
-
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
@@ -11,52 +9,36 @@ type AppError = coreerrors.AppError
 
 // NewValidationError creates a new validation error.
 func NewValidationError(message string, details map[string]interface{}) *AppError {
-	return coreerrors.New("validation.failed", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusBadRequest).
-		WithDetails(details)
+	return coreerrors.NewValidation(message, details)
 }
 
 // NewValidationErrorWithCode creates a validation error that can be localized.
 func NewValidationErrorWithCode(code, fallbackMessage string, params map[string]interface{}, details map[string]interface{}) *AppError {
-	return coreerrors.New(code, coreerrors.Params(params), nil).
-		WithMessage(fallbackMessage).
-		WithHTTPStatus(inferStatusFromCode(code)).
-		WithDetails(details)
+	return coreerrors.NewValidationWithCode(code, fallbackMessage, coreerrors.Params(params), details).
+		WithHTTPStatus(inferStatusFromCode(code))
 }
 
 // NewNotFoundError creates a new not found error.
 func NewNotFoundError(message string) *AppError {
-	return coreerrors.New("resource.not_found", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusNotFound)
+	return coreerrors.NewNotFound(message)
 }
 
 // NewConflictError creates a new conflict error.
 func NewConflictError(message string, details map[string]interface{}) *AppError {
-	return coreerrors.New("resource.conflict", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusConflict).
-		WithDetails(details)
+	return coreerrors.NewConflict(message, details)
 }
 
 // NewUnauthorizedError creates a new unauthorized error.
 func NewUnauthorizedError(message string) *AppError {
-	return coreerrors.New("auth.unauthorized", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusUnauthorized)
+	return coreerrors.NewUnauthorized(message)
 }
 
 // NewForbiddenError creates a new forbidden error.
 func NewForbiddenError(message string) *AppError {
-	return coreerrors.New("auth.forbidden", nil, nil).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusForbidden)
+	return coreerrors.NewForbidden(message)
 }
 
 // NewInternalError creates a new internal error with optional cause.
 func NewInternalError(message string, cause error) *AppError {
-	return coreerrors.New("internal.error", nil, cause).
-		WithMessage(message).
-		WithHTTPStatus(http.StatusInternalServerError)
+	return coreerrors.NewInternal(message, cause)
 }

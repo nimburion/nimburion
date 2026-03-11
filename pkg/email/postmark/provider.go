@@ -2,12 +2,12 @@ package postmark
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -22,7 +22,7 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.ServerToken) == "" {
-		return nil, fmt.Errorf("postmark server token is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.postmark.server_token.required", "postmark server token is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://api.postmarkapp.com"

@@ -2,12 +2,12 @@ package ratelimit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/redis/go-redis/v9"
 
 	ratelimitconfig "github.com/nimburion/nimburion/pkg/http/ratelimit/config"
@@ -40,13 +40,28 @@ func NewRedisRateLimiter(
 	log logger.Logger,
 ) (*RedisRateLimiter, error) {
 	if cfg.URL == "" {
-		return nil, errors.New("redis URL is required for distributed rate limiting")
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.ratelimit.redis.url.required",
+			"redis URL is required for distributed rate limiting",
+			nil,
+			nil,
+		)
 	}
 	if requestsPerSecond <= 0 {
-		return nil, errors.New("requests_per_second must be greater than zero")
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.ratelimit.requests_per_second.invalid",
+			"requests_per_second must be greater than zero",
+			nil,
+			nil,
+		)
 	}
 	if burst < 0 {
-		return nil, errors.New("burst cannot be negative")
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.ratelimit.burst.invalid",
+			"burst cannot be negative",
+			nil,
+			nil,
+		)
 	}
 	if window <= 0 {
 		window = time.Second
@@ -63,9 +78,15 @@ func NewRedisRateLimiter(
 	}, log)
 	if err != nil {
 		if strings.Contains(err.Error(), "parse redis URL") {
-			return nil, fmt.Errorf("failed to parse redis URL: %w", err)
+			return nil, coreerrors.NewValidationWithCode(
+				"validation.ratelimit.redis.url.invalid",
+				"failed to parse redis URL: "+err.Error(),
+				nil,
+				nil,
+			)
 		}
-		return nil, fmt.Errorf("redis rate limiter ping failed: %w", err)
+		return nil, coreerrors.NewRetryable("redis rate limiter ping failed", err).
+			WithDetails(map[string]interface{}{"family": "ratelimit"})
 	}
 
 	prefix := cfg.Prefix

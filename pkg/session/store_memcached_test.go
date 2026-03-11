@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 type fakeMemcachedClient struct {
@@ -89,13 +91,27 @@ func TestMemcachedStore_NotFoundMappings(t *testing.T) {
 		t.Fatalf("new store: %v", err)
 	}
 
-	if _, err := s.Load(ctx, "x"); err != ErrNotFound {
+	if _, err := s.Load(ctx, "x"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound from load, got %v", err)
 	}
 	if err := s.Delete(ctx, "x"); err != nil {
 		t.Fatalf("expected nil from delete not found, got %v", err)
 	}
-	if err := s.Touch(ctx, "x", time.Minute); err != ErrNotFound {
+	if err := s.Touch(ctx, "x", time.Minute); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound from touch, got %v", err)
+	}
+}
+
+func TestNewMemcachedStore_ValidationErrorIsTyped(t *testing.T) {
+	_, err := NewMemcachedStore(nil, "")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.session.memcached.client.required" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }

@@ -5,6 +5,7 @@ import (
 
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	grpcvalidation "github.com/nimburion/nimburion/pkg/grpc/validation"
+	"github.com/nimburion/nimburion/pkg/jobs"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -28,5 +29,19 @@ func TestErrorMapsAppError(t *testing.T) {
 	}
 	if status.Message() != "missing" {
 		t.Fatalf("expected safe fallback message, got %q", status.Message())
+	}
+}
+
+func TestErrorMapsFamilySentinel(t *testing.T) {
+	got := Error(jobs.ErrConflict)
+	status, ok := grpcstatus.FromError(got)
+	if !ok {
+		t.Fatalf("expected grpc status error")
+	}
+	if status.Code() != codes.AlreadyExists {
+		t.Fatalf("expected AlreadyExists, got %s", status.Code())
+	}
+	if status.Message() != jobs.ErrConflict.Error() {
+		t.Fatalf("expected jobs conflict message, got %q", status.Message())
 	}
 }

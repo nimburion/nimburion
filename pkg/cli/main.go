@@ -16,6 +16,8 @@ import (
 	coordinationpostgres "github.com/nimburion/nimburion/pkg/coordination/postgres"
 	coordinationredis "github.com/nimburion/nimburion/pkg/coordination/redis"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
+	"github.com/nimburion/nimburion/pkg/core/errorbridge"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/descriptor"
 	"github.com/nimburion/nimburion/pkg/health"
@@ -518,7 +520,7 @@ func runFrameworkDependencyHealthChecks(
 	if shouldCheckJobsRuntimeHealth(cfg) {
 		runtime, err := buildJobsRuntime(cfg, log)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("create jobs runtime for healthcheck: %w", err))
+			errs = append(errs, fmt.Errorf("create jobs runtime for healthcheck: %w", errorbridge.Canonicalize(err)))
 		} else {
 			jobsRuntime = runtime
 			checker := jobs.NewRuntimeHealthChecker("", jobsRuntime, jobsHealthTimeout(cfg))
@@ -529,21 +531,21 @@ func runFrameworkDependencyHealthChecks(
 	}
 	if jobsRuntime != nil {
 		if closeErr := jobsRuntime.Close(); closeErr != nil {
-			errs = append(errs, fmt.Errorf("close jobs runtime after healthcheck: %w", closeErr))
+			errs = append(errs, fmt.Errorf("close jobs runtime after healthcheck: %w", errorbridge.Canonicalize(closeErr)))
 		}
 	}
 
 	if shouldCheckSchedulerLockHealth(cfg) {
 		lockProvider, err := buildSchedulerLockProvider(cfg, log)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("create scheduler lock provider for healthcheck: %w", err))
+			errs = append(errs, fmt.Errorf("create scheduler lock provider for healthcheck: %w", errorbridge.Canonicalize(err)))
 		} else {
 			checker := scheduler.NewLockProviderHealthChecker("", lockProvider, schedulerLockHealthTimeout(cfg))
 			if checkErr := healthCheckResultError(checker.Check(ctx)); checkErr != nil {
 				errs = append(errs, checkErr)
 			}
 			if closeErr := lockProvider.Close(); closeErr != nil {
-				errs = append(errs, fmt.Errorf("close scheduler lock provider after healthcheck: %w", closeErr))
+				errs = append(errs, fmt.Errorf("close scheduler lock provider after healthcheck: %w", errorbridge.Canonicalize(closeErr)))
 			}
 		}
 	}
@@ -637,9 +639,17 @@ func registerFrameworkDependencyHealthChecks(
 		registry.RegisterFunc("jobs-runtime", func(ctx context.Context) health.CheckResult {
 			runtime, err := buildJobsRuntime(cfg, log)
 			if err != nil {
-				return health.CheckResult{Name: "jobs-runtime", Status: health.StatusUnhealthy, Error: fmt.Sprintf("create jobs runtime for healthcheck: %v", err)}
+				return health.CheckResult{
+					Name:   "jobs-runtime",
+					Status: health.StatusUnhealthy,
+					Error:  fmt.Sprintf("create jobs runtime for healthcheck: %v", errorbridge.Canonicalize(err)),
+				}
 			}
-			defer func() { _ = runtime.Close() }()
+			defer func() {
+				if closeErr := runtime.Close(); closeErr != nil {
+					log.Error("failed to close jobs runtime after healthcheck", "error", closeErr)
+				}
+			}()
 			return jobs.NewRuntimeHealthChecker("", runtime, jobsHealthTimeout(cfg)).Check(ctx)
 		})
 	}
@@ -648,9 +658,17 @@ func registerFrameworkDependencyHealthChecks(
 		registry.RegisterFunc("scheduler-lock-provider", func(ctx context.Context) health.CheckResult {
 			lockProvider, err := buildSchedulerLockProvider(cfg, log)
 			if err != nil {
-				return health.CheckResult{Name: "scheduler-lock-provider", Status: health.StatusUnhealthy, Error: fmt.Sprintf("create scheduler lock provider for healthcheck: %v", err)}
+				return health.CheckResult{
+					Name:   "scheduler-lock-provider",
+					Status: health.StatusUnhealthy,
+					Error:  fmt.Sprintf("create scheduler lock provider for healthcheck: %v", errorbridge.Canonicalize(err)),
+				}
 			}
-			defer func() { _ = lockProvider.Close() }()
+			defer func() {
+				if closeErr := lockProvider.Close(); closeErr != nil {
+					log.Error("failed to close scheduler lock provider after healthcheck", "error", closeErr)
+				}
+			}()
 			return scheduler.NewLockProviderHealthChecker("", lockProvider, schedulerLockHealthTimeout(cfg)).Check(ctx)
 		})
 	}
@@ -721,7 +739,8 @@ func healthCheckResultError(result health.CheckResult) error {
 	if msg == "" {
 		msg = "health check failed"
 	}
-	return fmt.Errorf("%s: %s", result.Name, msg)
+	return coreerrors.NewUnavailable(fmt.Sprintf("%s: %s", result.Name, msg), nil).
+		WithDetails(map[string]interface{}{"check": result.Name})
 }
 
 func schedulerTasksFromConfig(cfg *config.Config) ([]scheduler.Task, error) {

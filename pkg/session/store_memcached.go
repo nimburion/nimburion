@@ -3,11 +3,11 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	storememcached "github.com/nimburion/nimburion/pkg/session/memcached"
 )
 
@@ -41,7 +41,7 @@ type MemcachedConfig struct {
 // NewMemcachedStore creates a memcached-backed session store.
 func NewMemcachedStore(client MemcachedClient, prefix string) (*MemcachedStore, error) {
 	if client == nil {
-		return nil, errors.New("memcached client is required")
+		return nil, coreerrors.NewValidationWithCode("validation.session.memcached.client.required", "memcached client is required", nil, nil)
 	}
 	if strings.TrimSpace(prefix) == "" {
 		prefix = "session"

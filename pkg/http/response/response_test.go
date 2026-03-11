@@ -10,6 +10,7 @@ import (
 
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/jobs"
 )
 
 type mockResponseWriter struct {
@@ -140,6 +141,10 @@ func TestMapError(t *testing.T) {
 		{
 			name: "unknown error type", err: errors.New("some random error"),
 			ctx: context.WithValue(context.Background(), "request_id", "req-jkl"), wantStatus: http.StatusInternalServerError, wantErrorCode: "internal_server_error", wantMessage: "an unexpected error occurred", wantRequestID: "req-jkl",
+		},
+		{
+			name: "jobs family error", err: jobs.ErrConflict,
+			ctx: context.WithValue(context.Background(), "request_id", "req-jobs"), wantStatus: http.StatusConflict, wantErrorCode: "conflict", wantMessage: jobs.ErrConflict.Error(), wantRequestID: "req-jobs",
 		},
 	}
 	for _, tt := range tests {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -48,7 +49,7 @@ func TestRedisStore_KeyAndMappings(t *testing.T) {
 	if key := store.key("abc"); key != "http-cache:abc" {
 		t.Fatalf("unexpected key: %s", key)
 	}
-	if _, err := store.Get("abc"); err != ErrCacheMiss {
+	if _, err := store.Get("abc"); !errors.Is(err, ErrCacheMiss) {
 		t.Fatalf("expected ErrCacheMiss from get mapping, got %v", err)
 	}
 }
@@ -56,6 +57,14 @@ func TestRedisStore_KeyAndMappings(t *testing.T) {
 func TestRedisStore_NewValidationAndClose(t *testing.T) {
 	if _, err := NewRedisStore(RedisConfig{}); err == nil {
 		t.Fatal("expected validation error for empty URL")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "validation.cache.redis.url.required" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 
 	store := &RedisStore{

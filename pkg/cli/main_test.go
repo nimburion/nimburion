@@ -7,10 +7,13 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nimburion/nimburion/pkg/cache"
 	"github.com/nimburion/nimburion/pkg/config"
+	"github.com/nimburion/nimburion/pkg/coordination"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/descriptor"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
@@ -557,6 +560,13 @@ func TestHealthCheckResultError(t *testing.T) {
 	if !strings.Contains(err.Error(), "jobs-runtime") {
 		t.Fatalf("expected check name in error, got %v", err)
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != coreerrors.CodeUnavailable {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestRunHealthcheckWithRegistry_UsesFeatureHealthContributions(t *testing.T) {
@@ -612,6 +622,69 @@ func TestRunHealthcheckWithRegistry_AllowsDegradedState(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("expected degraded healthcheck to stay ready, got %v", err)
+	}
+}
+
+func TestRegisterFrameworkDependencyHealthChecks_CanonicalizesJobsRuntimeCreationError(t *testing.T) {
+	registry := health.NewRegistry()
+	cfg := config.DefaultConfig()
+	cfg.EventBus.Type = eventbusconfig.EventBusTypeKafka
+
+	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	registerFrameworkDependencyHealthChecks(
+		registry,
+		cfg,
+		log,
+		func(*config.Config, logger.Logger) (jobs.Runtime, error) {
+			return nil, jobs.ErrNotInitialized
+		},
+		func(*config.Config, logger.Logger) (coordination.LockProvider, error) {
+			return nil, nil
+		},
+	)
+
+	result, err := registry.CheckOne(context.Background(), "jobs-runtime")
+	if err != nil {
+		t.Fatalf("CheckOne() error = %v", err)
+	}
+	if result.Status != health.StatusUnhealthy {
+		t.Fatalf("Status = %s", result.Status)
+	}
+	if !strings.Contains(result.Error, "jobs not initialized") {
+		t.Fatalf("expected canonicalized jobs error, got %q", result.Error)
+	}
+}
+
+func TestRegisterFrameworkDependencyHealthChecks_CanonicalizesSchedulerLockProviderCreationError(t *testing.T) {
+	registry := health.NewRegistry()
+	cfg := config.DefaultConfig()
+	cfg.EventBus.Type = eventbusconfig.EventBusTypeKafka
+	cfg.Scheduler.Enabled = true
+	cfg.Scheduler.LockProvider = "redis"
+	cfg.Scheduler.LockTTL = time.Second
+
+	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	registerFrameworkDependencyHealthChecks(
+		registry,
+		cfg,
+		log,
+		func(*config.Config, logger.Logger) (jobs.Runtime, error) {
+			return nil, nil
+		},
+		func(*config.Config, logger.Logger) (coordination.LockProvider, error) {
+			return nil, coordination.ErrNotInitialized
+		},
+	)
+
+	result, err := registry.CheckOne(context.Background(), "scheduler-lock-provider")
+	if err != nil {
+		t.Fatalf("CheckOne() error = %v", err)
+	}
+	if result.Status != health.StatusUnhealthy {
+		t.Fatalf("Status = %s", result.Status)
+	}
+	if !strings.Contains(result.Error, "coordination not initialized") {
+		t.Fatalf("expected canonicalized coordination error, got %q", result.Error)
 	}
 }
 

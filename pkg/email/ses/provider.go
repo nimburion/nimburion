@@ -16,6 +16,7 @@ import (
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -33,7 +34,7 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Region) == "" {
-		return nil, fmt.Errorf("ses region is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.ses.region.required", "ses region is required", nil, nil)
 	}
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 10 * time.Second
@@ -103,7 +104,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	}
 	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("ses send failed with status %d", resp.StatusCode)
+		return coreerrors.NewUnavailable(fmt.Sprintf("ses send failed with status %d", resp.StatusCode), nil).
+			WithDetails(map[string]interface{}{"provider": "ses", "status_code": resp.StatusCode})
 	}
 	return nil
 }

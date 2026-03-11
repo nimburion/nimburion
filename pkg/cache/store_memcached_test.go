@@ -3,6 +3,10 @@ package cache
 import (
 	"testing"
 	"time"
+
+	"errors"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 func TestMemcachedAdapterClient_OpContextNoTimeout(t *testing.T) {
@@ -28,5 +32,19 @@ func TestMemcachedAdapterClient_OpContextWithTimeout(t *testing.T) {
 	}
 	if remaining := time.Until(deadline); remaining <= 0 || remaining > 200*time.Millisecond {
 		t.Fatalf("unexpected remaining timeout: %v", remaining)
+	}
+}
+
+func TestNewMemcachedStore_ValidationErrorIsTyped(t *testing.T) {
+	_, err := NewMemcachedStore(nil, "")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.cache.memcached.client.required" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }

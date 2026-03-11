@@ -2,12 +2,12 @@ package brevo
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -22,7 +22,7 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
-		return nil, fmt.Errorf("brevo token is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.brevo.token.required", "brevo token is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://api.brevo.com"

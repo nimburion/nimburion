@@ -14,6 +14,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coordinationpostgres "github.com/nimburion/nimburion/pkg/coordination/postgres"
 	coordinationredis "github.com/nimburion/nimburion/pkg/coordination/redis"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	schemavalidationconfig "github.com/nimburion/nimburion/pkg/eventbus/schema/config"
@@ -118,14 +119,14 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			jobsRuntime, err := buildJobsRuntime(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs runtime: %w", err)
+				return wrapCommandError("create jobs runtime", err)
 			}
-			defer func() { _ = jobsRuntime.Close() }()
+			defer closeWithLog(log, "scheduler jobs runtime", jobsRuntime.Close)
 			lockProvider, err := buildLockProvider(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create scheduler lock provider: %w", err)
+				return wrapCommandError("create scheduler lock provider", err)
 			}
-			defer func() { _ = lockProvider.Close() }()
+			defer closeWithLog(log, "scheduler lock provider", lockProvider.Close)
 
 			runtimeCfg := Config{
 				DispatchTimeout: cfg.Scheduler.DispatchTimeout,
@@ -140,14 +141,14 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 
 			runtime, err := NewRuntime(jobsRuntime, lockProvider, log, runtimeCfg)
 			if err != nil {
-				return fmt.Errorf("create scheduler runtime: %w", err)
+				return wrapCommandError("create scheduler runtime", err)
 			}
 			if err := registerTasksFromConfig(runtime, cfg); err != nil {
-				return fmt.Errorf("register scheduler tasks from config: %w", err)
+				return wrapCommandError("register scheduler tasks from config", err)
 			}
 			if opts.ConfigureRuntime != nil {
 				if err := opts.ConfigureRuntime(cfg, log, runtime); err != nil {
-					return fmt.Errorf("configure scheduler runtime: %w", err)
+					return wrapCommandError("configure scheduler runtime", err)
 				}
 			}
 			runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
@@ -198,14 +199,14 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			jobsRuntime, err := buildJobsRuntime(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs runtime: %w", err)
+				return wrapCommandError("create jobs runtime", err)
 			}
-			defer func() { _ = jobsRuntime.Close() }()
+			defer closeWithLog(log, "scheduler jobs runtime", jobsRuntime.Close)
 			lockProvider, err := buildLockProvider(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create scheduler lock provider: %w", err)
+				return wrapCommandError("create scheduler lock provider", err)
 			}
-			defer func() { _ = lockProvider.Close() }()
+			defer closeWithLog(log, "scheduler lock provider", lockProvider.Close)
 
 			runtimeCfg := Config{
 				DispatchTimeout: cfg.Scheduler.DispatchTimeout,
@@ -219,14 +220,14 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			runtime, err := NewRuntime(jobsRuntime, lockProvider, log, runtimeCfg)
 			if err != nil {
-				return fmt.Errorf("create scheduler runtime: %w", err)
+				return wrapCommandError("create scheduler runtime", err)
 			}
 			if err := registerTasksFromConfig(runtime, cfg); err != nil {
-				return fmt.Errorf("register scheduler tasks from config: %w", err)
+				return wrapCommandError("register scheduler tasks from config", err)
 			}
 			if opts.ConfigureRuntime != nil {
 				if err := opts.ConfigureRuntime(cfg, log, runtime); err != nil {
-					return fmt.Errorf("configure scheduler runtime: %w", err)
+					return wrapCommandError("configure scheduler runtime", err)
 				}
 			}
 			taskName := strings.TrimSpace(triggerTaskName)
@@ -240,7 +241,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 				defer cancel()
 			}
 			if err := runtime.Trigger(triggerCtx, taskName); err != nil {
-				return fmt.Errorf("trigger scheduler task %q: %w", taskName, err)
+				return wrapCommandError(fmt.Sprintf("trigger scheduler task %q", taskName), err)
 			}
 			return writeCommandf(cmd, "triggered scheduler task %s\n", taskName)
 		},
@@ -249,7 +250,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	triggerCmd.Flags().StringVar(&triggerTaskName, "task", "", "task name to trigger")
 	triggerCmd.Flags().DurationVar(&triggerDispatchTO, "dispatch-timeout", DefaultDispatchTimeout, "max duration for task dispatch")
 	triggerCmd.Flags().DurationVar(&triggerDefaultLock, "default-lock-ttl", DefaultLockTTL, "default distributed lock TTL")
-	_ = triggerCmd.MarkFlagRequired("task")
+	mustMarkFlagRequired(triggerCmd, "task")
 	schedulerCmd.AddCommand(triggerCmd)
 
 	return commandFeature{command: schedulerCmd}
@@ -299,6 +300,53 @@ func tasksFromConfig(cfg *config.Config) ([]Task, error) {
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+func closeWithLog(log logger.Logger, name string, closeFn func() error) {
+	if closeErr := closeFn(); closeErr != nil && log != nil {
+		log.Error("failed to close "+name, "error", closeErr)
+	}
+}
+
+func wrapCommandError(message string, err error) error {
+	return fmt.Errorf("%s: %w", message, canonicalizeSchedulerCommandError(err))
+}
+
+func canonicalizeSchedulerCommandError(err error) error {
+	switch {
+	case errors.Is(err, jobs.ErrValidation):
+		return coreerrors.NewValidationWithCode("validation.jobs", err.Error(), nil, nil)
+	case errors.Is(err, jobs.ErrConflict):
+		return coreerrors.New("jobs.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409)
+	case errors.Is(err, jobs.ErrNotFound):
+		return coreerrors.New("jobs.not_found", nil, err).WithMessage(err.Error()).WithHTTPStatus(404)
+	case errors.Is(err, jobs.ErrRetryable):
+		return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	case errors.Is(err, jobs.ErrInvalidArgument):
+		return coreerrors.New("argument.jobs.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400)
+	case errors.Is(err, jobs.ErrNotInitialized):
+		return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	case errors.Is(err, jobs.ErrClosed):
+		return coreerrors.NewClosed(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	case errors.Is(err, coordination.ErrValidation):
+		return coreerrors.NewValidationWithCode("validation.coordination", err.Error(), nil, nil)
+	case errors.Is(err, coordination.ErrConflict):
+		return coreerrors.New("coordination.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409)
+	case errors.Is(err, coordination.ErrRetryable):
+		return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "coordination"})
+	case errors.Is(err, coordination.ErrInvalidArgument):
+		return coreerrors.New("argument.coordination.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400)
+	case errors.Is(err, coordination.ErrNotInitialized):
+		return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "coordination"})
+	default:
+		return err
+	}
+}
+
+func mustMarkFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("mark %s as required: %v", name, err))
+	}
 }
 
 func registerTasksFromConfig(runtime *Runtime, cfg *config.Config) error {

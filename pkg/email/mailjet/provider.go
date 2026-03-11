@@ -3,12 +3,12 @@ package mailjet
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -23,10 +23,10 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("mailjet api key is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.mailjet.api_key.required", "mailjet api key is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.APISecret) == "" {
-		return nil, fmt.Errorf("mailjet api secret is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.mailjet.api_secret.required", "mailjet api secret is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://api.mailjet.com"

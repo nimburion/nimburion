@@ -2,12 +2,12 @@ package cache
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	storememcached "github.com/nimburion/nimburion/pkg/cache/memcached"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 // MemcachedClient abstracts memcached operations used by cache middleware.
@@ -72,7 +72,7 @@ type MemcachedStore struct {
 // NewMemcachedStore creates a Memcached store from a generic memcached client.
 func NewMemcachedStore(client MemcachedClient, prefix string) (*MemcachedStore, error) {
 	if client == nil {
-		return nil, errors.New("memcached cache client is required")
+		return nil, coreerrors.NewValidationWithCode("validation.cache.memcached.client.required", "memcached cache client is required", nil, nil)
 	}
 	if strings.TrimSpace(prefix) == "" {
 		prefix = "http-cache"

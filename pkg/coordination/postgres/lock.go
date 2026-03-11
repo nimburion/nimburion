@@ -13,14 +13,36 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/nimburion/nimburion/pkg/coordination"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 func coordinationError(kind error, message string) error {
-	if message == "" {
-		return kind
+	switch {
+	case errors.Is(kind, coordination.ErrValidation):
+		return coreerrors.New("validation.coordination", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(400)
+	case errors.Is(kind, coordination.ErrInvalidArgument):
+		return coreerrors.New("argument.coordination.invalid", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(400)
+	case errors.Is(kind, coordination.ErrConflict):
+		return coreerrors.New("coordination.conflict", nil, kind).
+			WithMessage(messageOrDefault(message, kind.Error())).
+			WithHTTPStatus(409)
+	case errors.Is(kind, coordination.ErrRetryable):
+		return coreerrors.NewRetryable(messageOrDefault(message, kind.Error()), kind).
+			WithDetails(map[string]interface{}{"family": "coordination"})
+	case errors.Is(kind, coordination.ErrNotInitialized):
+		return coreerrors.NewNotInitialized(messageOrDefault(message, kind.Error()), kind).
+			WithDetails(map[string]interface{}{"family": "coordination"})
+	default:
+		if message == "" {
+			return kind
+		}
+		return fmt.Errorf("%w: %s", kind, message)
 	}
-	return fmt.Errorf("%w: %s", kind, message)
 }
 
 const (
@@ -298,4 +320,11 @@ func randomPostgresLockToken() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(raw)
+}
+
+func messageOrDefault(message, fallback string) string {
+	if strings.TrimSpace(message) != "" {
+		return message
+	}
+	return fallback
 }

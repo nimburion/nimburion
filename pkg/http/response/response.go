@@ -3,11 +3,10 @@ package response
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	"github.com/nimburion/nimburion/pkg/core/errorbridge"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
 )
@@ -60,8 +59,8 @@ func Error(c router.Context, err error) error {
 func MapError(ctx context.Context, err error) (int, ErrorBody) {
 	requestID := getRequestID(ctx)
 
-	var appErr *coreerrors.AppError
-	if !errors.As(err, &appErr) {
+	appErr, ok := errorbridge.AsAppError(err)
+	if !ok {
 		return http.StatusInternalServerError, ErrorBody{
 			Error:     "internal_server_error",
 			Message:   "an unexpected error occurred",

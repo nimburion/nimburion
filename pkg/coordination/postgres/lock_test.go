@@ -9,6 +9,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/nimburion/nimburion/pkg/coordination"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -111,6 +112,13 @@ func TestPostgresLockProvider_RejectsInvalidTableName(t *testing.T) {
 	if !errors.Is(err, coordination.ErrValidation) {
 		t.Fatalf("expected ErrValidation, got %v", err)
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.coordination" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestPostgresLockProvider_RenewRejectsMissingLeaseWithTypedConflict(t *testing.T) {
@@ -140,6 +148,13 @@ func TestPostgresLockProvider_RenewRejectsMissingLeaseWithTypedConflict(t *testi
 	if !errors.Is(err, coordination.ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "coordination.conflict" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestPostgresLockProvider_ReleaseRejectsMissingLeaseWithTypedConflict(t *testing.T) {
@@ -168,5 +183,12 @@ func TestPostgresLockProvider_ReleaseRejectsMissingLeaseWithTypedConflict(t *tes
 	}
 	if !errors.Is(err, coordination.ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "coordination.conflict" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }

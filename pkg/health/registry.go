@@ -2,9 +2,10 @@ package health
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 // Status represents the health status of a component
@@ -155,7 +156,14 @@ func (r *Registry) CheckOne(ctx context.Context, name string) (CheckResult, erro
 	r.mu.RUnlock()
 
 	if !exists {
-		return CheckResult{}, fmt.Errorf("health check not found: %s", name)
+		return CheckResult{}, coreerrors.New(
+			"health.check.not_found",
+			nil,
+			nil,
+		).
+			WithMessage("health check not found: " + name).
+			WithHTTPStatus(404).
+			WithDetails(map[string]interface{}{"check": name})
 	}
 
 	return checker.Check(ctx), nil

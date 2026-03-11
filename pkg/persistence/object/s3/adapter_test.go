@@ -12,6 +12,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -82,6 +83,13 @@ func TestNewAdapter_Validation(t *testing.T) {
 	_, err := NewAdapter(Config{}, &mockLogger{})
 	if err == nil {
 		t.Fatal("expected validation error for empty bucket/region")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.object.s3.bucket.required" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }
 
@@ -207,5 +215,85 @@ func TestCloseAndHealthCheck_WhenClosed(t *testing.T) {
 	}
 	if err := a.HealthCheck(context.Background()); err == nil {
 		t.Fatal("expected health check error on closed adapter")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != coreerrors.CodeUnavailable {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
+	}
+}
+
+func TestPing_FailureIsTyped(t *testing.T) {
+	a := &Adapter{
+		client: &mockS3Client{
+			headBucketFn: func(_ context.Context, _ *awss3.HeadBucketInput, _ ...func(*awss3.Options)) (*awss3.HeadBucketOutput, error) {
+				return nil, errors.New("boom")
+			},
+		},
+		logger: &mockLogger{},
+		config: Config{Bucket: "docs"},
+	}
+
+	err := a.Ping(context.Background())
+	if err == nil {
+		t.Fatal("expected ping error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != coreerrors.CodeRetryable {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
+}
+
+func TestUpload_FailureIsTyped(t *testing.T) {
+	a := &Adapter{
+		client: &mockS3Client{
+			putObjectFn: func(_ context.Context, _ *awss3.PutObjectInput, _ ...func(*awss3.Options)) (*awss3.PutObjectOutput, error) {
+				return nil, errors.New("boom")
+			},
+		},
+		logger: &mockLogger{},
+		config: Config{Bucket: "docs", OperationTimeout: time.Second},
+	}
+
+	_, err := a.Upload(context.Background(), "images/a.png", bytes.NewReader([]byte("content")), "image/png", nil)
+	if err == nil {
+		t.Fatal("expected upload error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != coreerrors.CodeRetryable {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
+}
+
+func TestHealthCheck_FailureIsTyped(t *testing.T) {
+	a := &Adapter{
+		client: &mockS3Client{
+			headBucketFn: func(_ context.Context, _ *awss3.HeadBucketInput, _ ...func(*awss3.Options)) (*awss3.HeadBucketOutput, error) {
+				return nil, errors.New("boom")
+			},
+		},
+		logger: &mockLogger{},
+		config: Config{Bucket: "docs"},
+	}
+
+	err := a.HealthCheck(context.Background())
+	if err == nil {
+		t.Fatal("expected health check error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != coreerrors.CodeUnavailable {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }

@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
@@ -22,7 +23,7 @@ var (
 func SetOAuthTokens(c router.Context, accessToken, refreshToken string) error {
 	s, ok := FromContext(c)
 	if !ok || s == nil {
-		return ErrNoSession
+		return noSessionError()
 	}
 	if accessToken != "" {
 		s.Set(AccessTokenKey, accessToken)
@@ -48,9 +49,14 @@ func GetOAuthTokens(c router.Context) (accessToken, refreshToken string, ok bool
 func ClearOAuthTokens(c router.Context) error {
 	s, ok := FromContext(c)
 	if !ok || s == nil {
-		return ErrNoSession
+		return noSessionError()
 	}
 	s.Delete(AccessTokenKey)
 	s.Delete(RefreshTokenKey)
 	return nil
+}
+
+func noSessionError() error {
+	return coreerrors.NewNotInitialized(ErrNoSession.Error(), ErrNoSession).
+		WithDetails(map[string]interface{}{"family": "http_session"})
 }

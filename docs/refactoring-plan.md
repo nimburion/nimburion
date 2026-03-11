@@ -8,6 +8,7 @@ The target package boundaries and runtime model are described in [refactoring-de
 Actors and workflow-level goals are described in [refactoring-user-stories.md](./refactoring-user-stories.md).
 Story-to-milestone traceability is maintained in [refactoring-traceability.md](./refactoring-traceability.md).
 Cross-repo alignment for `nimbctl` is tracked in [nimbctl-alignment-plan.md](./nimbctl-alignment-plan.md).
+The current and target framework error model is described in [error-model.md](./error-model.md).
 
 ## Working Assumptions
 

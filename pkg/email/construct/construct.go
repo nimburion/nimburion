@@ -1,9 +1,9 @@
 package construct
 
 import (
-	"fmt"
 	"strings"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	"github.com/nimburion/nimburion/pkg/email/brevo"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
@@ -48,6 +48,11 @@ func NewProvider(cfg emailconfig.Config, log logger.Logger) (email.Provider, err
 	case "mailjet":
 		return mailjet.New(cfg.Mailjet, log)
 	default:
-		return nil, fmt.Errorf("unsupported email provider %q", cfg.Provider)
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.email.provider.unsupported",
+			"unsupported email provider "+`"`+cfg.Provider+`"`,
+			nil,
+			map[string]interface{}{"provider": cfg.Provider},
+		)
 	}
 }

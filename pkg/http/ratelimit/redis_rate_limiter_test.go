@@ -2,12 +2,30 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	ratelimitconfig "github.com/nimburion/nimburion/pkg/http/ratelimit/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/redis/go-redis/v9"
 )
+
+func TestNewRedisRateLimiter_ValidationErrorsAreTyped(t *testing.T) {
+	log := newTestLogger(t)
+	_, err := NewRedisRateLimiter(ratelimitconfig.RedisConfig{}, time.Second, 1, 0, log)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.ratelimit.redis.url.required" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
+}
 
 func TestRedisRateLimiter_AllowsWithinLimitAndResetsWindow(t *testing.T) {
 	t.Parallel()

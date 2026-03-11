@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -24,10 +25,10 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
-		return nil, fmt.Errorf("mailgun token is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.mailgun.token.required", "mailgun token is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.Domain) == "" {
-		return nil, fmt.Errorf("mailgun domain is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.mailgun.domain.required", "mailgun domain is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://api.mailgun.net"
@@ -84,7 +85,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	}
 	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("mailgun send failed with status %d", resp.StatusCode)
+		return coreerrors.NewUnavailable(fmt.Sprintf("mailgun send failed with status %d", resp.StatusCode), nil).
+			WithDetails(map[string]interface{}{"provider": "mailgun", "status_code": resp.StatusCode})
 	}
 	return nil
 }

@@ -3,12 +3,14 @@ package email_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	"github.com/nimburion/nimburion/pkg/email/brevo"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
@@ -40,6 +42,59 @@ func TestConstructNewProvider(t *testing.T) {
 	}
 	if provider == nil {
 		t.Fatal("expected provider")
+	}
+}
+
+func TestConstructNewProvider_UnsupportedProviderIsTyped(t *testing.T) {
+	_, err := construct.NewProvider(emailconfig.Config{Provider: "unknown"}, nil)
+	if err == nil {
+		t.Fatal("expected unsupported provider error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.email.provider.unsupported" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
+}
+
+func TestProviderConstructors_ValidationErrorsAreTyped(t *testing.T) {
+	tests := []struct {
+		name     string
+		buildErr func() error
+		wantCode string
+	}{
+		{name: "sendgrid", buildErr: func() error { _, err := sendgrid.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.sendgrid.token.required"},
+		{name: "mailgun token", buildErr: func() error { _, err := mailgun.New(emailconfig.MailgunConfig{}, nil); return err }, wantCode: "validation.email.mailgun.token.required"},
+		{name: "mailgun domain", buildErr: func() error { _, err := mailgun.New(emailconfig.MailgunConfig{Token: "x"}, nil); return err }, wantCode: "validation.email.mailgun.domain.required"},
+		{name: "smtp", buildErr: func() error { _, err := smtp.New(emailconfig.SMTPConfig{}, nil); return err }, wantCode: "validation.email.smtp.host.required"},
+		{name: "brevo", buildErr: func() error { _, err := brevo.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.brevo.token.required"},
+		{name: "mailchimp", buildErr: func() error { _, err := mailchimp.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.mailchimp.token.required"},
+		{name: "mailersend", buildErr: func() error { _, err := mailersend.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.mailersend.token.required"},
+		{name: "mailjet key", buildErr: func() error { _, err := mailjet.New(emailconfig.MailjetConfig{}, nil); return err }, wantCode: "validation.email.mailjet.api_key.required"},
+		{name: "mailjet secret", buildErr: func() error { _, err := mailjet.New(emailconfig.MailjetConfig{APIKey: "k"}, nil); return err }, wantCode: "validation.email.mailjet.api_secret.required"},
+		{name: "mailtrap", buildErr: func() error { _, err := mailtrap.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.mailtrap.token.required"},
+		{name: "postmark", buildErr: func() error { _, err := postmark.New(emailconfig.PostmarkConfig{}, nil); return err }, wantCode: "validation.email.postmark.server_token.required"},
+		{name: "sendpulse", buildErr: func() error { _, err := sendpulse.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.sendpulse.token.required"},
+		{name: "smtp2go", buildErr: func() error { _, err := smtp2go.New(emailconfig.TokenConfig{}, nil); return err }, wantCode: "validation.email.smtp2go.token.required"},
+		{name: "ses", buildErr: func() error { _, err := ses.New(emailconfig.SESConfig{}, nil); return err }, wantCode: "validation.email.ses.region.required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.buildErr()
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			var appErr *coreerrors.AppError
+			if !errors.As(err, &appErr) {
+				t.Fatalf("expected AppError, got %T", err)
+			}
+			if appErr.Code != tt.wantCode {
+				t.Fatalf("Code = %q", appErr.Code)
+			}
+		})
 	}
 }
 

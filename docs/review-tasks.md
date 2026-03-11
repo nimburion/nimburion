@@ -6,6 +6,7 @@
 This document turns the current review findings into an execution backlog aligned with the structure used in [refactoring-plan.md](./refactoring-plan.md).
 The target architecture and package boundaries remain described in [refactoring-design.md](./refactoring-design.md).
 Runtime and configuration expectations remain described in [refactoring-operational-specs.md](./refactoring-operational-specs.md) and [testing.md](./testing.md).
+Current error-model inventory and convergence target are described in [error-model.md](./error-model.md).
 
 ## Working Assumptions
 

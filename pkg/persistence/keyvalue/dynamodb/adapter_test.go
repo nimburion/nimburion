@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -25,12 +26,27 @@ func TestNewAdapter_Validation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty region")
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.keyvalue.dynamodb.region.required" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestPing_WhenClosed(t *testing.T) {
 	a := &Adapter{closed: true, logger: &mockLogger{}}
 	if err := a.Ping(context.Background()); err == nil {
 		t.Fatal("expected error when closed")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != coreerrors.CodeClosed {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 }
 
@@ -82,6 +98,14 @@ func TestOperations_WhenClosed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := tt.run(); err == nil {
 				t.Fatal("expected error when closed")
+			} else {
+				var appErr *coreerrors.AppError
+				if !errors.As(err, &appErr) {
+					t.Fatalf("expected AppError, got %T", err)
+				}
+				if appErr.Code != coreerrors.CodeClosed {
+					t.Fatalf("Code = %q", appErr.Code)
+				}
 			}
 		})
 	}

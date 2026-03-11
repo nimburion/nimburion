@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,10 +56,10 @@ func TestRedisStore_KeyAndMappings(t *testing.T) {
 	if key := store.key("abc"); key != "session:abc" {
 		t.Fatalf("unexpected key: %s", key)
 	}
-	if _, err := store.Load(context.Background(), "abc"); err != ErrNotFound {
+	if _, err := store.Load(context.Background(), "abc"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound from load mapping, got %v", err)
 	}
-	if err := store.Touch(context.Background(), "abc", time.Minute); err != ErrNotFound {
+	if err := store.Touch(context.Background(), "abc", time.Minute); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound from touch mapping, got %v", err)
 	}
 }
@@ -66,6 +67,14 @@ func TestRedisStore_KeyAndMappings(t *testing.T) {
 func TestRedisStore_NewValidationAndClose(t *testing.T) {
 	if _, err := NewRedisStore(RedisConfig{}); err == nil {
 		t.Fatal("expected validation error for empty URL")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "validation.session.redis.url.required" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 
 	store := &RedisStore{

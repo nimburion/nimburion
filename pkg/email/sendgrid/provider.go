@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -25,7 +26,7 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
-		return nil, fmt.Errorf("sendgrid token is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.sendgrid.token.required", "sendgrid token is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://api.sendgrid.com"
@@ -71,7 +72,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	}
 	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("sendgrid send failed with status %d", resp.StatusCode)
+		return coreerrors.NewUnavailable(fmt.Sprintf("sendgrid send failed with status %d", resp.StatusCode), nil).
+			WithDetails(map[string]interface{}{"provider": "sendgrid", "status_code": resp.StatusCode})
 	}
 	return nil
 }

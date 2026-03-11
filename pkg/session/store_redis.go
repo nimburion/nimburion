@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -38,7 +39,7 @@ type RedisStore struct {
 // NewRedisStore creates a Redis-backed session store.
 func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, errors.New("redis session store url is required")
+		return nil, coreerrors.NewValidationWithCode("validation.session.redis.url.required", "redis session store url is required", nil, nil)
 	}
 
 	timeout := cfg.OperationTimeout
@@ -52,9 +53,10 @@ func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 	}, noopLogger{})
 	if err != nil {
 		if strings.Contains(err.Error(), "parse redis URL") {
-			return nil, fmt.Errorf("parse redis url: %w", err)
+			return nil, coreerrors.NewValidationWithCode("validation.session.redis.url.invalid", "parse redis url: "+err.Error(), nil, nil)
 		}
-		return nil, err
+		return nil, coreerrors.NewRetryable("connect redis session store failed", err).
+			WithDetails(map[string]interface{}{"family": "session"})
 	}
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {

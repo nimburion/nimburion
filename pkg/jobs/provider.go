@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/eventbus"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/eventbus/kafka"
@@ -79,7 +80,12 @@ func newRuntimeFromConfig(
 		}
 		return &redisRuntimeAdapter{backend: redisBackend}, nil
 	default:
-		return nil, fmt.Errorf("unsupported jobs.backend %q (supported: %s, %s)", cfg.Backend, jobsconfig.BackendEventBus, jobsconfig.BackendRedis)
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.jobs.backend.unsupported",
+			fmt.Sprintf("unsupported jobs.backend %q (supported: %s, %s)", cfg.Backend, jobsconfig.BackendEventBus, jobsconfig.BackendRedis),
+			nil,
+			map[string]interface{}{"backend": cfg.Backend},
+		)
 	}
 }
 
@@ -119,7 +125,12 @@ func newBackendFromConfig(
 			DLQSuffix:        strings.TrimSpace(cfg.DLQ.QueueSuffix),
 		}, log)
 	default:
-		return nil, fmt.Errorf("unsupported jobs.backend %q (supported: %s, %s)", cfg.Backend, jobsconfig.BackendEventBus, jobsconfig.BackendRedis)
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.jobs.backend.unsupported",
+			fmt.Sprintf("unsupported jobs.backend %q (supported: %s, %s)", cfg.Backend, jobsconfig.BackendEventBus, jobsconfig.BackendRedis),
+			nil,
+			map[string]interface{}{"backend": cfg.Backend},
+		)
 	}
 }
 
@@ -128,7 +139,12 @@ func validateConfigCompatibility(backend string, eventBusCfg eventbusconfig.Conf
 		return nil
 	}
 	if strings.TrimSpace(eventBusCfg.Type) == "" {
-		return fmt.Errorf("eventbus.type is required when jobs.backend=%s", jobsconfig.BackendEventBus)
+		return coreerrors.NewValidationWithCode(
+			"validation.jobs.eventbus_type.required",
+			fmt.Sprintf("eventbus.type is required when jobs.backend=%s", jobsconfig.BackendEventBus),
+			nil,
+			nil,
+		)
 	}
 	return nil
 }
@@ -151,7 +167,12 @@ func newEventBusFromConfig(
 	case "sqs":
 		base, err = sqs.NewFromEventBusConfig(eventBusCfg, log)
 	default:
-		return nil, fmt.Errorf("unsupported eventbus.type %q (supported: kafka, rabbitmq, sqs)", eventBusCfg.Type)
+		return nil, coreerrors.NewValidationWithCode(
+			"validation.eventbus.type.unsupported",
+			fmt.Sprintf("unsupported eventbus.type %q (supported: kafka, rabbitmq, sqs)", eventBusCfg.Type),
+			nil,
+			map[string]interface{}{"type": eventBusCfg.Type},
+		)
 	}
 	if err != nil {
 		return nil, err
@@ -170,20 +191,25 @@ type redisRuntimeAdapter struct {
 
 func (r *redisRuntimeAdapter) Enqueue(ctx context.Context, job *Job) error {
 	if r == nil || r.backend == nil {
-		return fmt.Errorf("runtime backend is not initialized")
+		return coreerrors.NewNotInitialized("runtime backend is not initialized", ErrNotInitialized)
 	}
 	return r.backend.Enqueue(ctx, job)
 }
 
 func (r *redisRuntimeAdapter) Subscribe(ctx context.Context, queue string, handler Handler) error {
-	return fmt.Errorf("jobs subscribe is not supported when jobs.backend is redis; use jobs worker")
+	return coreerrors.NewValidationWithCode(
+		"validation.jobs.backend.redis.subscribe_unsupported",
+		"jobs subscribe is not supported when jobs.backend is redis; use jobs worker",
+		nil,
+		nil,
+	)
 }
 
 func (r *redisRuntimeAdapter) Unsubscribe(queue string) error { return nil }
 
 func (r *redisRuntimeAdapter) HealthCheck(ctx context.Context) error {
 	if r == nil || r.backend == nil {
-		return fmt.Errorf("runtime backend is not initialized")
+		return coreerrors.NewNotInitialized("runtime backend is not initialized", ErrNotInitialized)
 	}
 	return r.backend.HealthCheck(ctx)
 }

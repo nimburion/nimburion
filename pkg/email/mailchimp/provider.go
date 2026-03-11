@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/emailkit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
 	emailconfig "github.com/nimburion/nimburion/pkg/email/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -25,7 +26,7 @@ type Provider struct {
 
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
-		return nil, fmt.Errorf("mailchimp token is required")
+		return nil, coreerrors.NewValidationWithCode("validation.email.mailchimp.token.required", "mailchimp token is required", nil, nil)
 	}
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = "https://mandrillapp.com/api/1.0"
@@ -53,7 +54,17 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 		},
 	}
 	if msg.ReplyTo != "" {
-		payload["message"].(map[string]interface{})["headers"].(map[string]string)["Reply-To"] = msg.ReplyTo
+		messagePayload, ok := payload["message"].(map[string]interface{})
+		if !ok {
+			return coreerrors.NewInternal(fmt.Sprintf("mailchimp payload message has unexpected type %T", payload["message"]), nil).
+				WithDetails(map[string]interface{}{"provider": "mailchimp"})
+		}
+		headers, ok := messagePayload["headers"].(map[string]string)
+		if !ok {
+			return coreerrors.NewInternal(fmt.Sprintf("mailchimp payload headers has unexpected type %T", messagePayload["headers"]), nil).
+				WithDetails(map[string]interface{}{"provider": "mailchimp"})
+		}
+		headers["Reply-To"] = msg.ReplyTo
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -76,7 +87,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	}
 	defer func() { emailkit.IgnoreCloseError(resp.Body.Close()) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("mailchimp send failed with status %d", resp.StatusCode)
+		return coreerrors.NewUnavailable(fmt.Sprintf("mailchimp send failed with status %d", resp.StatusCode), nil).
+			WithDetails(map[string]interface{}{"provider": "mailchimp", "status_code": resp.StatusCode})
 	}
 	return nil
 }

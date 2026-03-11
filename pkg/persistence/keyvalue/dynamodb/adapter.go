@@ -3,7 +3,6 @@ package dynamodb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -37,7 +37,7 @@ type Config struct {
 // NewAdapter creates a DynamoDB storage adapter.
 func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	if cfg.Region == "" {
-		return nil, fmt.Errorf("aws region is required")
+		return nil, coreerrors.NewValidationWithCode("validation.keyvalue.dynamodb.region.required", "aws region is required", nil, nil)
 	}
 	if cfg.OperationTimeout == 0 {
 		cfg.OperationTimeout = 5 * time.Second
@@ -52,7 +52,8 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), loadOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load aws config: %w", err)
+		return nil, coreerrors.NewRetryable("failed to load aws config", err).
+			WithDetails(map[string]interface{}{"family": "keyvalue_dynamodb"})
 	}
 
 	var opts []func(*dynamodb.Options)
@@ -90,7 +91,8 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	defer cancel()
 	_, err := a.client.ListTables(opCtx, &dynamodb.ListTablesInput{Limit: aws.Int32(1)})
 	if err != nil {
-		return fmt.Errorf("dynamodb ping failed: %w", err)
+		return coreerrors.NewRetryable("dynamodb ping failed", err).
+			WithDetails(map[string]interface{}{"family": "keyvalue_dynamodb"})
 	}
 	return nil
 }
@@ -101,7 +103,8 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	defer cancel()
 	if err := a.Ping(hcCtx); err != nil {
 		a.logger.Error("DynamoDB health check failed", "error", err)
-		return fmt.Errorf("dynamodb health check failed: %w", err)
+		return coreerrors.NewUnavailable("dynamodb health check failed", err).
+			WithDetails(map[string]interface{}{"family": "keyvalue_dynamodb"})
 	}
 	return nil
 }
@@ -168,7 +171,8 @@ func (a *Adapter) ensureOpen() error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {
-		return fmt.Errorf("dynamodb adapter is closed")
+		return coreerrors.NewClosed("dynamodb adapter is closed", nil).
+			WithDetails(map[string]interface{}{"family": "keyvalue_dynamodb"})
 	}
 	return nil
 }

@@ -2,9 +2,11 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/eventbus"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	schemavalidationconfig "github.com/nimburion/nimburion/pkg/eventbus/schema/config"
@@ -70,6 +72,13 @@ func TestNewRuntimeFromConfig_UnsupportedBackend(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unsupported backend error")
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.jobs.backend.unsupported" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestNewRuntimeFromConfig_RedisRequiresURL(t *testing.T) {
@@ -95,6 +104,13 @@ func TestNewRuntimeFromConfig_EventBusBackendRequiresEventBusType(t *testing.T) 
 	if err == nil {
 		t.Fatal("expected missing eventbus type error")
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.jobs.eventbus_type.required" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
 		t.Fatalf("expected eventbus type validation error, got %v", err)
 	}
@@ -108,6 +124,13 @@ func TestNewBackendFromConfig_UnsupportedBackend(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected unsupported backend error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.jobs.backend.unsupported" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }
 
@@ -134,6 +157,13 @@ func TestNewBackendFromConfig_EventBusBackendRequiresEventBusType(t *testing.T) 
 	if err == nil {
 		t.Fatal("expected missing eventbus type error")
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.jobs.eventbus_type.required" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 	if !strings.Contains(err.Error(), "eventbus.type is required when jobs.backend=eventbus") {
 		t.Fatalf("expected eventbus type validation error, got %v", err)
 	}
@@ -143,9 +173,25 @@ func TestRedisRuntimeAdapter_DefensiveErrors(t *testing.T) {
 	var adapter *redisRuntimeAdapter
 	if err := adapter.Enqueue(context.Background(), &Job{}); err == nil {
 		t.Fatal("expected enqueue error")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != coreerrors.CodeNotInitialized {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 	if err := adapter.HealthCheck(context.Background()); err == nil {
 		t.Fatal("expected health error")
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != coreerrors.CodeNotInitialized {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 	if err := adapter.Close(); err != nil {
 		t.Fatalf("expected nil close error, got %v", err)
@@ -160,6 +206,13 @@ func TestRedisRuntimeAdapter_SubscribeNotSupported(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected subscribe error")
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.jobs.backend.redis.subscribe_unsupported" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 	if !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("expected not supported error, got %v", err)
 	}
@@ -173,6 +226,13 @@ func TestNewEventBusFromConfig_UnsupportedType(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected unsupported eventbus type error")
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "validation.eventbus.type.unsupported" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }
 

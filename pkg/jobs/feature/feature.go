@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nimburion/nimburion/pkg/config"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	schemavalidationconfig "github.com/nimburion/nimburion/pkg/eventbus/schema/config"
@@ -125,9 +126,9 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			backend, err := buildBackend(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs backend: %w", err)
+				return wrapCommandError("create jobs backend", err)
 			}
-			defer func() { _ = backend.Close() }()
+			defer closeWithLog(log, "jobs backend", backend.Close)
 
 			resolvedConcurrency := cfg.Jobs.Worker.Concurrency
 			if cmd.Flags().Changed("concurrency") {
@@ -185,10 +186,10 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 				DLQ: jobs.DLQPolicy{Enabled: resolvedDLQEnabled, QueueSuffix: resolvedDLQSuffix},
 			})
 			if err != nil {
-				return fmt.Errorf("create worker: %w", err)
+				return wrapCommandError("create worker", err)
 			}
 			if err := opts.ConfigureWorker(cfg, log, worker); err != nil {
-				return fmt.Errorf("configure jobs worker: %w", err)
+				return wrapCommandError("configure jobs worker", err)
 			}
 			runCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
@@ -230,9 +231,9 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			runtime, err := buildRuntime(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs runtime: %w", err)
+				return wrapCommandError("create jobs runtime", err)
 			}
-			defer func() { _ = runtime.Close() }()
+			defer closeWithLog(log, "jobs runtime", runtime.Close)
 			jobName := strings.TrimSpace(enqueueName)
 			if jobName == "" {
 				return errors.New("job name is required")
@@ -275,7 +276,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 				CreatedAt:      time.Now().UTC(),
 			}
 			if err := runtime.Enqueue(cmd.Context(), job); err != nil {
-				return fmt.Errorf("enqueue job: %w", err)
+				return wrapCommandError("enqueue job", err)
 			}
 			return writeCommandf(cmd, "enqueued job %s on queue %s\n", job.ID, job.Queue)
 		},
@@ -290,7 +291,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	enqueueCmd.Flags().StringVar(&enqueueRunAt, "run-at", "", "schedule run time in RFC3339 format")
 	enqueueCmd.Flags().IntVar(&enqueueMaxAttempts, "max-attempts", 0, "max attempts override for this job")
 	enqueueCmd.Flags().StringSliceVar(&enqueueHeaders, "header", []string{}, "job header in key=value format (repeatable)")
-	_ = enqueueCmd.MarkFlagRequired("name")
+	mustMarkFlagRequired(enqueueCmd, "name")
 	jobsCmd.AddCommand(enqueueCmd)
 
 	dlqCmd := &cobra.Command{Use: "dlq", Short: "Dead-letter queue operations"}
@@ -309,16 +310,16 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			backend, err := buildBackend(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs backend: %w", err)
+				return wrapCommandError("create jobs backend", err)
 			}
-			defer func() { _ = backend.Close() }()
+			defer closeWithLog(log, "jobs backend", backend.Close)
 			dlqStore, ok := backend.(jobs.DLQStore)
 			if !ok {
 				return errors.New("dlq operations are not supported by current jobs backend")
 			}
 			entries, err := dlqStore.ListDLQ(cmd.Context(), dlqListQueue, dlqListLimit)
 			if err != nil {
-				return fmt.Errorf("list dlq entries: %w", err)
+				return wrapCommandError("list dlq entries", err)
 			}
 			data, err := json.MarshalIndent(entries, "", "  ")
 			if err != nil {
@@ -330,7 +331,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	setCommandPolicy(dlqListCmd, policyManual)
 	dlqListCmd.Flags().StringVar(&dlqListQueue, "queue", "", "original queue name")
 	dlqListCmd.Flags().IntVar(&dlqListLimit, "limit", 50, "max number of entries to list")
-	_ = dlqListCmd.MarkFlagRequired("queue")
+	mustMarkFlagRequired(dlqListCmd, "queue")
 	dlqCmd.AddCommand(dlqListCmd)
 
 	var (
@@ -347,9 +348,9 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			backend, err := buildBackend(cfg, log)
 			if err != nil {
-				return fmt.Errorf("create jobs backend: %w", err)
+				return wrapCommandError("create jobs backend", err)
 			}
-			defer func() { _ = backend.Close() }()
+			defer closeWithLog(log, "jobs backend", backend.Close)
 			dlqStore, ok := backend.(jobs.DLQStore)
 			if !ok {
 				return errors.New("dlq operations are not supported by current jobs backend")
@@ -359,7 +360,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 			}
 			replayed, err := dlqStore.ReplayDLQ(cmd.Context(), dlqReplayQueue, dlqReplayIDs)
 			if err != nil {
-				return fmt.Errorf("replay dlq entries: %w", err)
+				return wrapCommandError("replay dlq entries", err)
 			}
 			return writeCommandf(cmd, "replayed %d entries from queue %s\n", replayed, dlqReplayQueue)
 		},
@@ -367,7 +368,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	setCommandPolicy(dlqReplayCmd, policyManual)
 	dlqReplayCmd.Flags().StringVar(&dlqReplayQueue, "queue", "", "original queue name")
 	dlqReplayCmd.Flags().StringSliceVar(&dlqReplayIDs, "id", []string{}, "DLQ entry id to replay (repeatable)")
-	_ = dlqReplayCmd.MarkFlagRequired("queue")
+	mustMarkFlagRequired(dlqReplayCmd, "queue")
 	dlqCmd.AddCommand(dlqReplayCmd)
 
 	jobsCmd.AddCommand(dlqCmd)
@@ -389,6 +390,31 @@ func resolveWorkerQueues(flagQueues []string, defaultQueue string) []string {
 		return []string{trimmed}
 	}
 	return []string{"default"}
+}
+
+func wrapCommandError(message string, err error) error {
+	return fmt.Errorf("%s: %w", message, canonicalizeJobsCommandError(err))
+}
+
+func canonicalizeJobsCommandError(err error) error {
+	switch {
+	case errors.Is(err, jobs.ErrValidation):
+		return coreerrors.NewValidationWithCode("validation.jobs", err.Error(), nil, nil)
+	case errors.Is(err, jobs.ErrConflict):
+		return coreerrors.New("jobs.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409)
+	case errors.Is(err, jobs.ErrNotFound):
+		return coreerrors.New("jobs.not_found", nil, err).WithMessage(err.Error()).WithHTTPStatus(404)
+	case errors.Is(err, jobs.ErrRetryable):
+		return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	case errors.Is(err, jobs.ErrInvalidArgument):
+		return coreerrors.New("argument.jobs.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400)
+	case errors.Is(err, jobs.ErrNotInitialized):
+		return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	case errors.Is(err, jobs.ErrClosed):
+		return coreerrors.NewClosed(err.Error(), err).WithDetails(map[string]interface{}{"family": "jobs"})
+	default:
+		return err
+	}
 }
 
 func parseStringMapFlag(values []string) (map[string]string, error) {
@@ -418,6 +444,18 @@ func writeCommandf(cmd *cobra.Command, format string, args ...any) error {
 func writeCommandln(cmd *cobra.Command, value string) error {
 	_, err := fmt.Fprintln(cmd.OutOrStdout(), value)
 	return err
+}
+
+func closeWithLog(log logger.Logger, name string, closeFn func() error) {
+	if closeErr := closeFn(); closeErr != nil && log != nil {
+		log.Error("failed to close "+name, "error", closeErr)
+	}
+}
+
+func mustMarkFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("mark %s as required: %v", name, err))
+	}
 }
 
 func setCommandPolicy(cmd *cobra.Command, policy string) {

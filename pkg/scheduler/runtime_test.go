@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/coordination"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -200,6 +201,14 @@ func TestRuntime_TriggerRejectsUnknownTask(t *testing.T) {
 		t.Fatal("expected trigger error for unknown task")
 	} else if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "scheduler.not_found" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 }
 
@@ -262,5 +271,13 @@ func TestRuntime_StartTwiceReturnsTypedConflict(t *testing.T) {
 		t.Fatal("expected second start error")
 	} else if !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected ErrConflict, got %v", err)
+	} else {
+		var appErr *coreerrors.AppError
+		if !errors.As(err, &appErr) {
+			t.Fatalf("expected AppError, got %T", err)
+		}
+		if appErr.Code != "scheduler.conflict" {
+			t.Fatalf("Code = %q", appErr.Code)
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -336,6 +337,13 @@ func TestRuntimeBackend_RenewMissingLeaseReturnsTypedNotFound(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "jobs.not_found" {
+		t.Fatalf("Code = %q", appErr.Code)
+	}
 }
 
 func TestRuntimeBackend_AckNilLeaseReturnsTypedValidationError(t *testing.T) {
@@ -351,5 +359,12 @@ func TestRuntimeBackend_AckNilLeaseReturnsTypedValidationError(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("expected ErrInvalidArgument, got %v", err)
+	}
+	var appErr *coreerrors.AppError
+	if !errors.As(err, &appErr) {
+		t.Fatalf("expected AppError, got %T", err)
+	}
+	if appErr.Code != "argument.jobs.invalid" {
+		t.Fatalf("Code = %q", appErr.Code)
 	}
 }
