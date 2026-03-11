@@ -64,7 +64,7 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 
 			// Execute transaction with multiple inserts
 			err = withTransaction(ctx, db, func(txCtx context.Context) error {
-				tx, _ := txCtx.Value("tx").(*sql.Tx)
+				tx, _ := txCtx.Value(txKey{}).(*sql.Tx)
 
 				for _, value := range operations {
 					_, execErr := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
@@ -123,7 +123,7 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 
 			// Execute transaction that will fail at failAtIndex
 			err = withTransaction(ctx, db, func(txCtx context.Context) error {
-				tx, _ := txCtx.Value("tx").(*sql.Tx)
+				tx, _ := txCtx.Value(txKey{}).(*sql.Tx)
 
 				for i, value := range operations {
 					if i == failAtIndex {
@@ -194,7 +194,7 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 				}()
 
 				_ = withTransaction(ctx, db, func(txCtx context.Context) error {
-					tx, _ := txCtx.Value("tx").(*sql.Tx)
+					tx, _ := txCtx.Value(txKey{}).(*sql.Tx)
 
 					for i, value := range operations {
 						if i == panicAtIndex {
