@@ -4,9 +4,8 @@ This document defines the machine-readable service descriptor that `nimbctl` sho
 
 It complements:
 
-- [nimbctl-alignment-plan.md](./nimbctl-alignment-plan.md)
-- [refactoring-design.md](./refactoring-design.md)
-- [refactoring-plan.md](./refactoring-plan.md)
+- [architecture.md](./architecture.md)
+- [archive/nimbctl-alignment-plan.md](./archive/nimbctl-alignment-plan.md)
 
 ## Purpose
 

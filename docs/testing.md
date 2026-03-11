@@ -1,6 +1,11 @@
 # Testing Guide
 
-This document describes the testing workflow and the stable verification lanes used on this branch.
+This document describes the stable verification lanes, local test infrastructure, and lint workflow used by the repository.
+
+Related documents:
+
+- [architecture.md](./architecture.md)
+- [operational-specs.md](./operational-specs.md)
 
 ## Quick Start
 
@@ -30,13 +35,13 @@ Use:
 - `make test-integration` when external services are required
 - `make test-parallel` for a full parallel run
 - `make test-coverage` for coverage output
-- `make test-review-sweep` for the documented pre-merge production-readiness sweep
+- `make test-review-sweep` for the documented full verification sweep
 
 The lane wrappers are the stable task-level entry points for `TASKS.md`. They currently shell out to `go test` with standard selection patterns and can be replaced later by more specialized wrappers without changing task language.
 
-## Pre-Merge Review Sweep
+## Full Verification Sweep
 
-For this worktree, the pre-merge production-readiness sweep is:
+The recommended full verification sweep is:
 
 ```bash
 env GOCACHE=.cache/go-build go vet ./...
@@ -54,7 +59,7 @@ env GOCACHE=.cache/go-build go test ./...
 
 Notes:
 
-- `GOCACHE=.cache/go-build` keeps verification artifacts local to the worktree.
+- `GOCACHE=.cache/go-build` keeps verification artifacts local to the repository worktree.
 - Redis and PostgreSQL integration tests now skip cleanly when Docker is unavailable.
 - The final `go test ./...` is the confidence sweep after the targeted regression packages pass.
 
@@ -68,7 +73,7 @@ Build verification for a touched area should use:
 make test-build TEST_PKG=./path/...
 ```
 
-This maps to `go test ./path/... -run '^$'` and is the canonical no-test compile gate for refactor tasks.
+This maps to `go test ./path/... -run '^$'` and is the canonical no-test compile gate for touched packages.
 
 ### Fast Tests
 
@@ -119,6 +124,29 @@ Command:
 make test-coverage
 ```
 
+## Infrastructure And Environment
+
+The repository currently relies on:
+
+- `docker-compose.test.yml` for local external services
+- `scripts/test.sh` as the main shell-based test runner
+- package-local unit, integration, and property tests
+- `internal/testharness/nonfunctional` for standard non-functional category gating
+
+When manual service startup is needed:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml down
+```
+
+Environment guardrails:
+
+- keep the default fast path lightweight
+- do not make normal unit feedback depend on Docker by default
+- prefer explicit setup over hidden global test magic
+- keep expensive suites off the default fast path, but give them standard documented entry points
+
 ## Current Test Categories
 
 The current codebase contains a mix of:
@@ -127,13 +155,39 @@ The current codebase contains a mix of:
 - integration tests
 - property tests
 
-Non-functional verification is still incomplete in the current codebase and should be treated as an explicit refactor target, not as optional follow-up work.
+Non-functional verification is still incomplete in some areas of the codebase and should be treated as an explicit framework quality target, not as optional follow-up work.
 
 Property tests remain important in this repo, especially for interchangeable contracts such as router behavior and other pluggable components.
 
-## Refactor Direction
+## Lint And Review Workflow
 
-During the refactor, testing should move away from package-group thinking based on the old layout and toward **contract-oriented suites**.
+Normal lint commands:
+
+```bash
+make lint
+make lint-fix
+make lint-critical
+```
+
+Use:
+
+- `make lint` for the normal lint pass
+- `make lint-fix` for auto-fixable issues
+- `make lint-critical` for security- and correctness-heavy lint review
+
+Manual review is still required for:
+
+- exported API comments
+- potential hardcoded secrets
+- file path handling and unsafe file access
+- shutdown, cleanup, and I/O error handling
+- structural refactors triggered by lint suggestions
+
+After non-trivial lint-driven changes, run tests on the affected package family, especially when touching control flow, concurrency, or context propagation.
+
+## Verification Model
+
+Testing should avoid old package-bucket thinking and instead favor **contract-oriented suites**.
 
 The default gate vocabulary for all implementation tasks is:
 
@@ -161,6 +215,13 @@ Priority test areas:
 - `pkg/cache`
 - `pkg/session`
 
+Architecture guardrails that matter during test and lint work:
+
+- do not recreate removed legacy package roots
+- keep `pkg/core` transport-agnostic
+- keep gRPC runtime code in `pkg/grpc`, not `pkg/http`
+- route new persistence and operational-role work to their family packages instead of reviving generic store buckets
+
 The preferred direction is:
 
 - keep unit tests close to the package that owns the behavior
@@ -177,7 +238,7 @@ Run the contract gate with:
 make test-contract-lane TEST_PKG=./path/...
 ```
 
-The refactor should preserve and expand contract-style tests for:
+The repository should preserve and expand contract-style tests for:
 
 - router implementations
 - gRPC unary and streaming interceptor chains
@@ -239,7 +300,7 @@ Use `NIMB_NONFUNCTIONAL` to narrow expensive categories when a package owns long
 NIMB_NONFUNCTIONAL=resilience,ordering make test-nonfunctional-lane TEST_PKG=./pkg/core/app
 ```
 
-During and after the refactor, the test model should explicitly include:
+The test model should explicitly include:
 
 - performance tests
 - soak tests

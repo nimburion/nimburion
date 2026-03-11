@@ -1,16 +1,15 @@
 # Error Model
 
-> Current branch state: this document captures the current error-handling model across the refactored codebase and the target convergence model expected before the error layer can be considered fully coherent.
-> Source of truth: findings here come from direct package inspection on the current branch, review-driven lint cleanup, and transport-mapping behavior already implemented in HTTP and gRPC layers.
+> Current repository state: this document captures the current error-handling model across the codebase and the target convergence model expected from framework-owned packages.
+> Source of truth: findings here come from package inspection, review-driven cleanup, and transport-mapping behavior implemented in HTTP and gRPC layers.
 
 This document maps the current error model package by package and defines the standard target for convergence.
 It is intentionally pragmatic: the goal is not to redesign every package, but to make error semantics predictable across runtime, CLI, transport, and infrastructure boundaries.
 
 Related documents:
 
-- [refactoring-design.md](./refactoring-design.md)
-- [refactoring-operational-specs.md](./refactoring-operational-specs.md)
-- [review-tasks.md](./review-tasks.md)
+- [architecture.md](./architecture.md)
+- [operational-specs.md](./operational-specs.md)
 - [testing.md](./testing.md)
 
 ## Working Assumptions

@@ -1,6 +1,8 @@
 # Configuration Management
 
-> Transitional note: this document describes the current pre-refactor configuration model and current environment variable surface. Keep it accurate for the running codebase, but do not treat the monolithic root config, global type selectors, or `pkg/configschema` coupling as the target architecture for new code. For the target direction, see [refactoring-requirements.md](./refactoring-requirements.md).
+This document describes the current configuration model and environment variable surface used by the repository.
+
+For package ownership and extension rules around configuration, see [architecture.md](./architecture.md).
 
 The Go Microservices Framework uses a hierarchical configuration system built on [Viper](https://github.com/spf13/viper) that supports multiple configuration sources with clear precedence rules.
 
@@ -13,6 +15,122 @@ Configuration values are loaded in the following order (highest to lowest priori
 3. **Default Values** - Built-in sensible defaults
 
 This precedence model follows the [12-Factor App](https://12factor.net/config) methodology and enables flexible deployment across different environments.
+
+## Secrets Files
+
+Nimburion supports separating sensitive configuration values into a dedicated secrets file for better security and GitOps workflows.
+
+### Precedence
+
+Secrets files sit between environment variables and the main config file:
+
+```text
+ENV variables > secrets file > config file > defaults
+```
+
+### File Discovery
+
+The secrets file is discovered using these rules:
+
+1. `APP_SECRETS_FILE=/path/to/secrets.yaml`
+2. same directory as the main config file
+3. current directory, using `secrets.yaml`, `secrets.yml`, `secrets.json`, or `secrets.toml`
+
+### Example
+
+`config.yaml`:
+
+```yaml
+database:
+  type: postgres
+  host: localhost
+  port: 5432
+  database_name: myapp
+  max_open_conns: 25
+
+cache:
+  type: redis
+  max_conns: 10
+
+auth:
+  enabled: true
+  issuer: https://auth.example.com
+  audience: my-service
+```
+
+`secrets.yaml`:
+
+```yaml
+database:
+  url: postgres://user:password@localhost:5432/myapp
+
+cache:
+  url: redis://:password@localhost:6379
+
+auth:
+  jwks_url: https://auth.example.com/.well-known/jwks.json
+```
+
+Merged result:
+
+```yaml
+database:
+  type: postgres
+  host: localhost
+  port: 5432
+  database_name: myapp
+  max_open_conns: 25
+  url: postgres://user:password@localhost:5432/myapp
+
+cache:
+  type: redis
+  max_conns: 10
+  url: redis://:password@localhost:6379
+
+auth:
+  enabled: true
+  issuer: https://auth.example.com
+  audience: my-service
+  jwks_url: https://auth.example.com/.well-known/jwks.json
+```
+
+### Usage
+
+In code:
+
+```go
+loader := config.NewViperLoader("config.yaml", "APP")
+cfg, secrets, err := loader.LoadWithSecrets()
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(cfg.Redacted(secrets))
+```
+
+From the CLI:
+
+```bash
+myservice config show
+myservice config show --show-secrets
+myservice config validate
+```
+
+### Operational Notes
+
+- keep non-sensitive settings in the main config file
+- keep secrets in a separate file that is not committed to Git
+- environment variables still override both config files
+- `cfg.Redacted(secrets)` masks any field whose non-zero value came from the secrets file
+
+Typical `.gitignore` entries:
+
+```text
+secrets.yaml
+secrets.yml
+secrets.json
+secrets.toml
+```
 
 ## Environment Variables
 

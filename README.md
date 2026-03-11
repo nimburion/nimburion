@@ -2,7 +2,7 @@
 
 Production-ready Go framework for microservices with strong defaults for security, observability, and operations.
 
-> Architecture status: this branch uses the refactored package layout built around `pkg/core`, `pkg/http`, `pkg/grpc`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related target-state families. Config schema ownership now lives in `pkg/config/schema`; for package boundaries and remaining guardrails, follow [docs/refactoring-requirements.md](./docs/refactoring-requirements.md) and [docs/migration-guide.md](./docs/migration-guide.md).
+> Architecture status: the repository uses the current package layout built around `pkg/core`, `pkg/http`, `pkg/grpc`, `pkg/persistence`, `pkg/cache`, `pkg/session`, and related families. For package boundaries and extension rules, follow [docs/architecture.md](./docs/architecture.md).
 
 ## Value Proposition
 - Build services faster with reusable platform modules.
@@ -21,7 +21,7 @@ Production-ready Go framework for microservices with strong defaults for securit
 ```bash
 go get github.com/nimburion/nimburion
 ```
-Applications on this branch bootstrap through `pkg/http/server` + `pkg/config` for public/management servers with graceful shutdown. See [docs/refactoring-requirements.md](./docs/refactoring-requirements.md) before adding new framework code.
+Applications bootstrap through `pkg/http/server` + `pkg/config` for public and management servers with graceful shutdown. See [docs/architecture.md](./docs/architecture.md) before adding new framework code.
 
 ## Testing
 ```bash
@@ -42,7 +42,7 @@ Use the `*-lane` wrappers for focused verification and the aggregate targets for
 ## Configuration
 - Priority: `ENV > secrets file > config file > defaults`
 - Prefix: `APP_`
-- Full reference: [Configuration guide](./docs/configuration.md), [Secrets](./docs/configuration-secrets.md)
+- Full reference: [Configuration guide](./docs/configuration.md)
 
 ## Current Package Map
 - `pkg/http/server`, `pkg/http/router`: server lifecycle and HTTP routing
@@ -55,25 +55,19 @@ Use the `*-lane` wrappers for focused verification and the aggregate targets for
 - `pkg/observability`, `pkg/health`, `pkg/resilience`: runtime operations and shared health semantics
 - `pkg/cli`, `pkg/persistence/relational/migrate`, `pkg/http/openapi`: tooling and HTTP API documentation
 
-## Refactor Guardrails
+## Architecture Guardrails
 
-Until the refactor lands, do not add new framework code under:
+Do not add new framework code under removed or superseded legacy roots.
 
-- `pkg/config/schema`
-
-`pkg/controller` is already removed on this branch. Place HTTP response/input work in `pkg/http/response` and `pkg/http/input`, keep application errors in `pkg/core/errors`, place new transport code in `pkg/http/*` or `pkg/grpc/*`, keep `pkg/core` transport-agnostic, and prefer target-state families such as `pkg/persistence/*`, `pkg/cache/*`, `pkg/session/*`, and `pkg/config/schema` over legacy package roots.
-
-Target direction for new framework code is tracked in [docs/refactoring-requirements.md](./docs/refactoring-requirements.md), the package design is in [docs/refactoring-design.md](./docs/refactoring-design.md), the execution order is tracked in [docs/refactoring-plan.md](./docs/refactoring-plan.md), the user interactions are tracked in [docs/refactoring-user-stories.md](./docs/refactoring-user-stories.md), and story traceability is tracked in [docs/refactoring-traceability.md](./docs/refactoring-traceability.md).
+Place HTTP response/input work in `pkg/http/response` and `pkg/http/input`, keep application errors in `pkg/core/errors`, place new transport code in `pkg/http/*` or `pkg/grpc/*`, keep `pkg/core` transport-agnostic, and prefer target families such as `pkg/persistence/*`, `pkg/cache/*`, `pkg/session/*`, `pkg/coordination/*`, and `pkg/config/schema`.
 
 ## Documentation
 - Wiki: <https://github.com/nimburion/nimburion.github.com/wiki>
 - Nimburion wiki section: <https://github.com/nimburion/nimburion.github.com/wiki/nimburion>
 - Repo docs: `docs/` and package-level `README.md` files under `pkg/`
-- Architecture transition and target requirements: [docs/refactoring-requirements.md](./docs/refactoring-requirements.md)
-- Target architecture design: [docs/refactoring-design.md](./docs/refactoring-design.md)
-- Operational specs for enterprise controls: [docs/refactoring-operational-specs.md](./docs/refactoring-operational-specs.md)
-- Detailed execution plan: [docs/refactoring-plan.md](./docs/refactoring-plan.md)
-- User stories and interactions: [docs/refactoring-user-stories.md](./docs/refactoring-user-stories.md)
-- Traceability matrix: [docs/refactoring-traceability.md](./docs/refactoring-traceability.md)
-- nimbctl alignment plan: [docs/nimbctl-alignment-plan.md](./docs/nimbctl-alignment-plan.md)
-- nimbctl service descriptor design: [docs/nimbctl-service-descriptor-design.md](./docs/nimbctl-service-descriptor-design.md)
+- Architecture overview: [docs/architecture.md](./docs/architecture.md)
+- Operational contracts: [docs/operational-specs.md](./docs/operational-specs.md)
+- Configuration: [docs/configuration.md](./docs/configuration.md)
+- Testing and lint workflow: [docs/testing.md](./docs/testing.md)
+- Error model: [docs/error-model.md](./docs/error-model.md)
+- Historical refactor material: [docs/archive/README.md](./docs/archive/README.md)
