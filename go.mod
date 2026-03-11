@@ -1,6 +1,6 @@
 module github.com/nimburion/nimburion
 
-go 1.25.5
+go 1.25.8
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
