@@ -83,6 +83,9 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 		"eventbus.access_key_id", "EVENTBUS_ACCESS_KEY_ID",
 		"eventbus.secret_access_key", "EVENTBUS_SECRET_ACCESS_KEY",
 		"eventbus.session_token", "EVENTBUS_SESSION_TOKEN",
+		"eventbus.wait_time_seconds", "EVENTBUS_WAIT_TIME_SECONDS",
+		"eventbus.max_messages", "EVENTBUS_MAX_MESSAGES",
+		"eventbus.visibility_timeout", "EVENTBUS_VISIBILITY_TIMEOUT",
 	)
 }
 
