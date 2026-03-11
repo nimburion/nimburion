@@ -151,6 +151,7 @@ func (c *memcachedAdapterClient) opContext(parent context.Context) (context.Cont
 	if parent == nil {
 		parent = context.Background()
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
 	return context.WithTimeout(parent, c.timeout)
 }
 
