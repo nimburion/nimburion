@@ -12,6 +12,7 @@ func (c *Conn) StartKeepalive(ctx context.Context, interval time.Duration, messa
 		return func() {}
 	}
 
+	// #nosec G118 -- cancel is returned to the caller, which owns the keepalive lifecycle.
 	ctx, cancel := context.WithCancel(ctx)
 	go func() {
 		ticker := time.NewTicker(interval)

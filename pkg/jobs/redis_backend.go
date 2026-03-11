@@ -571,6 +571,7 @@ func (b *RedisBackend) operationContext(ctx context.Context) (context.Context, c
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
 	return context.WithTimeout(ctx, b.config.OperationTimeout)
 }
 

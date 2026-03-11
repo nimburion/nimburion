@@ -53,6 +53,7 @@ func (c *memcachedAdapterClient) opContext() (context.Context, context.CancelFun
 	if c.timeout <= 0 {
 		return context.Background(), func() {}
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
 	return context.WithTimeout(context.Background(), c.timeout)
 }
 

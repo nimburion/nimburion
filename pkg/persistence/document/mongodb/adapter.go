@@ -173,5 +173,6 @@ func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, co
 	if _, hasDeadline := ctx.Deadline(); hasDeadline {
 		return ctx, func() {}
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
 	return context.WithTimeout(ctx, a.timeout)
 }

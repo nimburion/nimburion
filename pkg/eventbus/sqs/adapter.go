@@ -185,6 +185,7 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 		return fmt.Errorf("already subscribed to topic: %s", topic)
 	}
 
+	// #nosec G118 -- cancel is stored in the subscription registry for unsubscribe/close.
 	subCtx, cancel := context.WithCancel(ctx)
 	a.subs[topic] = cancel
 	queueURL := a.resolveQueueURL(topic)

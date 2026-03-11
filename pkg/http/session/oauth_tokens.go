@@ -9,9 +9,9 @@ import (
 
 const (
 	// AccessTokenKey stores the OAuth2 access token in session data.
-	AccessTokenKey = "oauth_access_token"
+	AccessTokenKey = "oauth_access_token" // #nosec G101 -- session storage key name, not a credential
 	// RefreshTokenKey stores the OAuth2 refresh token in session data.
-	RefreshTokenKey = "oauth_refresh_token"
+	RefreshTokenKey = "oauth_refresh_token" // #nosec G101 -- session storage key name, not a credential
 )
 
 // ErrNoSession indicates no session is attached to the current request context.

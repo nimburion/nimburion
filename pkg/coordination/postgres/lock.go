@@ -314,6 +314,7 @@ func (p *PostgresLockProvider) operationContext(ctx context.Context) (context.Co
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
 	return context.WithTimeout(ctx, p.config.OperationTimeout)
 }
 

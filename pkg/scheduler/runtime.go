@@ -133,6 +133,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		r.mu.Unlock()
 		return schedulerError(ErrConflict, "scheduler already running")
 	}
+	// #nosec G118 -- cancel is stored on the runtime and invoked during shutdown.
 	runningCtx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
 	r.running = true
@@ -341,6 +342,7 @@ func (r *Runtime) startLeaseRenewal(ctx context.Context, lease *coordination.Loc
 		return func() {}, done
 	}
 
+	// #nosec G118 -- cancel is returned to the caller, which stops lease renewal explicitly.
 	renewCtx, cancel := context.WithCancel(ctx)
 	interval := ttl / 2
 	if interval <= 0 {

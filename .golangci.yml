@@ -207,6 +207,11 @@ linters:
         linters:
           - gosec
 
+      - path: "pkg/http/cache/cache\\.go$"
+        text: "G101: Potential hardcoded credentials"
+        linters:
+          - gosec
+
     paths:
       - vendor
       - testdata

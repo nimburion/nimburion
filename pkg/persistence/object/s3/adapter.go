@@ -320,8 +320,10 @@ func (a *Adapter) Close() error {
 
 func (a *Adapter) withOperationTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if a.config.OperationTimeout <= 0 {
+		// #nosec G118 -- the cancel function is returned to the caller, which owns cleanup.
 		return context.WithCancel(ctx)
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which owns cleanup.
 	return context.WithTimeout(ctx, a.config.OperationTimeout)
 }
 

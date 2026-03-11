@@ -2,7 +2,7 @@ package ws
 
 import (
 	"bufio"
-	"crypto/sha1" //nolint:gosec // RFC 6455 requires SHA-1 for Sec-WebSocket-Accept.
+	"crypto/sha1" // #nosec G505 -- RFC 6455 requires SHA-1 for Sec-WebSocket-Accept.
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"

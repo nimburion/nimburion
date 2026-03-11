@@ -17,8 +17,10 @@ import (
 // WithTimeout returns a derived context with the provided timeout when d is positive.
 func WithTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
 	if d <= 0 {
+		// #nosec G118 -- the cancel function is returned to the caller, which owns cleanup.
 		return context.WithCancel(ctx)
 	}
+	// #nosec G118 -- the cancel function is returned to the caller, which owns cleanup.
 	return context.WithTimeout(ctx, d)
 }
 

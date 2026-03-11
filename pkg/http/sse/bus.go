@@ -156,6 +156,7 @@ func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(E
 		return nil, err
 	}
 
+	// #nosec G118 -- cancel is captured by the subscription handle and deferred in the goroutine.
 	subCtx, cancel := context.WithCancel(context.Background())
 	go func() {
 		defer cancel()

@@ -187,6 +187,7 @@ func (w *RuntimeWorker) Start(ctx context.Context) error {
 		w.lifecycleMu.Unlock()
 		return jobsError(ErrConflict, "worker already running")
 	}
+	// #nosec G118 -- cancel is stored on the worker and invoked during shutdown.
 	runCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
 	w.running = true
@@ -435,6 +436,7 @@ func (w *RuntimeWorker) startLeaseRenewal(ctx context.Context, lease *Lease) (fu
 		return func() {}, done
 	}
 
+	// #nosec G118 -- cancel is returned to the caller, which stops lease renewal explicitly.
 	renewCtx, cancel := context.WithCancel(ctx)
 	interval := w.config.LeaseTTL / 2
 	if interval <= 0 {

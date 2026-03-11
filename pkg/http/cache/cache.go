@@ -88,7 +88,7 @@ func DefaultConfig() Config {
 		StaleWhileRevalidate:   0,
 		Public:                 true,
 		VaryHeaders:            []string{},
-		BypassQueryParam:       "__cache_bypass",
+		BypassQueryParam:       "__cache_bypass", // #nosec G101 -- cache bypass query parameter name, not a credential
 		KeyPrefix:              "http-cache",
 		KeyRules:               []KeyRule{},
 		Sensitive:              false,

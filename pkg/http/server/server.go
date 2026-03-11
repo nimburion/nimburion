@@ -122,6 +122,7 @@ func shutdownContextFromParent(parent context.Context) (context.Context, context
 
 	base := context.WithoutCancel(parent)
 	if deadline, ok := parent.Deadline(); ok {
+		// #nosec G118 -- the derived cancel function is returned to the shutdown caller.
 		return context.WithDeadline(base, deadline)
 	}
 	return base, func() {}

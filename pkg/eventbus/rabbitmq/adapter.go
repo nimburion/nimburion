@@ -231,6 +231,7 @@ func (a *Adapter) Subscribe(ctx context.Context, topic string, handler eventbus.
 		return fmt.Errorf("failed to start consumer: %w", err)
 	}
 
+	// #nosec G118 -- cancel is stored in the subscription registry for unsubscribe/close.
 	subCtx, cancel := context.WithCancel(ctx)
 	a.subs[topic] = &subscription{channel: ch, queue: q.Name, cancel: cancel}
 	go a.consumeLoop(subCtx, topic, deliveries, handler)
