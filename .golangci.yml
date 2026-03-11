@@ -137,6 +137,11 @@ linters:
         linters:
           - revive
 
+      - path: "pkg/observability/metrics/http_test\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
       - path: "pkg/observability/metrics/registry\\.go$"
         text: "var-naming: avoid package names that conflict with Go standard library package names"
         linters:
