@@ -238,8 +238,10 @@ func ConsumeWithRetry(
 
 	var lastErr error
 	attempts := budget.MaxAttempts
+	attemptsUsed := 0
 
 	for attempt := 1; attempt <= attempts; attempt++ {
+		attemptsUsed = attempt
 		lastErr = breaker.Execute(func() error {
 			return resilience.WithTimeout(ctx, budget.AttemptTimeout, func(attemptCtx context.Context) error {
 				return handler(attemptCtx, message)
@@ -272,7 +274,7 @@ func ConsumeWithRetry(
 
 	finalDecision := reliabilityretry.Decide(
 		reliabilityretry.Classify(lastErr),
-		attempts,
+		attemptsUsed,
 		attempts,
 		budget,
 		reliabilityretry.Policy{
@@ -301,14 +303,14 @@ func ConsumeWithRetry(
 		log.Error("message routed to quarantine",
 			"original_topic", consumerTopic,
 			"message_id", message.ID,
-			"attempts", attempts,
+			"attempts", attemptsUsed,
 			"error", lastErr,
 		)
-		return fmt.Errorf("handler quarantined after %d attempts: %w", attempts, lastErr)
+		return fmt.Errorf("handler quarantined after %d attempts: %w", attemptsUsed, lastErr)
 	}
 
 	dlqTopic := consumerTopic + config.DLQTopicSuffix
-	if err := sendToDLQ(ctx, producer, dlqTopic, consumerTopic, message, lastErr, attempts); err != nil {
+	if err := sendToDLQ(ctx, producer, dlqTopic, consumerTopic, message, lastErr, attemptsUsed); err != nil {
 		metrics.incDLQFailure()
 		return fmt.Errorf("handler failed after retries (%w) and dlq publish failed: %w", lastErr, err)
 	}
@@ -318,10 +320,10 @@ func ConsumeWithRetry(
 		"original_topic", consumerTopic,
 		"dlq_topic", dlqTopic,
 		"message_id", message.ID,
-		"attempts", attempts,
+		"attempts", attemptsUsed,
 		"error", lastErr,
 	)
-	return fmt.Errorf("handler failed after %d attempts: %w", attempts, lastErr)
+	return fmt.Errorf("handler failed after %d attempts: %w", attemptsUsed, lastErr)
 }
 
 func sendToDLQ(

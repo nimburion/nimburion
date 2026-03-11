@@ -371,6 +371,9 @@ func (a *App) Prepare(ctx context.Context) error {
 
 // Run executes the configured lifecycle phases and runtime workloads.
 func (a *App) Run(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := a.Prepare(ctx); err != nil {
 		return err
 	}

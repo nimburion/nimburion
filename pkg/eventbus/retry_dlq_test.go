@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,7 +146,51 @@ func TestConsumeWithRetry_QuarantinesPoisonFailureWhenSinkProvided(t *testing.T)
 	if len(sink.records) != 1 {
 		t.Fatalf("expected one quarantine record, got %d", len(sink.records))
 	}
+	if sink.records[0].Attempt != 1 {
+		t.Fatalf("expected quarantine attempt=1, got %d", sink.records[0].Attempt)
+	}
+	if sink.records[0].MaxAttempts != 3 {
+		t.Fatalf("expected quarantine max_attempts=3, got %d", sink.records[0].MaxAttempts)
+	}
+	if !strings.Contains(err.Error(), "after 1 attempts") {
+		t.Fatalf("expected error to report 1 attempt, got %v", err)
+	}
 	if len(producer.messages) != 0 {
 		t.Fatalf("expected no dlq publish when quarantine sink is provided")
+	}
+}
+
+func TestConsumeWithRetry_SendsPoisonFailureToDLQWithActualAttemptCount(t *testing.T) {
+	producer := &fakeProducer{}
+
+	err := ConsumeWithRetry(
+		context.Background(),
+		"events.orders",
+		&Message{ID: "m1", Key: "k1", Value: []byte("payload")},
+		func(context.Context, *Message) error {
+			return reliabilityretry.Poison(errors.New("invalid schema"))
+		},
+		producer,
+		nil,
+		RetryDLQConfig{MaxRetries: 2, InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond, AttemptTimeout: time.Second},
+		testLogger{},
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected dlq error")
+	}
+	if len(producer.messages) != 1 {
+		t.Fatalf("expected one dlq message, got %d", len(producer.messages))
+	}
+
+	var payload DLQPayload
+	if jsonErr := json.Unmarshal(producer.messages[0].Value, &payload); jsonErr != nil {
+		t.Fatalf("invalid dlq payload json: %v", jsonErr)
+	}
+	if payload.AttemptCount != 1 {
+		t.Fatalf("expected attempt_count=1, got %d", payload.AttemptCount)
+	}
+	if !strings.Contains(err.Error(), "after 1 attempts") {
+		t.Fatalf("expected error to report 1 attempt, got %v", err)
 	}
 }

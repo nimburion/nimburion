@@ -380,13 +380,13 @@ func TestWorker_MissingHandlerQuarantinesWhenSinkProvided(t *testing.T) {
 
 	deadline := time.After(2 * time.Second)
 	for {
-		_, nacks, dlqs, _ := backend.snapshot()
+		acks, nacks, dlqs, _ := backend.snapshot()
 		sink.mu.Lock()
 		records := len(sink.records)
 		sink.mu.Unlock()
 		if records >= 1 {
-			if nacks != 0 || dlqs != 0 {
-				t.Fatalf("expected quarantine without retry/dlq, got nacks=%d dlqs=%d", nacks, dlqs)
+			if acks != 1 || nacks != 0 || dlqs != 0 {
+				t.Fatalf("expected quarantine with ack and without retry/dlq, got acks=%d nacks=%d dlqs=%d", acks, nacks, dlqs)
 			}
 			break
 		}

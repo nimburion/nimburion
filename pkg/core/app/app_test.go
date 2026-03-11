@@ -177,6 +177,29 @@ func TestRunExecutesShutdownHooksInReverseOrder(t *testing.T) {
 	}
 }
 
+func TestRunNormalizesNilContext(t *testing.T) {
+	t.Parallel()
+
+	a, err := New(Options{
+		Runners: []Runner{{
+			Name: "runtime",
+			Fn: func(ctx context.Context, _ *Runtime) error {
+				if ctx == nil {
+					t.Fatal("expected Run to normalize nil context")
+				}
+				return nil
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := a.Run(nil); err != nil {
+		t.Fatalf("Run(nil) error = %v", err)
+	}
+}
+
 func TestRunCancelsPeerRunnersWhenOneFails(t *testing.T) {
 	t.Parallel()
 

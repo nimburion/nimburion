@@ -400,6 +400,9 @@ func (w *RuntimeWorker) handleFailure(ctx context.Context, job *Job, lease *Leas
 			if err := w.config.DLQ.Quarantine.Quarantine(ctx, record); err != nil {
 				return errors.Join(jobsError(ErrRetryable, "quarantine failed"), err)
 			}
+			if err := w.backend.Ack(ctx, lease); err != nil {
+				return errors.Join(jobsError(ErrRetryable, "ack failed after quarantine"), err)
+			}
 			recordJobProcessed(job.Queue, job.Name, "quarantine")
 			return nil
 		}
