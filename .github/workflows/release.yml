@@ -26,7 +26,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.x'
+          go-version: '1.25.8'
           cache: true
 
       - name: golangci-lint
@@ -45,7 +45,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.x'
+          go-version: '1.25.8'
           cache: true
 
       - name: Install gosec
@@ -63,7 +63,7 @@ jobs:
     name: Run Verification
     uses: ./.github/workflows/reusable-test.yml
     with:
-      go-version: '1.25.x'
+      go-version: '1.25.8'
       coverage-threshold: 50
     permissions:
       contents: read
@@ -80,7 +80,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25.x'
+          go-version: '1.25.8'
           cache: true
 
       - name: Verify go.mod is tidy
