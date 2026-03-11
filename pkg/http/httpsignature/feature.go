@@ -5,18 +5,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/viper"
+
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	httpsignatureconfig "github.com/nimburion/nimburion/pkg/http/httpsignature/config"
-	"github.com/spf13/viper"
 )
 
+// Extension contributes the HTTP signature config section as family-owned config surface.
 type Extension struct {
 	Security httpsignatureconfig.SecurityConfig `mapstructure:"security"`
 }
 
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"security"} }
 
+// ApplyDefaults registers default HTTP signature configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("security.http_signature.enabled", false)
 	v.SetDefault("security.http_signature.key_id_header", "X-Key-Id")
@@ -30,6 +34,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("security.http_signature.static_keys", map[string]string{})
 }
 
+// BindEnv binds HTTP signature configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"security.http_signature.enabled", "SECURITY_HTTP_SIGNATURE_ENABLED",
@@ -44,6 +49,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that enabled HTTP signature configuration is coherent.
 func (e Extension) Validate() error {
 	cfg := e.Security.HTTPSignature
 	if !cfg.Enabled {
@@ -90,10 +96,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }
@@ -117,4 +128,5 @@ func (configFeature) Contributions() corefeature.Contributions {
 	}
 }
 
+// NewConfigFeature returns the feature that registers the HTTP signature config extension.
 func NewConfigFeature() corefeature.Feature { return configFeature{} }

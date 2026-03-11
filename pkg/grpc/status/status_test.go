@@ -3,11 +3,12 @@ package status
 import (
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	grpcvalidation "github.com/nimburion/nimburion/pkg/grpc/validation"
 	"github.com/nimburion/nimburion/pkg/jobs"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestCodeMapsValidationLayers(t *testing.T) {

@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 func TestNewCommandFeature(t *testing.T) {
@@ -18,7 +19,7 @@ func TestNewCommandFeature(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
-		Run: func(ctx context.Context, cfg *config.Config, log logger.Logger, direction string, args []string) error {
+		Run: func(_ context.Context, _ *config.Config, _ logger.Logger, direction string, _ []string) error {
 			called = true
 			if direction != "status" {
 				t.Fatalf("expected status direction, got %s", direction)

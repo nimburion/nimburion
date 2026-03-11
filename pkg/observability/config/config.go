@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 // Config configures logging, tracing, and HTTP request observability behavior.
@@ -23,6 +24,7 @@ type Config struct {
 	RequestTimeout    RequestTimeoutConfig `mapstructure:"request_timeout"`
 }
 
+// AsyncLoggingConfig configures asynchronous log shipping behavior.
 type AsyncLoggingConfig struct {
 	Enabled      bool `mapstructure:"enabled"`
 	QueueSize    int  `mapstructure:"queue_size"`
@@ -30,6 +32,7 @@ type AsyncLoggingConfig struct {
 	DropWhenFull bool `mapstructure:"drop_when_full"`
 }
 
+// RequestLoggingConfig configures HTTP request logging behavior.
 type RequestLoggingConfig struct {
 	Enabled              bool                   `mapstructure:"enabled"`
 	LogStart             bool                   `mapstructure:"log_start"`
@@ -39,22 +42,26 @@ type RequestLoggingConfig struct {
 	PathPolicies         []RequestLogPathPolicy `mapstructure:"path_policies"`
 }
 
+// RequestLogPathPolicy configures request logging policy for one path prefix.
 type RequestLogPathPolicy struct {
 	PathPrefix string `mapstructure:"path_prefix"`
 	Mode       string `mapstructure:"mode"`
 }
 
+// RequestTracingConfig configures HTTP request tracing behavior.
 type RequestTracingConfig struct {
 	Enabled              bool                     `mapstructure:"enabled"`
 	ExcludedPathPrefixes []string                 `mapstructure:"excluded_path_prefixes"`
 	PathPolicies         []RequestTracePathPolicy `mapstructure:"path_policies"`
 }
 
+// RequestTracePathPolicy configures request tracing policy for one path prefix.
 type RequestTracePathPolicy struct {
 	PathPrefix string `mapstructure:"path_prefix"`
 	Mode       string `mapstructure:"mode"`
 }
 
+// RequestTimeoutConfig configures HTTP request timeout behavior.
 type RequestTimeoutConfig struct {
 	Enabled              bool                       `mapstructure:"enabled"`
 	Default              time.Duration              `mapstructure:"default"`
@@ -62,6 +69,7 @@ type RequestTimeoutConfig struct {
 	PathPolicies         []RequestTimeoutPathPolicy `mapstructure:"path_policies"`
 }
 
+// RequestTimeoutPathPolicy configures request timeout policy for one path prefix.
 type RequestTimeoutPathPolicy struct {
 	PathPrefix string `mapstructure:"path_prefix"`
 	Mode       string `mapstructure:"mode"`
@@ -75,6 +83,7 @@ type Extension struct {
 // DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"observability"} }
 
+// ApplyDefaults registers default observability configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("observability.log_level", "info")
 	v.SetDefault("observability.log_format", "json")
@@ -93,6 +102,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("observability.request_timeout.default", 15*time.Second)
 }
 
+// BindEnv binds observability configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"observability.log_level", "OBSERVABILITY_LOG_LEVEL",
@@ -115,6 +125,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that observability configuration is coherent.
 func (e Extension) Validate() error {
 	e.Observability.RequestLogging.Fields = normalizeStringSlice(e.Observability.RequestLogging.Fields)
 	validLogLevels := []string{"debug", "info", "warn", "error"}
@@ -199,10 +210,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

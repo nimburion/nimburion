@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -205,7 +206,7 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *Job) error {
 }
 
 // Reserve claims the next available job from the queue and returns it with a lease.
-// Blocks until a job is available or the context is cancelled. Automatically transfers
+// Blocks until a job is available or the context is canceled. Automatically transfers
 // delayed jobs to the ready queue when their run time arrives.
 func (b *RedisBackend) Reserve(ctx context.Context, queue string, leaseFor time.Duration) (*Job, *Lease, error) {
 	if err := b.ensureOpen(); err != nil {
@@ -428,7 +429,12 @@ func (b *RedisBackend) ListDLQ(ctx context.Context, queue string, limit int) ([]
 	}
 
 	opCtx, cancel := b.operationContext(ctx)
-	ids, err := b.client.Raw().ZRevRange(opCtx, b.dlqIndexKey(queue), 0, int64(limit-1)).Result()
+	ids, err := b.client.Raw().ZRangeArgs(opCtx, redis.ZRangeArgs{
+		Key:   b.dlqIndexKey(queue),
+		Start: 0,
+		Stop:  int64(limit - 1),
+		Rev:   true,
+	}).Result()
 	cancel()
 	if err != nil {
 		return nil, err

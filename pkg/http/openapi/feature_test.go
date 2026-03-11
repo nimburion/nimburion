@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	appconfig "github.com/nimburion/nimburion/pkg/core/app/config"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 func TestNewCommandFeature_NilWhenRegisterRoutesMissing(t *testing.T) {
@@ -44,7 +45,7 @@ func TestNewCommandFeature_ContributesGenerateCommand(t *testing.T) {
 		ServiceVersion: "1.2.3",
 		Stdout:         &stdout,
 		RegisterRoutes: func(r router.Router, _ *config.Config) {
-			r.GET("/ping", func(c router.Context) error { return nil })
+			r.GET("/ping", func(_ router.Context) error { return nil })
 		},
 		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			return &config.Config{

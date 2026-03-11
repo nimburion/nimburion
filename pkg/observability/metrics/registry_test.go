@@ -283,7 +283,7 @@ func TestRegistry_HTTPMetricsUpdated(t *testing.T) {
 	registry := NewRegistry()
 
 	// Record some HTTP metrics
-	RecordHTTPMetrics("GET", "/api/users", 200, 100_000_000) // 100ms
+	RecordHTTPMetrics("GET", "/api/users", 200, 100_000_000)  // 100ms
 	RecordHTTPMetrics("POST", "/api/users", 201, 150_000_000) // 150ms
 	RecordHTTPMetrics("GET", "/api/users", 404, 50_000_000)   // 50ms
 

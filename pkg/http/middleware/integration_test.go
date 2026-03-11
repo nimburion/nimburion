@@ -5,12 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	"github.com/nimburion/nimburion/pkg/http/middleware/logging"
 	"github.com/nimburion/nimburion/pkg/http/middleware/metrics"
 	"github.com/nimburion/nimburion/pkg/http/middleware/recovery"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -160,7 +160,7 @@ func TestRecoveryWithRequestIDAndLogging(t *testing.T) {
 	// Order matters: RequestID -> Recovery -> Logging
 	r.Use(requestid.RequestID(), recovery.Recovery(log), logging.Logging(log))
 
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic("integration test panic")
 	})
 
@@ -204,7 +204,7 @@ func TestMiddlewareStackWithRecovery(t *testing.T) {
 	})
 
 	// Panicking handler
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic("test panic")
 	})
 

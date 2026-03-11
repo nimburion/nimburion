@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/spf13/viper"
+
 	authconfig "github.com/nimburion/nimburion/pkg/auth/config"
 	cacheconfig "github.com/nimburion/nimburion/pkg/cache/config"
 	appconfig "github.com/nimburion/nimburion/pkg/core/app/config"
@@ -23,7 +25,6 @@ import (
 	searchconfig "github.com/nimburion/nimburion/pkg/persistence/search/config"
 	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 	sessionconfig "github.com/nimburion/nimburion/pkg/session/config"
-	"github.com/spf13/viper"
 )
 
 type defaultsContributor interface {

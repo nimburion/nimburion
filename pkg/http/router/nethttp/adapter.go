@@ -254,7 +254,7 @@ func (c *netHTTPContext) Bind(v interface{}) error {
 	return fmt.Errorf("unsupported content type: %s", contentType)
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 // JSON serializes the given value as JSON and writes it to the response with the specified status code.
 func (c *netHTTPContext) JSON(code int, v interface{}) error {

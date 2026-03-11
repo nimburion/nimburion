@@ -42,8 +42,8 @@ func (m *mockContext) Param(name string) string {
 	return m.params[name]
 }
 
-func (m *mockContext) Query(name string) string {
-	return m.request.URL.Query().Get(name)
+func (m *mockContext) Query(key string) string {
+	return m.request.URL.Query().Get(key)
 }
 
 func (m *mockContext) Bind(v interface{}) error {
@@ -115,32 +115,32 @@ type mockRouter struct {
 	routes []string
 }
 
-func (m *mockRouter) GET(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) GET(path string, _ router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	m.routes = append(m.routes, path)
 }
 
-func (m *mockRouter) POST(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) POST(path string, _ router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	m.routes = append(m.routes, path)
 }
 
-func (m *mockRouter) PUT(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) PUT(path string, _ router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	m.routes = append(m.routes, path)
 }
 
-func (m *mockRouter) DELETE(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) DELETE(path string, _ router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	m.routes = append(m.routes, path)
 }
 
-func (m *mockRouter) PATCH(path string, handler router.HandlerFunc, middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) PATCH(path string, _ router.HandlerFunc, _ ...router.MiddlewareFunc) {
 	m.routes = append(m.routes, path)
 }
 
-func (m *mockRouter) Group(prefix string, middleware ...router.MiddlewareFunc) router.Router {
+func (m *mockRouter) Group(_ string, _ ...router.MiddlewareFunc) router.Router {
 	return m
 }
 
-func (m *mockRouter) Use(middleware ...router.MiddlewareFunc) {
+func (m *mockRouter) Use(_ ...router.MiddlewareFunc) {
 }
 
-func (m *mockRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *mockRouter) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 }

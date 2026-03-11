@@ -27,7 +27,7 @@ func (s *memoryStore) IsDuplicate(_ context.Context, scope, key string) (bool, e
 	return ok && expiresAt.After(time.Now().UTC()), nil
 }
 
-func (s *memoryStore) MarkSeen(_ context.Context, scope, key string, _ time.Time, retainUntil time.Time) error {
+func (s *memoryStore) MarkSeen(_ context.Context, scope, key string, _, retainUntil time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.items[scope]; !ok {

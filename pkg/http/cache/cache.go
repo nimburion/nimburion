@@ -230,7 +230,7 @@ func (m *middleware) handle(next router.HandlerFunc) router.HandlerFunc {
 
 		// Stampede protection: one request computes and stores value for a key,
 		// concurrent requests wait and receive the same cached payload.
-		sharedEntry, sharedErr, shared := m.group.Do(cacheKey, func() (*cacheEntry, error) {
+		sharedEntry, shared, sharedErr := m.group.Do(cacheKey, func() (*cacheEntry, error) {
 			c.Response().Header().Set("X-Cache", "MISS")
 			incCacheResult("miss")
 			return m.computeAndStore(c, next, cacheKey)
@@ -806,12 +806,12 @@ func (g *requestGroup) InFlight(key string) bool {
 }
 
 // Do executes the function for the key, deduplicating concurrent calls.
-func (g *requestGroup) Do(key string, fn func() (*cacheEntry, error)) (*cacheEntry, error, bool) {
+func (g *requestGroup) Do(key string, fn func() (*cacheEntry, error)) (*cacheEntry, bool, error) {
 	g.mu.Lock()
 	if call, ok := g.m[key]; ok {
 		g.mu.Unlock()
 		call.wg.Wait()
-		return call.entry, call.err, true
+		return call.entry, true, call.err
 	}
 	call := &requestCall{}
 	call.wg.Add(1)
@@ -825,5 +825,5 @@ func (g *requestGroup) Do(key string, fn func() (*cacheEntry, error)) (*cacheEnt
 	delete(g.m, key)
 	g.mu.Unlock()
 
-	return call.entry, call.err, false
+	return call.entry, false, call.err
 }

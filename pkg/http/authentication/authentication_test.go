@@ -36,7 +36,7 @@ func TestAuthenticate(t *testing.T) {
 		{
 			name:       "valid token",
 			authHeader: "Bearer valid.token.here",
-			validatorFunc: func(ctx context.Context, token string) (*auth.Claims, error) {
+			validatorFunc: func(_ context.Context, _ string) (*auth.Claims, error) {
 				return &auth.Claims{Subject: "user123", Scopes: []string{"read", "write"}}, nil
 			},
 			expectedStatus: http.StatusOK,

@@ -8,6 +8,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/router"

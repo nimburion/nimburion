@@ -9,8 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nimburion/nimburion/internal/safepath"
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/nimburion/nimburion/internal/safepath"
 )
 
 // Catalog stores locale-key translations in memory.

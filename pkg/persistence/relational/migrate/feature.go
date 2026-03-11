@@ -6,10 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 // ConfigLoader loads config and logger for contributed migration commands.

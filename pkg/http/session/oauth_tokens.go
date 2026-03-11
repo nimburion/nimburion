@@ -14,10 +14,18 @@ const (
 	RefreshTokenKey = "oauth_refresh_token"
 )
 
-var (
-	// ErrNoSession indicates no session is attached to the current request context.
-	ErrNoSession = errors.New("session middleware not configured or missing in request context")
-)
+// ErrNoSession indicates no session is attached to the current request context.
+var ErrNoSession = errors.New("session middleware not configured or missing in request context")
+
+func init() {
+	coreerrors.RegisterCanonicalizer(func(err error) (*coreerrors.AppError, bool) {
+		if errors.Is(err, ErrNoSession) {
+			return coreerrors.NewNotInitialized(err.Error(), err).
+				WithDetails(map[string]interface{}{"family": "http_session"}), true
+		}
+		return nil, false
+	})
+}
 
 // SetOAuthTokens stores OAuth2 access/refresh tokens in the server-side session.
 func SetOAuthTokens(c router.Context, accessToken, refreshToken string) error {

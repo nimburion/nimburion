@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	mongostore "github.com/nimburion/nimburion/pkg/persistence/document/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
+
+	mongostore "github.com/nimburion/nimburion/pkg/persistence/document/mongodb"
 )
 
 // MongoExecutor defines a minimal document execution contract for MongoDB-backed repositories.

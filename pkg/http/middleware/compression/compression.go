@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/andybalholm/brotli"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 

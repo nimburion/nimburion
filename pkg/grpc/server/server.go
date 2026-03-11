@@ -8,10 +8,11 @@ import (
 	"net"
 	"time"
 
-	coreapp "github.com/nimburion/nimburion/pkg/core/app"
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	coreapp "github.com/nimburion/nimburion/pkg/core/app"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 const defaultShutdownTimeout = 30 * time.Second
@@ -192,7 +193,7 @@ func Run(ctx context.Context, srv *Server, opts Options) error {
 		Runners: []coreapp.Runner{
 			{
 				Name: "grpc_server",
-				Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				Fn: func(ctx context.Context, _ *coreapp.Runtime) error {
 					return srv.Start(ctx)
 				},
 			},
@@ -210,7 +211,7 @@ func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {
 	for _, hook := range hooks {
 		out = append(out, coreapp.Hook{
 			Name: hook.Name,
-			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+			Fn: func(ctx context.Context, _ *coreapp.Runtime) error {
 				return hook.Fn(ctx)
 			},
 		})

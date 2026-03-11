@@ -26,6 +26,7 @@ type Message struct {
 	Headers  map[string]string
 }
 
+// Normalized returns a copy of m with trimmed fields and de-duplicated recipients.
 func (m Message) Normalized() Message {
 	cp := m
 	cp.From = strings.TrimSpace(cp.From)
@@ -37,6 +38,7 @@ func (m Message) Normalized() Message {
 	return cp
 }
 
+// Validate checks that m contains recipients, subject, and at least one body variant.
 func (m Message) Validate() error {
 	totalRecipients := len(m.To) + len(m.Cc) + len(m.Bcc)
 	if totalRecipients == 0 {
@@ -72,6 +74,7 @@ func normalizeEmailList(list []string) []string {
 	return out
 }
 
+// ApplyDefaultSender sets message.From from defaultFrom when message.From is empty.
 func ApplyDefaultSender(message Message, defaultFrom string) (Message, error) {
 	if strings.TrimSpace(message.From) != "" {
 		return message, nil

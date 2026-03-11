@@ -23,7 +23,7 @@ func NewAdapterChecker(name string, adapter Checkable, timeout time.Duration) *A
 	if timeout == 0 {
 		timeout = 5 * time.Second
 	}
-	
+
 	return &AdapterChecker{
 		name:    name,
 		adapter: adapter,
@@ -34,15 +34,15 @@ func NewAdapterChecker(name string, adapter Checkable, timeout time.Duration) *A
 // Check performs the health check on the adapter
 func (c *AdapterChecker) Check(ctx context.Context) CheckResult {
 	start := time.Now()
-	
+
 	// Create timeout context
 	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	
+
 	// Perform health check
 	err := c.adapter.HealthCheck(checkCtx)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		return CheckResult{
 			Name:      c.name,
@@ -52,7 +52,7 @@ func (c *AdapterChecker) Check(ctx context.Context) CheckResult {
 			Duration:  duration,
 		}
 	}
-	
+
 	return CheckResult{
 		Name:      c.name,
 		Status:    StatusHealthy,
@@ -81,7 +81,7 @@ func NewPingChecker(name string) *PingChecker {
 }
 
 // Check always returns healthy status
-func (c *PingChecker) Check(ctx context.Context) CheckResult {
+func (c *PingChecker) Check(_ context.Context) CheckResult {
 	return CheckResult{
 		Name:      c.name,
 		Status:    StatusHealthy,
@@ -116,10 +116,10 @@ func (c *CompositeChecker) Check(ctx context.Context) CheckResult {
 	start := time.Now()
 	status := StatusHealthy
 	var errors []string
-	
+
 	for _, checker := range c.checkers {
 		result := checker.Check(ctx)
-		
+
 		if result.Status == StatusUnhealthy {
 			status = StatusUnhealthy
 			if result.Error != "" {
@@ -129,20 +129,20 @@ func (c *CompositeChecker) Check(ctx context.Context) CheckResult {
 			status = StatusDegraded
 		}
 	}
-	
+
 	result := CheckResult{
 		Name:      c.name,
 		Status:    status,
 		Timestamp: time.Now(),
 		Duration:  time.Since(start),
 	}
-	
+
 	if len(errors) > 0 {
 		result.Error = fmt.Sprintf("sub-checks failed: %v", errors)
 	} else if status == StatusHealthy {
 		result.Message = "All sub-checks passed"
 	}
-	
+
 	return result
 }
 
@@ -169,9 +169,9 @@ func NewCustomChecker(name string, checkFunc func(ctx context.Context) (Status, 
 // Check executes the custom check function
 func (c *CustomChecker) Check(ctx context.Context) CheckResult {
 	start := time.Now()
-	
+
 	status, message, err := c.checkFunc(ctx)
-	
+
 	result := CheckResult{
 		Name:      c.name,
 		Status:    status,
@@ -179,11 +179,11 @@ func (c *CustomChecker) Check(ctx context.Context) CheckResult {
 		Timestamp: time.Now(),
 		Duration:  time.Since(start),
 	}
-	
+
 	if err != nil {
 		result.Error = err.Error()
 	}
-	
+
 	return result
 }
 
@@ -191,6 +191,7 @@ func (c *CustomChecker) Check(ctx context.Context) CheckResult {
 func (c *CustomChecker) Name() string {
 	return c.name
 }
+
 // NewDatabaseChecker creates a health checker for a database adapter
 // This is a convenience function for creating an AdapterChecker with database-specific defaults
 func NewDatabaseChecker(name string, db Checkable) *AdapterChecker {
@@ -208,4 +209,3 @@ func NewCacheChecker(name string, cache Checkable) *AdapterChecker {
 func NewMessageBrokerChecker(name string, broker Checkable) *AdapterChecker {
 	return NewAdapterChecker(name, broker, 5*time.Second)
 }
-

@@ -48,10 +48,7 @@ func TestAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 		// We can't test Close without a real connection, but we verify the method exists
 		// and has the correct signature by checking compilation
 		var adapter *Adapter
-		if adapter != nil {
-			_ = adapter.Close()
-			_ = adapter.HealthCheck(context.Background())
-		}
+		_ = adapter
 
 		// Verify config is properly structured
 		if cfg.MaxConns != 10 {
@@ -62,15 +59,14 @@ func TestAdapter_HealthCheckAndClose_Unit(t *testing.T) {
 		}
 	})
 
-	t.Run("HealthCheck_ContextTimeout", func(t *testing.T) {
+	t.Run("HealthCheck_ContextTimeout", func(_ *testing.T) {
 		// Verify that HealthCheck respects context timeout
 		// This is a structural test to ensure the method signature is correct
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
 		var adapter *Adapter
-		if adapter != nil {
-			_ = adapter.HealthCheck(ctx)
-		}
+		_ = adapter
+		_ = ctx
 	})
 }

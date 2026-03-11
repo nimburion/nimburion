@@ -72,7 +72,7 @@ func TestEventBusBridgeEnqueuePublishesToJobQueue(t *testing.T) {
 	)
 
 	bus := &testEventBus{
-		publishFn: func(ctx context.Context, topic string, message *eventbus.Message) error {
+		publishFn: func(_ context.Context, topic string, message *eventbus.Message) error {
 			publishedTopic = topic
 			publishedMsg = message
 			return nil
@@ -108,7 +108,7 @@ func TestEventBusBridgeSubscribeDecodesJob(t *testing.T) {
 	}
 
 	bus := &testEventBus{
-		subscribeFn: func(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
+		subscribeFn: func(ctx context.Context, _ string, handler eventbus.MessageHandler) error {
 			return handler(ctx, msg)
 		},
 	}
@@ -119,7 +119,7 @@ func TestEventBusBridgeSubscribeDecodesJob(t *testing.T) {
 	}
 
 	var got *Job
-	err = bridge.Subscribe(context.Background(), "maintenance", func(ctx context.Context, consumed *Job) error {
+	err = bridge.Subscribe(context.Background(), "maintenance", func(_ context.Context, consumed *Job) error {
 		got = consumed
 		return nil
 	})
@@ -140,7 +140,7 @@ func TestEventBusBridgeSubscribeRequiresQueueAndHandler(t *testing.T) {
 		t.Fatalf("new bridge failed: %v", err)
 	}
 
-	if err := bridge.Subscribe(context.Background(), "", func(ctx context.Context, job *Job) error { return nil }); err == nil {
+	if err := bridge.Subscribe(context.Background(), "", func(_ context.Context, _ *Job) error { return nil }); err == nil {
 		t.Fatal("expected queue validation error")
 	}
 	if err := bridge.Subscribe(context.Background(), "jobs", nil); err == nil {
@@ -156,7 +156,7 @@ func TestEventBusBridgePassthroughs(t *testing.T) {
 			}
 			return nil
 		},
-		healthFn: func(ctx context.Context) error { return nil },
+		healthFn: func(_ context.Context) error { return nil },
 		closeFn:  func() error { return nil },
 	}
 
@@ -179,7 +179,7 @@ func TestEventBusBridgePassthroughs(t *testing.T) {
 func TestEventBusBridgePropagatesErrors(t *testing.T) {
 	wantErr := errors.New("boom")
 	bus := &testEventBus{
-		publishFn: func(ctx context.Context, topic string, message *eventbus.Message) error {
+		publishFn: func(_ context.Context, _ string, _ *eventbus.Message) error {
 			return wantErr
 		},
 	}

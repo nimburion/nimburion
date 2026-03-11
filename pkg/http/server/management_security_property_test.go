@@ -16,6 +16,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
@@ -33,7 +34,7 @@ func TestProperty_ManagementJWTRequiredWhenEnabled(t *testing.T) {
 	authCaseGen := gen.OneConstOf("missing", "invalid", "valid")
 
 	props.Property("management endpoints require valid JWT when auth is enabled", prop.ForAll(
-		func(endpoint string, authCase string) bool {
+		func(endpoint, authCase string) bool {
 			validator := &testJWTValidator{
 				validateFunc: func(_ context.Context, token string) (*auth.Claims, error) {
 					switch token {

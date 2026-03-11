@@ -196,7 +196,7 @@ func (r *redisRuntimeAdapter) Enqueue(ctx context.Context, job *Job) error {
 	return r.backend.Enqueue(ctx, job)
 }
 
-func (r *redisRuntimeAdapter) Subscribe(ctx context.Context, queue string, handler Handler) error {
+func (r *redisRuntimeAdapter) Subscribe(_ context.Context, _ string, _ Handler) error {
 	return coreerrors.NewValidationWithCode(
 		"validation.jobs.backend.redis.subscribe_unsupported",
 		"jobs subscribe is not supported when jobs.backend is redis; use jobs worker",
@@ -205,7 +205,7 @@ func (r *redisRuntimeAdapter) Subscribe(ctx context.Context, queue string, handl
 	)
 }
 
-func (r *redisRuntimeAdapter) Unsubscribe(queue string) error { return nil }
+func (r *redisRuntimeAdapter) Unsubscribe(_ string) error { return nil }
 
 func (r *redisRuntimeAdapter) HealthCheck(ctx context.Context) error {
 	if r == nil || r.backend == nil {

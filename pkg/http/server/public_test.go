@@ -227,7 +227,7 @@ func TestPublicAPIServer_StartAndShutdown(t *testing.T) {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
 
-	// When: cancelling the context to trigger shutdown
+	// When: canceling the context to trigger shutdown
 	cancel()
 
 	// Then: server should shut down gracefully

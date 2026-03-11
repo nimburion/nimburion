@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/nimburion/nimburion/internal/rediskit"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
-	"github.com/redis/go-redis/v9"
 
 	ratelimitconfig "github.com/nimburion/nimburion/pkg/http/ratelimit/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"

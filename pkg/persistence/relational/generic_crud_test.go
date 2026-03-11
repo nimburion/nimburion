@@ -85,7 +85,7 @@ func TestGenericCrudRepository_Create(t *testing.T) {
 			name:    "nil entity",
 			entity:  nil,
 			wantErr: true,
-			setup:   func(mock sqlmock.Sqlmock) {},
+			setup:   func(_ sqlmock.Sqlmock) {},
 		},
 		{
 			name: "database error",
@@ -413,7 +413,7 @@ func TestGenericCrudRepository_Update(t *testing.T) {
 			name:    "nil entity",
 			entity:  nil,
 			wantErr: true,
-			setup:   func(mock sqlmock.Sqlmock) {},
+			setup:   func(_ sqlmock.Sqlmock) {},
 		},
 		{
 			name: "entity not found",

@@ -23,18 +23,25 @@ const (
 type StartupState string
 
 const (
-	StartupPending  StartupState = "pending"
+	// StartupPending marks a runtime that has not completed startup yet.
+	StartupPending StartupState = "pending"
+	// StartupStarting marks a runtime that is currently starting.
 	StartupStarting StartupState = "starting"
-	StartupReady    StartupState = "ready"
-	StartupFailed   StartupState = "failed"
+	// StartupReady marks a runtime that completed startup.
+	StartupReady StartupState = "ready"
+	// StartupFailed marks a runtime that failed during startup.
+	StartupFailed StartupState = "failed"
 )
 
 // ReadinessState describes whether the runtime should accept traffic.
 type ReadinessState string
 
 const (
-	ReadinessBlocked  ReadinessState = "blocked"
-	ReadinessReady    ReadinessState = "ready"
+	// ReadinessBlocked marks a runtime that must not receive traffic.
+	ReadinessBlocked ReadinessState = "blocked"
+	// ReadinessReady marks a runtime that can receive traffic.
+	ReadinessReady ReadinessState = "ready"
+	// ReadinessDegraded marks a runtime serving traffic in degraded mode.
 	ReadinessDegraded ReadinessState = "degraded"
 )
 
@@ -42,16 +49,21 @@ const (
 type LivenessState string
 
 const (
-	LivenessAlive    LivenessState = "alive"
+	// LivenessAlive marks a runtime that should remain running.
+	LivenessAlive LivenessState = "alive"
+	// LivenessStopping marks a runtime that is shutting down.
 	LivenessStopping LivenessState = "stopping"
-	LivenessStopped  LivenessState = "stopped"
+	// LivenessStopped marks a runtime that is no longer running.
+	LivenessStopped LivenessState = "stopped"
 )
 
 // Mode describes the current runtime posture mode.
 type Mode string
 
 const (
-	ModeNormal   Mode = "normal"
+	// ModeNormal marks normal runtime posture.
+	ModeNormal Mode = "normal"
+	// ModeDegraded marks degraded runtime posture.
 	ModeDegraded Mode = "degraded"
 )
 
@@ -159,7 +171,7 @@ func RegisterHealthChecks(registry *health.Registry, posture *RuntimePosture) {
 
 // NewStartupChecker exposes startup posture through the health registry.
 func NewStartupChecker(name string, posture *RuntimePosture) health.Checker {
-	return health.NewCustomChecker(name, func(ctx context.Context) (health.Status, string, error) {
+	return health.NewCustomChecker(name, func(_ context.Context) (health.Status, string, error) {
 		snapshot := posture.Snapshot()
 		switch snapshot.Startup {
 		case StartupReady:
@@ -174,7 +186,7 @@ func NewStartupChecker(name string, posture *RuntimePosture) health.Checker {
 
 // NewReadinessChecker exposes readiness posture through the health registry.
 func NewReadinessChecker(name string, posture *RuntimePosture) health.Checker {
-	return health.NewCustomChecker(name, func(ctx context.Context) (health.Status, string, error) {
+	return health.NewCustomChecker(name, func(_ context.Context) (health.Status, string, error) {
 		snapshot := posture.Snapshot()
 		switch snapshot.Readiness {
 		case ReadinessReady:
@@ -189,7 +201,7 @@ func NewReadinessChecker(name string, posture *RuntimePosture) health.Checker {
 
 // NewLivenessChecker exposes liveness posture through the health registry.
 func NewLivenessChecker(name string, posture *RuntimePosture) health.Checker {
-	return health.NewCustomChecker(name, func(ctx context.Context) (health.Status, string, error) {
+	return health.NewCustomChecker(name, func(_ context.Context) (health.Status, string, error) {
 		snapshot := posture.Snapshot()
 		switch snapshot.Liveness {
 		case LivenessAlive:
@@ -204,7 +216,7 @@ func NewLivenessChecker(name string, posture *RuntimePosture) health.Checker {
 
 // NewPostureChecker exposes the aggregated runtime posture through the health registry.
 func NewPostureChecker(name string, posture *RuntimePosture) health.Checker {
-	return health.NewCustomChecker(name, func(ctx context.Context) (health.Status, string, error) {
+	return health.NewCustomChecker(name, func(_ context.Context) (health.Status, string, error) {
 		snapshot := posture.Snapshot()
 		switch {
 		case snapshot.Liveness == LivenessStopped || snapshot.Startup == StartupFailed || snapshot.Readiness == ReadinessBlocked:

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	// Register the MySQL database/sql driver.
 	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 

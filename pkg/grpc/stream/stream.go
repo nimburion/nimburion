@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	grpcmetadata "github.com/nimburion/nimburion/pkg/grpc/metadata"
 	"google.golang.org/grpc"
+
+	grpcmetadata "github.com/nimburion/nimburion/pkg/grpc/metadata"
 )
 
 // WrappedServerStream overrides the context carried by one grpc.ServerStream.

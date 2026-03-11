@@ -7,11 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 // Adapter provides MongoDB connectivity.
@@ -137,7 +138,7 @@ func (a *Adapter) InsertOne(ctx context.Context, collection string, doc interfac
 }
 
 // FindOne decodes a single document from the target collection.
-func (a *Adapter) FindOne(ctx context.Context, collection string, filter interface{}, result interface{}) error {
+func (a *Adapter) FindOne(ctx context.Context, collection string, filter, result interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	return a.Collection(collection).FindOne(opCtx, filter).Decode(result)

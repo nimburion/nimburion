@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
@@ -205,7 +206,7 @@ func (c *gorillaContext) Bind(v interface{}) error {
 	return json.NewDecoder(c.request.Body).Decode(v)
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 func (c *gorillaContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")

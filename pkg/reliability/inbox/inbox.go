@@ -1,3 +1,4 @@
+// Package inbox provides inbox processing primitives for reliable consumers.
 package inbox
 
 import (
@@ -7,6 +8,7 @@ import (
 	"time"
 )
 
+// CreateTablePostgres is the PostgreSQL schema for inbox state storage.
 const CreateTablePostgres = `
 CREATE TABLE IF NOT EXISTS inbox (
   consumer_name TEXT NOT NULL,
@@ -21,10 +23,13 @@ CREATE INDEX IF NOT EXISTS idx_inbox_status_received_at ON inbox (status, receiv
 `
 
 const (
+	// StatusReceived marks an inbox message as received but not yet handled.
 	StatusReceived = "received"
-	StatusHandled  = "handled"
+	// StatusHandled marks an inbox message as fully handled.
+	StatusHandled = "handled"
 )
 
+// Entry represents one inbox message state record.
 type Entry struct {
 	ConsumerName string
 	MessageID    string
@@ -33,6 +38,7 @@ type Entry struct {
 	Status       string
 }
 
+// Validate checks that the inbox entry contains the required fields.
 func (e *Entry) Validate() error {
 	if e == nil {
 		return errors.New("inbox entry is nil")
@@ -51,6 +57,7 @@ func (e *Entry) Validate() error {
 	}
 }
 
+// Store persists inbox message state.
 type Store interface {
 	InsertReceived(ctx context.Context, entry *Entry) error
 	IsHandled(ctx context.Context, consumerName, messageID string) (bool, error)
@@ -58,16 +65,19 @@ type Store interface {
 	CleanupHandledBefore(ctx context.Context, before time.Time, limit int) (int, error)
 }
 
+// Writer exposes inbox operations inside a transaction boundary.
 type Writer interface {
 	InsertReceived(ctx context.Context, entry *Entry) error
 	MarkHandled(ctx context.Context, consumerName, messageID string, handledAt time.Time) error
 	IsHandled(ctx context.Context, consumerName, messageID string) (bool, error)
 }
 
+// TxExecutor executes inbox operations in a transaction boundary.
 type TxExecutor interface {
 	WithTransaction(ctx context.Context, fn func(context.Context, Writer) error) error
 }
 
+// ExecuteTransactional records inbox state and runs handler atomically.
 func ExecuteTransactional(ctx context.Context, executor TxExecutor, entry *Entry, handler func(context.Context) error) (bool, error) {
 	if executor == nil {
 		return false, errors.New("transaction executor is required")

@@ -13,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	legacyrouter "github.com/getkin/kin-openapi/routers/legacy"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 	logpkg "github.com/nimburion/nimburion/pkg/observability/logger"
 )

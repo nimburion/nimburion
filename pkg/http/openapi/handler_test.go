@@ -22,7 +22,7 @@ func TestHandler_ServeSpec(t *testing.T) {
 				tmpDir := t.TempDir()
 				specPath := filepath.Join(tmpDir, "openapi.yaml")
 				content := []byte("openapi: 3.0.0\ninfo:\n  title: Test API\n  version: 1.0.0\n")
-				if err := os.WriteFile(specPath, content, 0644); err != nil {
+				if err := os.WriteFile(specPath, content, 0o644); err != nil {
 					t.Fatalf("failed to create test file: %v", err)
 				}
 				return specPath
@@ -37,7 +37,7 @@ func TestHandler_ServeSpec(t *testing.T) {
 				tmpDir := t.TempDir()
 				specPath := filepath.Join(tmpDir, "openapi.json")
 				content := []byte(`{"openapi":"3.0.0","info":{"title":"Test API","version":"1.0.0"}}`)
-				if err := os.WriteFile(specPath, content, 0644); err != nil {
+				if err := os.WriteFile(specPath, content, 0o644); err != nil {
 					t.Fatalf("failed to create test file: %v", err)
 				}
 				return specPath
@@ -48,7 +48,7 @@ func TestHandler_ServeSpec(t *testing.T) {
 		},
 		{
 			name: "return 404 when spec file not found",
-			setupFile: func(t *testing.T) string {
+			setupFile: func(_ *testing.T) string {
 				return "/nonexistent/path/openapi.yaml"
 			},
 			expectedStatus: http.StatusNotFound,
@@ -97,7 +97,7 @@ func TestHandler_RegisterRoutes(t *testing.T) {
 	tmpDir := t.TempDir()
 	specPath := filepath.Join(tmpDir, "openapi.yaml")
 	content := []byte("openapi: 3.0.0\n")
-	if err := os.WriteFile(specPath, content, 0644); err != nil {
+	if err := os.WriteFile(specPath, content, 0o644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 

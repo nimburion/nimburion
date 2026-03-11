@@ -13,7 +13,7 @@ func NewValidationError(message string, details map[string]interface{}) *AppErro
 }
 
 // NewValidationErrorWithCode creates a validation error that can be localized.
-func NewValidationErrorWithCode(code, fallbackMessage string, params map[string]interface{}, details map[string]interface{}) *AppError {
+func NewValidationErrorWithCode(code, fallbackMessage string, params, details map[string]interface{}) *AppError {
 	return coreerrors.NewValidationWithCode(code, fallbackMessage, coreerrors.Params(params), details).
 		WithHTTPStatus(inferStatusFromCode(code))
 }

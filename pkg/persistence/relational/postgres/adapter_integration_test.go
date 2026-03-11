@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 // TestAdapter_Integration tests the PostgreSQL adapter with a real database
@@ -39,8 +40,8 @@ func TestAdapter_Integration(t *testing.T) {
 		t.Fatalf("Failed to start PostgreSQL container: %v", err)
 	}
 	defer func() {
-		if err := testcontainers.TerminateContainer(pgContainer); err != nil {
-			t.Logf("Failed to terminate container: %v", err)
+		if terminateErr := testcontainers.TerminateContainer(pgContainer); terminateErr != nil {
+			t.Logf("Failed to terminate container: %v", terminateErr)
 		}
 	}()
 
@@ -182,8 +183,8 @@ func TestAdapter_Integration(t *testing.T) {
 
 		// Execute transaction
 		err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
-			_, err := adapter.ExecContext(txCtx, "INSERT INTO test_commit (value) VALUES ($1)", "test_value")
-			return err
+			_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_commit (value) VALUES ($1)", "test_value")
+			return execErr
 		})
 		if err != nil {
 			t.Fatalf("Transaction failed: %v", err)
@@ -230,9 +231,9 @@ func TestAdapter_Integration(t *testing.T) {
 
 		// Execute transaction that should rollback
 		err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
-			_, err := adapter.ExecContext(txCtx, "INSERT INTO test_rollback (value) VALUES ($1)", "should_rollback")
-			if err != nil {
-				return err
+			_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_rollback (value) VALUES ($1)", "should_rollback")
+			if execErr != nil {
+				return execErr
 			}
 			// Return error to trigger rollback
 			return context.Canceled
@@ -285,9 +286,9 @@ func TestAdapter_Integration(t *testing.T) {
 		// Execute transaction with nested operations
 		err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
 			// First insert
-			_, err := adapter.ExecContext(txCtx, "INSERT INTO test_nested (value) VALUES ($1)", "first")
-			if err != nil {
-				return err
+			_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_nested (value) VALUES ($1)", "first")
+			if execErr != nil {
+				return execErr
 			}
 
 			// Nested operation using same transaction context
@@ -353,8 +354,8 @@ func TestAdapter_Integration(t *testing.T) {
 		values := []string{}
 		for rows.Next() {
 			var value string
-			if err := rows.Scan(&value); err != nil {
-				t.Fatalf("Failed to scan row: %v", err)
+			if scanErr := rows.Scan(&value); scanErr != nil {
+				t.Fatalf("Failed to scan row: %v", scanErr)
 			}
 			values = append(values, value)
 		}

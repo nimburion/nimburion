@@ -9,12 +9,12 @@ import (
 
 func TestGenerateHTTPOnlyDescriptor(t *testing.T) {
 	root := newRoot("app")
-	runCmd := &cobra.Command{Use: "run", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	runCmd := &cobra.Command{Use: "run", RunE: func(_ *cobra.Command, _ []string) error { return nil }}
 	runCmd.Annotations = map[string]string{"policies.run": "run"}
 	root.AddCommand(runCmd)
 	configCmd := &cobra.Command{Use: "config"}
-	configCmd.AddCommand(&cobra.Command{Use: "show", RunE: func(cmd *cobra.Command, args []string) error { return nil }})
-	configCmd.AddCommand(&cobra.Command{Use: "validate", RunE: func(cmd *cobra.Command, args []string) error { return nil }})
+	configCmd.AddCommand(&cobra.Command{Use: "show", RunE: func(_ *cobra.Command, _ []string) error { return nil }})
+	configCmd.AddCommand(&cobra.Command{Use: "validate", RunE: func(_ *cobra.Command, _ []string) error { return nil }})
 	root.AddCommand(configCmd)
 
 	desc, err := Generate(root, Options{
@@ -43,7 +43,7 @@ func TestGenerateHTTPOnlyDescriptor(t *testing.T) {
 
 func TestGenerateGRPCOnlyDescriptor(t *testing.T) {
 	root := newRoot("app")
-	runCmd := &cobra.Command{Use: "run", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	runCmd := &cobra.Command{Use: "run", RunE: func(_ *cobra.Command, _ []string) error { return nil }}
 	runCmd.Annotations = map[string]string{"policies.run": "run"}
 	root.AddCommand(runCmd)
 
@@ -73,10 +73,10 @@ func TestGenerateGRPCOnlyDescriptor(t *testing.T) {
 
 func TestGenerateMixedAppDescriptor(t *testing.T) {
 	root := newRoot("app")
-	runCmd := &cobra.Command{Use: "run", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	runCmd := &cobra.Command{Use: "run", RunE: func(_ *cobra.Command, _ []string) error { return nil }}
 	runCmd.Annotations = map[string]string{"policies.run": "run"}
 	root.AddCommand(runCmd)
-	migrateCmd := &cobra.Command{Use: "migrate", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+	migrateCmd := &cobra.Command{Use: "migrate", RunE: func(_ *cobra.Command, _ []string) error { return nil }}
 	migrateCmd.Annotations = map[string]string{"policies.run": "migration"}
 	root.AddCommand(migrateCmd)
 

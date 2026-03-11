@@ -10,6 +10,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 )
 
@@ -67,7 +68,6 @@ func TestDefaultConfig(t *testing.T) {
 func TestViperLoader_LoadDefaults(t *testing.T) {
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -99,7 +99,6 @@ func TestViperLoader_LoadWithEnvOverride(t *testing.T) {
 
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -781,7 +780,6 @@ func TestViperLoader_ValidConfiguration(t *testing.T) {
 	os.Setenv("APP_OBSERVABILITY_LOG_LEVEL", "info")
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with valid config, got: %v", err)
 	}
@@ -856,7 +854,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -910,7 +907,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration (no ENV vars set)
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -955,7 +951,6 @@ func TestProperty8_ConfigurationPrecedence(t *testing.T) {
 			// Load configuration (no file, no ENV vars)
 			loader := NewViperLoader("", "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Logf("Load error: %v", err)
 				return false
@@ -1114,8 +1109,8 @@ func TestProperty9_ConfigurationFormatSupport(t *testing.T) {
 
 	properties.Property("YAML, JSON, and TOML produce equivalent configs", prop.ForAll(
 		func(httpPort, mgmtPort int, logLevel, logFormat string,
-			readTimeout, writeTimeout time.Duration, swaggerEnabled bool) bool {
-
+			readTimeout, writeTimeout time.Duration, swaggerEnabled bool,
+		) bool {
 			// Ensure ports are different
 			if httpPort == mgmtPort {
 				mgmtPort = httpPort + 1
@@ -1885,7 +1880,6 @@ func TestConfigurationDefaults_AllSections(t *testing.T) {
 	// Load configuration with no file and no environment variables
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -2052,7 +2046,6 @@ func TestConfigurationDefaults_SpecificValues(t *testing.T) {
 
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error loading defaults, got: %v", err)
 	}
@@ -2124,7 +2117,6 @@ func TestConfigurationDefaults_NoFileNoEnv(t *testing.T) {
 	// Create loader with no config file
 	loader := NewViperLoader("", "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -2157,7 +2149,6 @@ func TestConfigurationDefaults_EmptyConfigFile(t *testing.T) {
 	// Load configuration with empty file
 	loader := NewViperLoader(tmpFile.Name(), "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with empty config file, got: %v", err)
 	}
@@ -2189,7 +2180,6 @@ func TestConfigurationDefaults_PartialConfig(t *testing.T) {
 
 	loader := NewViperLoader(configFile, "APP")
 	cfg, err := loader.Load()
-
 	if err != nil {
 		t.Fatalf("expected no error with partial config, got: %v", err)
 	}
@@ -2329,7 +2319,6 @@ func TestConfigurationDefaults_TableDriven(t *testing.T) {
 			// Load configuration
 			loader := NewViperLoader(configFile, "APP")
 			cfg, err := loader.Load()
-
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}

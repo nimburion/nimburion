@@ -53,7 +53,7 @@ func TestProperty_OutboxAtomicity(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("business row and outbox row commit atomically", prop.ForAll(
-		func(shouldBusinessFail bool, invalidEntry bool) bool {
+		func(shouldBusinessFail, invalidEntry bool) bool {
 			executor := &fakeTxExecutor{}
 
 			entry := &Entry{

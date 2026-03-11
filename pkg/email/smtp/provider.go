@@ -1,3 +1,4 @@
+// Package smtp provides an email provider backed by SMTP.
 package smtp
 
 import (
@@ -18,14 +19,17 @@ import (
 
 type sendMailFunc func(addr string, auth gosmtp.Auth, from string, to []string, msg []byte) error
 
+// Config configures the SMTP email provider.
 type Config = emailconfig.SMTPConfig
 
+// Provider sends email through SMTP.
 type Provider struct {
 	cfg      Config
 	log      logger.Logger
 	sendMail sendMailFunc
 }
 
+// New constructs an SMTP-backed email provider.
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Host) == "" {
 		return nil, coreerrors.NewValidationWithCode("validation.email.smtp.host.required", "smtp host is required", nil, nil)
@@ -39,6 +43,7 @@ func New(cfg Config, log logger.Logger) (*Provider, error) {
 	return &Provider{cfg: cfg, log: log, sendMail: gosmtp.SendMail}, nil
 }
 
+// Send delivers message using the configured SMTP server.
 func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	msg := message.Normalized()
 	msg, err := email.ApplyDefaultSender(msg, p.cfg.From)
@@ -90,16 +95,16 @@ func (p *Provider) sendMailWithTLS(addr string, auth gosmtp.Auth, from string, t
 		}
 	}()
 	if auth != nil {
-		if err := client.Auth(auth); err != nil {
-			return err
+		if authErr := client.Auth(auth); authErr != nil {
+			return authErr
 		}
 	}
-	if err := client.Mail(from); err != nil {
-		return err
+	if mailErr := client.Mail(from); mailErr != nil {
+		return mailErr
 	}
 	for _, rcpt := range to {
-		if err := client.Rcpt(rcpt); err != nil {
-			return err
+		if rcptErr := client.Rcpt(rcpt); rcptErr != nil {
+			return rcptErr
 		}
 	}
 	w, err := client.Data()
@@ -118,4 +123,5 @@ func (p *Provider) sendMailWithTLS(addr string, auth gosmtp.Auth, from string, t
 	return sendErr
 }
 
+// Close releases provider resources.
 func (p *Provider) Close() error { return nil }

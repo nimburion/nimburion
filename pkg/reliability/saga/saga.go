@@ -1,3 +1,4 @@
+// Package saga provides saga orchestration primitives.
 package saga
 
 import (
@@ -7,23 +8,32 @@ import (
 	"time"
 )
 
+// Status describes the current state of a saga run.
 type Status string
 
 const (
-	StatusPending      Status = "pending"
-	StatusRunning      Status = "running"
-	StatusCompleted    Status = "completed"
+	// StatusPending marks a saga that has been defined but not yet started.
+	StatusPending Status = "pending"
+	// StatusRunning marks a saga that is currently executing.
+	StatusRunning Status = "running"
+	// StatusCompleted marks a saga that completed successfully.
+	StatusCompleted Status = "completed"
+	// StatusCompensating marks a saga that is currently compensating.
 	StatusCompensating Status = "compensating"
-	StatusCompensated  Status = "compensated"
-	StatusFailed       Status = "failed"
+	// StatusCompensated marks a saga that completed compensation.
+	StatusCompensated Status = "compensated"
+	// StatusFailed marks a saga that failed irrecoverably.
+	StatusFailed Status = "failed"
 )
 
+// Step defines one forward and compensating action within a saga.
 type Step struct {
 	Name       string
 	Execute    func(context.Context) error
 	Compensate func(context.Context) error
 }
 
+// Validate checks that the step contains the required fields.
 func (s *Step) Validate() error {
 	if s == nil {
 		return errors.New("saga step is nil")
@@ -37,11 +47,13 @@ func (s *Step) Validate() error {
 	return nil
 }
 
+// Definition describes a saga and its ordered steps.
 type Definition struct {
 	Name  string
 	Steps []Step
 }
 
+// Validate checks that the saga definition is coherent.
 func (d *Definition) Validate() error {
 	if d == nil {
 		return errors.New("saga definition is nil")
@@ -65,6 +77,7 @@ func (d *Definition) Validate() error {
 	return nil
 }
 
+// Event is an observer notification emitted during saga execution.
 type Event struct {
 	SagaName   string
 	StepName   string
@@ -73,21 +86,25 @@ type Event struct {
 	Error      string
 }
 
+// Observer receives saga lifecycle events.
 type Observer interface {
 	OnEvent(context.Context, Event) error
 }
 
+// Result captures the final outcome of a saga run.
 type Result struct {
 	Status         Status
 	CompletedSteps []string
 	Compensated    []string
 }
 
+// Runner executes saga definitions and drives compensation on failure.
 type Runner struct {
 	definition Definition
 	observer   Observer
 }
 
+// NewRunner constructs a Runner for definition and observer.
 func NewRunner(definition Definition, observer Observer) (*Runner, error) {
 	if err := definition.Validate(); err != nil {
 		return nil, err
@@ -95,6 +112,7 @@ func NewRunner(definition Definition, observer Observer) (*Runner, error) {
 	return &Runner{definition: definition, observer: observer}, nil
 }
 
+// Run executes the saga definition and compensates completed steps on failure.
 func (r *Runner) Run(ctx context.Context) (Result, error) {
 	if ctx == nil {
 		return Result{}, errors.New("context is required")

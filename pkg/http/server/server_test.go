@@ -403,7 +403,7 @@ func TestServerStart_WithTLSConfigUsesHTTPS(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Plain HTTP must not successfully reach the TLS endpoint.
-	if resp, err := http.Get("http://localhost:8086/health"); err == nil {
+	if resp, getErr := http.Get("http://localhost:8086/health"); getErr == nil {
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
 			t.Fatal("expected plain HTTP request to fail or be rejected when TLS is enabled")

@@ -1,10 +1,14 @@
 package config
 
 import (
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	"fmt"
+
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
+// Config configures HTTP security headers policy.
 type Config struct {
 	Enabled                   bool              `mapstructure:"enabled"`
 	IsDevelopment             bool              `mapstructure:"is_development"`
@@ -30,12 +34,15 @@ type Config struct {
 	CustomHeaders             map[string]string `mapstructure:"custom_headers"`
 }
 
+// Extension contributes the security headers config section as family-owned config surface.
 type Extension struct {
 	SecurityHeaders Config `mapstructure:"security_headers"`
 }
 
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"security_headers"} }
 
+// ApplyDefaults registers default security headers configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("security_headers.enabled", true)
 	v.SetDefault("security_headers.is_development", false)
@@ -59,6 +66,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("security_headers.custom_headers", map[string]string{})
 }
 
+// BindEnv binds security headers configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"security_headers.enabled", "SECURITY_HEADERS_ENABLED",
@@ -74,6 +82,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that security headers configuration is coherent.
 func (e Extension) Validate() error {
 	if e.SecurityHeaders.STSSeconds < 0 {
 		return coreerrors.NewValidationWithCode("validation.security_headers.sts_seconds.invalid", "security_headers.sts_seconds cannot be negative", nil, nil)
@@ -82,10 +91,15 @@ func (e Extension) Validate() error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

@@ -45,7 +45,7 @@ func NewServer(cfg Config, router router.Router, logger logger.Logger) *Server {
 // It creates an http.Server with configured timeouts and begins listening for requests.
 // The method runs the server in a goroutine and monitors for context cancellation.
 //
-// If the context is cancelled, Start will call Shutdown to gracefully stop the server.
+// If the context is canceled, Start will call Shutdown to gracefully stop the server.
 // Returns an error if the server fails to start or if shutdown fails.
 func (s *Server) Start(ctx context.Context) error {
 	if ctx == nil {
@@ -83,7 +83,7 @@ func (s *Server) Start(ctx context.Context) error {
 	case err := <-errChan:
 		return fmt.Errorf("server failed to start: %w", err)
 	case <-ctx.Done():
-		// Context cancelled, initiate graceful shutdown
+		// Context canceled, initiate graceful shutdown
 		shutdownCtx, cancel := shutdownContextFromParent(ctx)
 		defer cancel()
 		return s.Shutdown(shutdownCtx)

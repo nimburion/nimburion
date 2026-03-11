@@ -24,15 +24,15 @@ func (f demoFeature) Contributions() feature.Contributions {
 	return feature.Contributions{
 		StartupHooks: []feature.Hook{{
 			Name: "feature-startup",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, _ feature.Runtime) error {
 				f.record("feature-startup")
 				return nil
 			},
 		}},
 		HealthContributors: []feature.Hook{{
 			Name: "feature-health",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
-				runtime.HealthRegistry().RegisterFunc("feature-health", func(ctx context.Context) health.CheckResult {
+			Fn: func(_ context.Context, runtime feature.Runtime) error {
+				runtime.HealthRegistry().RegisterFunc("feature-health", func(_ context.Context) health.CheckResult {
 					return health.CheckResult{Name: "feature-health", Status: health.StatusHealthy}
 				})
 				f.record("feature-health")
@@ -41,14 +41,14 @@ func (f demoFeature) Contributions() feature.Contributions {
 		}},
 		InstrumentationHooks: []feature.Hook{{
 			Name: "feature-instrumentation",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, _ feature.Runtime) error {
 				f.record("feature-instrumentation")
 				return nil
 			},
 		}},
 		ServiceConstructors: []feature.Hook{{
 			Name: "feature-service",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, runtime feature.Runtime) error {
 				runtime.RegisterService("feature-service", "ready")
 				f.record("feature-service")
 				return nil
@@ -56,21 +56,21 @@ func (f demoFeature) Contributions() feature.Contributions {
 		}},
 		RuntimeRunners: []feature.Runner{{
 			Name: "feature-runner",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, _ feature.Runtime) error {
 				f.record("feature-runner")
 				return nil
 			},
 		}},
 		ShutdownHooks: []feature.Hook{{
 			Name: "feature-shutdown",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, _ feature.Runtime) error {
 				f.record("feature-shutdown")
 				return nil
 			},
 		}},
 		IntrospectionContributors: []feature.Hook{{
 			Name: "feature-introspection",
-			Fn: func(ctx context.Context, runtime feature.Runtime) error {
+			Fn: func(_ context.Context, runtime feature.Runtime) error {
 				runtime.IntrospectionRegistry().Set("feature", "enabled")
 				f.record("feature-introspection")
 				return nil
@@ -90,7 +90,7 @@ func TestRunExecutesLifecyclePhasesInOrder(t *testing.T) {
 	record := func(name string) Hook {
 		return Hook{
 			Name: name,
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				mu.Lock()
 				defer mu.Unlock()
 				steps = append(steps, name)
@@ -107,7 +107,7 @@ func TestRunExecutesLifecyclePhasesInOrder(t *testing.T) {
 		ServiceConstructors:  []Hook{record("services")},
 		Runners: []Runner{{
 			Name: "runtime",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				mu.Lock()
 				steps = append(steps, "runtime")
 				mu.Unlock()
@@ -141,7 +141,7 @@ func TestRunExecutesShutdownHooksInReverseOrder(t *testing.T) {
 	shutdownHook := func(name string) Hook {
 		return Hook{
 			Name: name,
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				mu.Lock()
 				defer mu.Unlock()
 				steps = append(steps, name)
@@ -153,7 +153,7 @@ func TestRunExecutesShutdownHooksInReverseOrder(t *testing.T) {
 	a, err := New(Options{
 		Runners: []Runner{{
 			Name: "runtime",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				return nil
 			},
 		}},
@@ -187,14 +187,14 @@ func TestRunCancelsPeerRunnersWhenOneFails(t *testing.T) {
 		Runners: []Runner{
 			{
 				Name: "failing",
-				Fn: func(ctx context.Context, runtime *Runtime) error {
+				Fn: func(_ context.Context, _ *Runtime) error {
 					close(released)
 					return errors.New("boom")
 				},
 			},
 			{
 				Name: "peer",
-				Fn: func(ctx context.Context, runtime *Runtime) error {
+				Fn: func(ctx context.Context, _ *Runtime) error {
 					<-released
 					<-ctx.Done()
 					close(observedCancel)
@@ -236,28 +236,28 @@ func TestRunStopsAtFirstStartupPhaseError(t *testing.T) {
 	a, err := New(Options{
 		ConfigResolvers: []Hook{{
 			Name: "config",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				record("config")
 				return nil
 			},
 		}},
 		ObservabilityHooks: []Hook{{
 			Name: "observability",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				record("observability")
 				return errors.New("bad config")
 			},
 		}},
 		FeatureRegistrations: []Hook{{
 			Name: "features",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				record("features")
 				return nil
 			},
 		}},
 		ShutdownHooks: []Hook{{
 			Name: "shutdown",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				record("shutdown")
 				return nil
 			},
@@ -401,7 +401,7 @@ func TestPrepareFailureMarksRuntimePostureFailed(t *testing.T) {
 	a, err := New(Options{
 		ObservabilityHooks: []Hook{{
 			Name: "boom",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				return errors.New("bad observability")
 			},
 		}},

@@ -2,7 +2,8 @@ package coordination
 
 import (
 	"errors"
-	"fmt"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 var (
@@ -18,9 +19,21 @@ var (
 	ErrNotInitialized = errors.New("coordination not initialized")
 )
 
-func coordinationError(kind error, message string) error {
-	if message == "" {
-		return kind
-	}
-	return fmt.Errorf("%w: %s", kind, message)
+func init() {
+	coreerrors.RegisterCanonicalizer(func(err error) (*coreerrors.AppError, bool) {
+		switch {
+		case errors.Is(err, ErrValidation):
+			return coreerrors.NewValidationWithCode("validation.coordination", err.Error(), nil, nil), true
+		case errors.Is(err, ErrConflict):
+			return coreerrors.New("coordination.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409), true
+		case errors.Is(err, ErrRetryable):
+			return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "coordination"}), true
+		case errors.Is(err, ErrInvalidArgument):
+			return coreerrors.New("argument.coordination.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400), true
+		case errors.Is(err, ErrNotInitialized):
+			return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "coordination"}), true
+		default:
+			return nil, false
+		}
+	})
 }

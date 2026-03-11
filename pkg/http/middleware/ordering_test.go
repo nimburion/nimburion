@@ -5,12 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	"github.com/nimburion/nimburion/pkg/http/middleware/logging"
 	"github.com/nimburion/nimburion/pkg/http/middleware/recovery"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
 	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
 
 // TestMiddlewareOrdering_ExecutionOrder verifies that middleware executes in the configured order.
@@ -217,7 +217,7 @@ func TestMiddlewareOrdering_ShortCircuit(t *testing.T) {
 		}
 	}
 
-	shortCircuitMiddleware := func(next router.HandlerFunc) router.HandlerFunc {
+	shortCircuitMiddleware := func(_ router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
 			executionOrder = append(executionOrder, "short-circuit")
 			// Don't call next() - short circuit the chain

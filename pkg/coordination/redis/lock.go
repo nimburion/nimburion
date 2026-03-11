@@ -1,3 +1,4 @@
+// Package redis provides a Redis-backed coordination lock provider.
 package redis
 
 import (
@@ -9,11 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/redis/go-redis/v9"
 )
 
 func coordinationError(kind error, message string) error {
@@ -134,11 +136,14 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
-	acquired, err := p.client.Raw().SetNX(opCtx, fullKey, token, ttl).Result()
+	status, err := p.client.Raw().SetArgs(opCtx, fullKey, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, false, nil
+		}
 		return nil, false, errors.Join(coordinationError(coordination.ErrRetryable, "acquire lock failed"), err)
 	}
-	if !acquired {
+	if status == "" {
 		return nil, false, nil
 	}
 

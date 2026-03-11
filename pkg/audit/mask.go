@@ -5,21 +5,33 @@ import (
 	"strings"
 )
 
-type Classification string
-type Redaction string
+type (
+	// Classification describes the sensitivity of a value in a mask tree.
+	Classification string
+	// Redaction describes how a value should be redacted.
+	Redaction string
+)
 
 const (
-	ClassificationPublic    Classification = "public"
+	// ClassificationPublic marks values safe to expose as-is.
+	ClassificationPublic Classification = "public"
+	// ClassificationSensitive marks values that require masking.
 	ClassificationSensitive Classification = "sensitive"
-	ClassificationSecret    Classification = "secret"
+	// ClassificationSecret marks values that require full redaction.
+	ClassificationSecret Classification = "secret"
 
+	// RedactionNone preserves the original value.
 	RedactionNone Redaction = "none"
+	// RedactionMask masks the original value.
 	RedactionMask Redaction = "mask"
+	// RedactionFull fully redacts the original value.
 	RedactionFull Redaction = "full"
 )
 
+// MaskedValue is the replacement used for redacted scalar values.
 const MaskedValue = "***"
 
+// RedactSettings applies mask to settings and returns a redacted copy.
 func RedactSettings(settings, mask map[string]interface{}) map[string]interface{} {
 	if len(settings) == 0 || len(mask) == 0 {
 		return settings
@@ -63,6 +75,7 @@ func redactValue(value, mask interface{}) interface{} {
 	return value
 }
 
+// ShouldRedact reports whether mask indicates that a value should be redacted.
 func ShouldRedact(mask interface{}) bool {
 	if mask == nil {
 		return false

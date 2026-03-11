@@ -1,3 +1,4 @@
+// Package sendgrid provides an email provider backed by the SendGrid API.
 package sendgrid
 
 import (
@@ -16,14 +17,17 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
+// Config configures the SendGrid email provider.
 type Config = emailconfig.TokenConfig
 
+// Provider sends email through the SendGrid API.
 type Provider struct {
 	cfg        Config
 	httpClient *http.Client
 	log        logger.Logger
 }
 
+// New constructs a SendGrid-backed email provider.
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, coreerrors.NewValidationWithCode("validation.email.sendgrid.token.required", "sendgrid token is required", nil, nil)
@@ -37,14 +41,15 @@ func New(cfg Config, log logger.Logger) (*Provider, error) {
 	return &Provider{cfg: cfg, httpClient: emailkit.DefaultHTTPClient(nil, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send delivers message using the configured SendGrid account.
 func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	msg := message.Normalized()
 	msg, err := email.ApplyDefaultSender(msg, p.cfg.From)
 	if err != nil {
 		return err
 	}
-	if err := msg.Validate(); err != nil {
-		return err
+	if validationErr := msg.Validate(); validationErr != nil {
+		return validationErr
 	}
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{{"to": emailkit.MapRecipients(msg.To), "cc": emailkit.MapRecipients(msg.Cc), "bcc": emailkit.MapRecipients(msg.Bcc)}},
@@ -57,8 +62,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	cctx, cancel := emailkit.WithTimeout(ctx, p.cfg.OperationTimeout)
 	defer cancel()
 	endpoint := strings.TrimRight(p.cfg.BaseURL, "/") + "/v3/mail/send"
-	if err := emailkit.ValidateEndpointURL(endpoint); err != nil {
-		return err
+	if validationErr := emailkit.ValidateEndpointURL(endpoint); validationErr != nil {
+		return validationErr
 	}
 	req, err := http.NewRequestWithContext(cctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
@@ -66,6 +71,7 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.Token)
 	req.Header.Set("Content-Type", "application/json")
+	// #nosec G704 -- endpoint is derived from validated BaseURL and checked with ValidateEndpointURL.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -78,4 +84,5 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	return nil
 }
 
+// Close releases provider resources.
 func (p *Provider) Close() error { return nil }

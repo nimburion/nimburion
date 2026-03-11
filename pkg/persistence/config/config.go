@@ -5,14 +5,19 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 const (
+	// DatabaseTypePostgres selects PostgreSQL as the persistence backend.
 	DatabaseTypePostgres = "postgres"
-	DatabaseTypeMySQL    = "mysql"
-	DatabaseTypeMongoDB  = "mongodb"
+	// DatabaseTypeMySQL selects MySQL as the persistence backend.
+	DatabaseTypeMySQL = "mysql"
+	// DatabaseTypeMongoDB selects MongoDB as the persistence backend.
+	DatabaseTypeMongoDB = "mongodb"
+	// DatabaseTypeDynamoDB selects DynamoDB as the persistence backend.
 	DatabaseTypeDynamoDB = "dynamodb"
 )
 
@@ -42,6 +47,7 @@ type Extension struct {
 // DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"database"} }
 
+// ApplyDefaults registers default persistence configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 5)
@@ -51,6 +57,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("database.connect_timeout", 5*time.Second)
 }
 
+// BindEnv binds persistence configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"database.type", "DB_TYPE",
@@ -70,6 +77,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that persistence configuration is coherent for the selected backend.
 func (e Extension) Validate() error {
 	if e.Database.Type == "" {
 		return nil
@@ -99,10 +107,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

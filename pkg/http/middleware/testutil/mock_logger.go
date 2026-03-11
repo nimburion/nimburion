@@ -39,12 +39,12 @@ func (m *MockLogger) Error(msg string, args ...any) {
 }
 
 // With returns the same logger (no-op for testing).
-func (m *MockLogger) With(args ...any) logger.Logger {
+func (m *MockLogger) With(_ ...any) logger.Logger {
 	return m
 }
 
 // WithContext returns the same logger (no-op for testing).
-func (m *MockLogger) WithContext(ctx context.Context) logger.Logger {
+func (m *MockLogger) WithContext(_ context.Context) logger.Logger {
 	return m
 }
 

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 	"github.com/spf13/viper"
+
+	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 )
 
 // Loader defines the interface for loading configuration
@@ -132,7 +133,6 @@ func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
 	}
 	v.SetDefault("app.name", l.defaultAppName(cfg.App.Name))
 	v.SetDefault("app.environment", cfg.App.Environment)
-
 }
 
 // Validate validates the configuration and returns detailed errors

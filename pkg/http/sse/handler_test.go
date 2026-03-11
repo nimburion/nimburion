@@ -83,17 +83,18 @@ func (c *fakeContext) Request() *http.Request              { return c.req }
 func (c *fakeContext) SetRequest(r *http.Request)          { c.req = r }
 func (c *fakeContext) Response() router.ResponseWriter     { return c.resp }
 func (c *fakeContext) SetResponse(w router.ResponseWriter) { c.resp = w }
-func (c *fakeContext) Param(name string) string            { return "" }
-func (c *fakeContext) Query(name string) string            { return c.req.URL.Query().Get(name) }
-func (c *fakeContext) Bind(v interface{}) error            { return nil }
-func (c *fakeContext) JSON(code int, v interface{}) error  { c.resp.WriteHeader(code); return nil }
+func (c *fakeContext) Param(_ string) string               { return "" }
+func (c *fakeContext) Query(key string) string             { return c.req.URL.Query().Get(key) }
+func (c *fakeContext) Bind(_ interface{}) error            { return nil }
+func (c *fakeContext) JSON(code int, _ interface{}) error  { c.resp.WriteHeader(code); return nil }
 func (c *fakeContext) String(code int, s string) error {
 	c.resp.WriteHeader(code)
 	_, err := c.resp.Write([]byte(s))
 	return err
 }
-func (c *fakeContext) Get(key string) interface{}        { return nil }
-func (c *fakeContext) Set(key string, value interface{}) {}
+
+func (c *fakeContext) Get(_ string) interface{}    { return nil }
+func (c *fakeContext) Set(_ string, _ interface{}) {}
 
 type fakeSSEWriter struct {
 	header  http.Header

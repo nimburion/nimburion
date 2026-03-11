@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/redis/go-redis/v9"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 type fakeRedisClient struct {
@@ -21,12 +22,15 @@ type fakeRedisClient struct {
 func (f *fakeRedisClient) Get(ctx context.Context, key string) *redis.StringCmd {
 	return f.getFn(ctx, key)
 }
+
 func (f *fakeRedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd {
 	return f.setFn(ctx, key, value, expiration)
 }
+
 func (f *fakeRedisClient) Del(ctx context.Context, keys ...string) *redis.IntCmd {
 	return f.delFn(ctx, keys...)
 }
+
 func (f *fakeRedisClient) Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
 	return f.expireFn(ctx, key, expiration)
 }

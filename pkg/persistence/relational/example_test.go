@@ -106,8 +106,8 @@ func Example() {
 
 	// Update user
 	foundUser.Email = "john.doe@example.com"
-	if err := userRepo.Update(ctx, foundUser); err != nil {
-		log.Fatal(err)
+	if updateErr := userRepo.Update(ctx, foundUser); updateErr != nil {
+		log.Fatal(updateErr)
 	}
 
 	// Count users

@@ -13,12 +13,12 @@ import (
 type ElasticsearchSDKAdapter struct{}
 
 // NewElasticsearchSDKAdapter returns an explanatory error when SDK support is not compiled in.
-func NewElasticsearchSDKAdapter(cfg Config, log logger.Logger) (*ElasticsearchSDKAdapter, error) {
+func NewElasticsearchSDKAdapter(_ Config, _ logger.Logger) (*ElasticsearchSDKAdapter, error) {
 	return nil, fmt.Errorf("elasticsearch-sdk adapter is not enabled; rebuild with `-tags elasticsearch_sdk`")
 }
 
 // HealthCheck verifies the component is operational and can perform its intended function.
-func (a *ElasticsearchSDKAdapter) HealthCheck(ctx context.Context) error {
+func (a *ElasticsearchSDKAdapter) HealthCheck(_ context.Context) error {
 	return fmt.Errorf("elasticsearch-sdk adapter is not enabled; rebuild with `-tags elasticsearch_sdk`")
 }
 

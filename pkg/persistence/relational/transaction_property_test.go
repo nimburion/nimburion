@@ -15,6 +15,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type txKey struct{}
+
 // TestProperty_TransactionAtomicity validates Property 26: Transaction Atomicity
 // **Validates: Requirements 29.5**
 //
@@ -65,14 +67,13 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 				tx, _ := txCtx.Value("tx").(*sql.Tx)
 
 				for _, value := range operations {
-					_, err := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
-					if err != nil {
-						return err
+					_, execErr := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
+					if execErr != nil {
+						return execErr
 					}
 				}
 				return nil
 			})
-
 			if err != nil {
 				t.Logf("transaction failed: %v", err)
 				return false
@@ -129,9 +130,9 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 						// Intentionally cause an error
 						return fmt.Errorf("intentional error at index %d", i)
 					}
-					_, err := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
-					if err != nil {
-						return err
+					_, execErr := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
+					if execErr != nil {
+						return execErr
 					}
 				}
 				return nil
@@ -200,9 +201,9 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 							// Intentionally panic
 							panic(fmt.Sprintf("intentional panic at index %d", i))
 						}
-						_, err := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
-						if err != nil {
-							return err
+						_, execErr := tx.ExecContext(txCtx, "INSERT INTO transaction_test (value) VALUES ($1)", value)
+						if execErr != nil {
+							return execErr
 						}
 					}
 					return nil
@@ -254,7 +255,7 @@ func withTransaction(ctx context.Context, db *sql.DB, fn func(ctx context.Contex
 		}
 	}()
 
-	txCtx := context.WithValue(ctx, "tx", tx)
+	txCtx := context.WithValue(ctx, txKey{}, tx)
 
 	if err := fn(txCtx); err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {

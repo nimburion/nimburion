@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )

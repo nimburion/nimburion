@@ -1,3 +1,4 @@
+// Package ses provides an email provider backed by AWS SES.
 package ses
 
 import (
@@ -15,6 +16,7 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsv2config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+
 	"github.com/nimburion/nimburion/internal/emailkit"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/email"
@@ -22,8 +24,10 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
+// Config configures the SES email provider.
 type Config = emailconfig.SESConfig
 
+// Provider sends email through AWS SES.
 type Provider struct {
 	cfg        Config
 	awsCfg     awsv2.Config
@@ -32,6 +36,7 @@ type Provider struct {
 	log        logger.Logger
 }
 
+// New constructs an SES-backed email provider.
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Region) == "" {
 		return nil, coreerrors.NewValidationWithCode("validation.email.ses.region.required", "ses region is required", nil, nil)
@@ -52,14 +57,15 @@ func New(cfg Config, log logger.Logger) (*Provider, error) {
 	return &Provider{cfg: cfg, awsCfg: awsCfg, signer: v4.NewSigner(), httpClient: emailkit.DefaultHTTPClient(nil, cfg.OperationTimeout), log: log}, nil
 }
 
+// Send delivers message using the configured SES account.
 func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	msg := message.Normalized()
 	msg, err := email.ApplyDefaultSender(msg, p.cfg.From)
 	if err != nil {
 		return err
 	}
-	if err := msg.Validate(); err != nil {
-		return err
+	if validationErr := msg.Validate(); validationErr != nil {
+		return validationErr
 	}
 	payload := map[string]interface{}{
 		"FromEmailAddress": msg.From,
@@ -78,8 +84,8 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 		endpoint = fmt.Sprintf("https://email.%s.amazonaws.com", p.cfg.Region)
 	}
 	endpoint = strings.TrimRight(endpoint, "/") + "/v2/email/outbound-emails"
-	if err := emailkit.ValidateEndpointURL(endpoint); err != nil {
-		return err
+	if validationErr := emailkit.ValidateEndpointURL(endpoint); validationErr != nil {
+		return validationErr
 	}
 	cctx, cancel := emailkit.WithTimeout(ctx, p.cfg.OperationTimeout)
 	defer cancel()
@@ -95,9 +101,10 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	if err != nil {
 		return err
 	}
-	if err := p.signer.SignHTTP(cctx, creds, req, payloadHash, "ses", p.cfg.Region, time.Now().UTC()); err != nil {
-		return err
+	if signErr := p.signer.SignHTTP(cctx, creds, req, payloadHash, "ses", p.cfg.Region, time.Now().UTC()); signErr != nil {
+		return signErr
 	}
+	// #nosec G704 -- endpoint is derived from region/config endpoint and validated with ValidateEndpointURL.
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -110,4 +117,5 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	return nil
 }
 
+// Close releases provider resources.
 func (p *Provider) Close() error { return nil }

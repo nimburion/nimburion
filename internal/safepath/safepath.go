@@ -1,3 +1,4 @@
+// Package safepath validates and normalizes filesystem paths safely.
 package safepath
 
 import (

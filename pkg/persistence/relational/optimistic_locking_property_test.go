@@ -3,6 +3,7 @@ package relational
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -49,7 +50,7 @@ func TestProperty_OptimisticLocking(t *testing.T) {
 
 	// Property: First update succeeds and increments version
 	properties.Property("first update succeeds and increments version", prop.ForAll(
-		func(id int64, initialName string, updatedName string) bool {
+		func(id int64, initialName, updatedName string) bool {
 			if initialName == updatedName {
 				return true // Skip trivial case
 			}
@@ -116,7 +117,7 @@ func TestProperty_OptimisticLocking(t *testing.T) {
 
 	// Property: Concurrent updates cause optimistic lock error
 	properties.Property("concurrent updates cause optimistic lock error", prop.ForAll(
-		func(id int64, initialName string, update1 string, update2 string) bool {
+		func(id int64, initialName, update1, update2 string) bool {
 			if initialName == update1 || initialName == update2 || update1 == update2 {
 				return true // Skip trivial cases
 			}
@@ -176,14 +177,14 @@ func TestProperty_OptimisticLocking(t *testing.T) {
 			}
 
 			// Verify it's an optimistic lock error
-			var lockErr *OptimisticLockError
 			if !isOptimisticLockError(err) {
 				t.Logf("expected OptimisticLockError, got: %v", err)
 				return false
 			}
 
 			// Verify the error contains correct version information
-			if lockErr != nil {
+			var lockErr *OptimisticLockError
+			if errors.As(err, &lockErr) {
 				if lockErr.Expected != 0 {
 					t.Logf("expected version should be 0, got %d", lockErr.Expected)
 					return false
@@ -237,9 +238,9 @@ func TestProperty_OptimisticLocking(t *testing.T) {
 
 			// Perform sequential updates
 			for i, name := range updates {
-				entity, err := repo.FindByID(ctx, id)
-				if err != nil {
-					t.Logf("failed to find entity at iteration %d: %v", i, err)
+				entity, findErr := repo.FindByID(ctx, id)
+				if findErr != nil {
+					t.Logf("failed to find entity at iteration %d: %v", i, findErr)
 					return false
 				}
 
@@ -280,7 +281,7 @@ func TestProperty_OptimisticLocking(t *testing.T) {
 
 	// Property: Concurrent updates with proper retry succeed
 	properties.Property("concurrent updates with proper retry succeed", prop.ForAll(
-		func(id int64, initialName string, update1 string, update2 string) bool {
+		func(id int64, initialName, update1, update2 string) bool {
 			if initialName == update1 || initialName == update2 || update1 == update2 {
 				return true // Skip trivial cases
 			}

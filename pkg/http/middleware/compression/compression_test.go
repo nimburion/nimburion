@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/andybalholm/brotli"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
@@ -334,23 +335,28 @@ func (m *pushMockResponseWriter) Write(p []byte) (int, error) {
 	}
 	return m.body.Write(p)
 }
+
 func (m *pushMockResponseWriter) WriteHeader(code int) {
 	m.status = code
 }
+
 func (m *pushMockResponseWriter) Status() int {
 	if m.status == 0 {
 		return http.StatusOK
 	}
 	return m.status
 }
+
 func (m *pushMockResponseWriter) Written() bool {
 	return m.status != 0 || m.body.Len() > 0
 }
+
 func (m *pushMockResponseWriter) Push(target string, opts *http.PushOptions) error {
 	_ = target
 	_ = opts
 	return nil
 }
+
 func (m *pushMockResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, http.ErrNotSupported
 }

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/cache"
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/coordination"
@@ -25,7 +27,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	relationalmigrate "github.com/nimburion/nimburion/pkg/persistence/relational/migrate"
 	"github.com/nimburion/nimburion/pkg/scheduler"
-	"github.com/spf13/cobra"
 )
 
 type testCLIFeature struct {
@@ -160,7 +161,7 @@ func TestNewAppCommand_AddsJobsWorkerCommand(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
-		ConfigureWorker: func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error { return nil },
+		ConfigureWorker: func(_ *config.Config, _ logger.Logger, _ jobs.Worker) error { return nil },
 	})
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
@@ -227,7 +228,7 @@ func TestNewAppCommand_AddsSchedulerRunCommand(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
-		ConfigureRuntime: func(cfg *config.Config, log logger.Logger, runtime *scheduler.Runtime) error { return nil },
+		ConfigureRuntime: func(_ *config.Config, _ logger.Logger, _ *scheduler.Runtime) error { return nil },
 	})
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testsvc",
@@ -300,7 +301,7 @@ func TestNewAppCommand_UsesRunAsPrimaryEntrypointAndKeepsServeAlias(t *testing.T
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testapp",
 		Description: "test app",
-		Run: func(ctx context.Context, cfg *config.Config, log logger.Logger) error {
+		Run: func(_ context.Context, _ *config.Config, _ logger.Logger) error {
 			return nil
 		},
 	})
@@ -346,7 +347,7 @@ func TestNewAppCommand_AddsCacheFromFeatureContribution(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
-		Clean: func(ctx context.Context, cfg *config.Config, log logger.Logger, pattern string) error {
+		Clean: func(_ context.Context, _ *config.Config, _ logger.Logger, _ string) error {
 			return nil
 		},
 	})
@@ -384,7 +385,7 @@ func TestNewAppCommand_AddsMigrateFromFeatureContribution(t *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
 			return config.DefaultConfig(), log, nil
 		},
-		Run: func(ctx context.Context, cfg *config.Config, log logger.Logger, direction string, args []string) error {
+		Run: func(_ context.Context, _ *config.Config, _ logger.Logger, _ string, _ []string) error {
 			return nil
 		},
 	})
@@ -438,7 +439,7 @@ func TestDescribeCommand_EmitsDescriptorJSON(t *testing.T) {
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testapp",
 		Description: "test app",
-		Run:         func(ctx context.Context, cfg *config.Config, log logger.Logger) error { return nil },
+		Run:         func(_ context.Context, _ *config.Config, _ logger.Logger) error { return nil },
 		Descriptor: descriptor.Options{
 			Application: descriptor.Application{
 				Kind:        descriptor.ApplicationKindService,
@@ -497,7 +498,7 @@ func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
 func TestNewAppCommand_AddsOpenAPIFromFeatureContribution(t *testing.T) {
 	openAPIFeature := httpopenapi.NewCommandFeature(httpopenapi.CommandFeatureOptions{
 		RegisterRoutes: func(r router.Router, _ *config.Config) {
-			r.GET("/ping", func(c router.Context) error { return nil })
+			r.GET("/ping", func(_ router.Context) error { return nil })
 		},
 		LoadConfig: func(_ *cobra.Command) (*config.Config, logger.Logger, error) {
 			log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
@@ -600,9 +601,11 @@ func TestRunHealthcheckWithRegistry_UsesFeatureHealthContributions(t *testing.T)
 
 func TestRunHealthcheckWithRegistry_ReturnsApplicationDependencyFailures(t *testing.T) {
 	err := runHealthcheckWithRegistry(context.Background(), healthcheckRuntimeOptions{
-		name:              "testapp",
-		cfg:               config.DefaultConfig(),
-		checkDependencies: func(context.Context, *config.Config, logger.Logger) error { return errors.New("backend unavailable") },
+		name: "testapp",
+		cfg:  config.DefaultConfig(),
+		checkDependencies: func(_ context.Context, _ *config.Config, _ logger.Logger) error {
+			return errors.New("backend unavailable")
+		},
 	})
 	if err == nil || !strings.Contains(err.Error(), "application-dependencies") {
 		t.Fatalf("expected application dependency failure, got %v", err)
@@ -611,7 +614,7 @@ func TestRunHealthcheckWithRegistry_ReturnsApplicationDependencyFailures(t *test
 
 func TestRunHealthcheckWithRegistry_AllowsDegradedState(t *testing.T) {
 	registry := health.NewRegistry()
-	registry.Register(health.NewCustomChecker("degraded-check", func(ctx context.Context) (health.Status, string, error) {
+	registry.Register(health.NewCustomChecker("degraded-check", func(_ context.Context) (health.Status, string, error) {
 		return health.StatusDegraded, "degraded but serving", nil
 	}))
 

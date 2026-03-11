@@ -6,11 +6,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	httprouter "github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 // ConfigLoader loads the service config using command flags.
@@ -69,7 +70,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	return commandFeature{command: cmd}
 }
 
-func runGenerate(cmd *cobra.Command, opts CommandFeatureOptions, outputPath string, titleOverride string) error {
+func runGenerate(cmd *cobra.Command, opts CommandFeatureOptions, outputPath, titleOverride string) error {
 	cfg, _, err := opts.LoadConfig(cmd)
 	if err != nil {
 		return err

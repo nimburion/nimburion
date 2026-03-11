@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+
 	"github.com/nimburion/nimburion/pkg/eventbus"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -89,8 +90,8 @@ func TestAttributesConversionEmpty(t *testing.T) {
 
 func TestAttributesConversionNonString(t *testing.T) {
 	attrs := map[string]types.MessageAttributeValue{
-		"valid":   {DataType: aws.String("String"), StringValue: aws.String("value")},
-		"number":  {DataType: aws.String("Number"), StringValue: aws.String("123")},
+		"valid":  {DataType: aws.String("String"), StringValue: aws.String("value")},
+		"number": {DataType: aws.String("Number"), StringValue: aws.String("123")},
 	}
 	out := fromSQSAttributes(attrs)
 	if out["valid"] != "value" {
@@ -105,19 +106,19 @@ func TestAttributesConversionNonString(t *testing.T) {
 func TestUnsubscribe(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &Adapter{subs: map[string]context.CancelFunc{"topic": cancel}}
-	
+
 	err := a.Unsubscribe("topic")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	
+
 	select {
 	case <-ctx.Done():
 		// Expected
 	default:
-		t.Fatal("expected context to be cancelled")
+		t.Fatal("expected context to be canceled")
 	}
-	
+
 	err = a.Unsubscribe("missing")
 	if err == nil {
 		t.Fatal("expected error for missing subscription")

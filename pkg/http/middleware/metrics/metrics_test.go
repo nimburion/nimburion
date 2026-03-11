@@ -38,14 +38,14 @@ func TestMetrics_SuccessfulRequest(t *testing.T) {
 	// - Increment httpRequestsTotal counter
 }
 
-func TestMetrics_ErrorRequest(t *testing.T) {
+func TestMetrics_ErrorRequest(_ *testing.T) {
 	// Create router with metrics middleware
 	r := nethttp.NewRouter()
 	r.Use(Metrics())
 
 	// Register test handler that returns error
 	testError := errors.New("test error")
-	r.GET("/error", func(c router.Context) error {
+	r.GET("/error", func(_ router.Context) error {
 		return testError
 	})
 
@@ -100,7 +100,7 @@ func TestMetrics_DifferentStatusCodes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Create router with metrics middleware
 			r := nethttp.NewRouter()
 			r.Use(Metrics())

@@ -12,14 +12,15 @@ import (
 // mockLogger is a simple logger implementation for testing
 type mockLogger struct{}
 
-func (m *mockLogger) Debug(msg string, args ...any) {}
-func (m *mockLogger) Info(msg string, args ...any)  {}
-func (m *mockLogger) Warn(msg string, args ...any)  {}
-func (m *mockLogger) Error(msg string, args ...any) {}
-func (m *mockLogger) With(args ...any) logger.Logger {
+func (m *mockLogger) Debug(_ string, _ ...any) {}
+func (m *mockLogger) Info(_ string, _ ...any)  {}
+func (m *mockLogger) Warn(_ string, _ ...any)  {}
+func (m *mockLogger) Error(_ string, _ ...any) {}
+func (m *mockLogger) With(_ ...any) logger.Logger {
 	return m
 }
-func (m *mockLogger) WithContext(ctx context.Context) logger.Logger {
+
+func (m *mockLogger) WithContext(_ context.Context) logger.Logger {
 	return m
 }
 
@@ -167,7 +168,7 @@ func TestAdapter_Subscribe_AlreadySubscribed(t *testing.T) {
 
 	ctx := context.Background()
 	topic := "test-topic"
-	handler := func(ctx context.Context, msg *eventbus.Message) error {
+	handler := func(_ context.Context, _ *eventbus.Message) error {
 		return nil
 	}
 
@@ -451,7 +452,7 @@ func TestAdapter_PublishBatch_MultipleMessages(t *testing.T) {
 	defer adapter.Close()
 
 	ctx := context.Background()
-	
+
 	// Test with multiple messages
 	messages := make([]*eventbus.Message, 10)
 	for i := 0; i < 10; i++ {

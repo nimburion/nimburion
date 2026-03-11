@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coordinationpostgres "github.com/nimburion/nimburion/pkg/coordination/postgres"
@@ -22,7 +24,6 @@ import (
 	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	schedulerfamilyconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -112,7 +113,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run distributed scheduler",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
@@ -164,7 +165,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	validateCmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate scheduler tasks and runtime configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, _, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
@@ -192,7 +193,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	triggerCmd := &cobra.Command{
 		Use:   "trigger",
 		Short: "Trigger one scheduler task manually",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err

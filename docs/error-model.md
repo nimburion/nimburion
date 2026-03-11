@@ -47,8 +47,8 @@ The current branch has already completed the first convergence steps:
 - `E2` is materially complete for public family-owned validation surfaces:
   - jobs, session, HTTP family config, cache, email, eventbus, auth, observability, scheduler, persistence, SSE, and search config validators now return `*coreerrors.AppError` with stable validation codes
 - `E3` is materially complete for the primary family and boundary surfaces:
-  - [`pkg/core/errorbridge`](../pkg/core/errorbridge/errorbridge.go) canonicalizes family-level sentinels from jobs, scheduler, coordination, cache, session, and HTTP session middleware into `*coreerrors.AppError`
-  - [`pkg/http/response`](../pkg/http/response/response.go) and [`pkg/grpc/status`](../pkg/grpc/status/status.go) now normalize those family-level sentinels through the bridge instead of only recognizing already-canonical errors
+  - [`pkg/core/errors`](../pkg/core/errors/errors.go) now canonicalizes family-level sentinels from jobs, scheduler, coordination, cache, session, and HTTP session middleware into `*coreerrors.AppError` through a shared registry
+  - [`pkg/http/response`](../pkg/http/response/response.go) and [`pkg/grpc/status`](../pkg/grpc/status/status.go) now normalize those family-level sentinels through `pkg/core/errors` instead of only recognizing already-canonical errors
   - [`pkg/cli`](../pkg/cli/main.go) now canonicalizes jobs/scheduler healthcheck wiring failures and emits typed unavailable errors for failing health checks
   - [`pkg/jobs`](../pkg/jobs/errors.go) and [`pkg/scheduler`](../pkg/scheduler/errors.go) now raise canonical app errors at the family-helper layer while preserving `errors.Is(..., Err*)`
   - [`pkg/jobs/feature`](../pkg/jobs/feature/feature.go), [`pkg/scheduler`](../pkg/scheduler/feature.go), [`pkg/jobs/provider`](../pkg/jobs/provider.go), [`pkg/coordination/redis`](../pkg/coordination/redis/lock.go), and [`pkg/coordination/postgres`](../pkg/coordination/postgres/lock.go) now expose canonical app errors at their public entrypoints

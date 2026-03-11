@@ -142,20 +142,29 @@ func ShutdownFailureTarget(name string) string {
 type PostureLevel string
 
 const (
-	PostureSingleRegionOnly                PostureLevel = "single_region_only"
+	// PostureSingleRegionOnly marks a runtime intended for single-region operation only.
+	PostureSingleRegionOnly PostureLevel = "single_region_only"
+	// PostureSingleWriterMultiRegionFailover marks a single-writer multi-region failover topology.
 	PostureSingleWriterMultiRegionFailover PostureLevel = "single_writer_multi_region_failover"
-	PostureMultiRegionActivePassive        PostureLevel = "multi_region_active_passive"
-	PostureMultiRegionActiveActiveSubset   PostureLevel = "multi_region_active_active_subset"
+	// PostureMultiRegionActivePassive marks an active-passive multi-region topology.
+	PostureMultiRegionActivePassive PostureLevel = "multi_region_active_passive"
+	// PostureMultiRegionActiveActiveSubset marks an active-active subset multi-region topology.
+	PostureMultiRegionActiveActiveSubset PostureLevel = "multi_region_active_active_subset"
 )
 
 // RecoveryState describes the current failover or replay state of the runtime.
 type RecoveryState string
 
 const (
-	RecoveryNormal           RecoveryState = "normal"
-	RecoveryFailoverPending  RecoveryState = "failover_pending"
-	RecoveryReplayRequired   RecoveryState = "replay_required"
-	RecoveryReconciling      RecoveryState = "reconciling"
+	// RecoveryNormal marks a runtime not in failover or replay recovery.
+	RecoveryNormal RecoveryState = "normal"
+	// RecoveryFailoverPending marks a runtime waiting for failover completion.
+	RecoveryFailoverPending RecoveryState = "failover_pending"
+	// RecoveryReplayRequired marks a runtime that requires replay before recovery completes.
+	RecoveryReplayRequired RecoveryState = "replay_required"
+	// RecoveryReconciling marks a runtime reconciling state after failover or replay.
+	RecoveryReconciling RecoveryState = "reconciling"
+	// RecoveryDegradedRecovery marks a runtime recovering in degraded mode.
 	RecoveryDegradedRecovery RecoveryState = "degraded_recovery"
 )
 
@@ -249,9 +258,13 @@ func (p *DeploymentPosture) Validate() error {
 type SignalClass string
 
 const (
-	SignalLatency    SignalClass = "latency"
-	SignalTraffic    SignalClass = "traffic"
-	SignalErrors     SignalClass = "errors"
+	// SignalLatency marks latency-oriented operational signals.
+	SignalLatency SignalClass = "latency"
+	// SignalTraffic marks traffic-oriented operational signals.
+	SignalTraffic SignalClass = "traffic"
+	// SignalErrors marks error-oriented operational signals.
+	SignalErrors SignalClass = "errors"
+	// SignalSaturation marks saturation-oriented operational signals.
 	SignalSaturation SignalClass = "saturation"
 )
 

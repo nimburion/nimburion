@@ -5,12 +5,15 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 const (
-	LockProviderRedis    = "redis"
+	// LockProviderRedis selects Redis as scheduler lock provider.
+	LockProviderRedis = "redis"
+	// LockProviderPostgres selects Postgres as scheduler lock provider.
 	LockProviderPostgres = "postgres"
 )
 
@@ -65,6 +68,7 @@ func (Extension) DisabledCoreConfigSections() []string {
 	return []string{"scheduler"}
 }
 
+// ApplyDefaults registers default scheduler configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("scheduler.enabled", false)
 	v.SetDefault("scheduler.timezone", "UTC")
@@ -77,6 +81,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("scheduler.postgres.operation_timeout", 3*time.Second)
 }
 
+// BindEnv binds scheduler configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"scheduler.enabled", "SCHEDULER_ENABLED",
@@ -93,6 +98,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that enabled scheduler configuration is coherent.
 func (e Extension) Validate() error {
 	if !e.Scheduler.Enabled {
 		return nil
@@ -171,10 +177,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

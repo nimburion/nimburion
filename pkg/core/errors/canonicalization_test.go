@@ -1,4 +1,4 @@
-package errorbridge
+package errors_test
 
 import (
 	stderrors "errors"
@@ -15,7 +15,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/session"
 )
 
-func TestAsAppError(t *testing.T) {
+func TestAsAppErrorCanonicalizesRegisteredFamilies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -34,7 +34,7 @@ func TestAsAppError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			appErr, ok := AsAppError(tt.err)
+			appErr, ok := coreerrors.AsAppError(tt.err)
 			if !ok {
 				t.Fatalf("expected canonical app error for %T", tt.err)
 			}

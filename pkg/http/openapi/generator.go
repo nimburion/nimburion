@@ -11,8 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
 	"gopkg.in/yaml.v3"
+
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 // Route describes one registered endpoint.

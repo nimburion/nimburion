@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 // Config holds configuration for the tracing middleware.

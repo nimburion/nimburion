@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 // TestAdapter_Integration tests the Redis adapter with a real Redis instance
@@ -36,8 +37,8 @@ func TestAdapter_Integration(t *testing.T) {
 		t.Fatalf("Failed to start Redis container: %v", err)
 	}
 	defer func() {
-		if err := testcontainers.TerminateContainer(redisContainer); err != nil {
-			t.Logf("Failed to terminate container: %v", err)
+		if terminateErr := testcontainers.TerminateContainer(redisContainer); terminateErr != nil {
+			t.Logf("Failed to terminate container: %v", terminateErr)
 		}
 	}()
 
@@ -158,8 +159,8 @@ func TestAdapter_Integration(t *testing.T) {
 		value := "test_value"
 
 		// Set value
-		if err := adapter.Set(ctx, key, value); err != nil {
-			t.Fatalf("Set failed: %v", err)
+		if setErr := adapter.Set(ctx, key, value); setErr != nil {
+			t.Fatalf("Set failed: %v", setErr)
 		}
 
 		// Get value
@@ -172,8 +173,8 @@ func TestAdapter_Integration(t *testing.T) {
 		}
 
 		// Delete value
-		if err := adapter.Delete(ctx, key); err != nil {
-			t.Fatalf("Delete failed: %v", err)
+		if deleteErr := adapter.Delete(ctx, key); deleteErr != nil {
+			t.Fatalf("Delete failed: %v", deleteErr)
 		}
 
 		// Verify deletion
@@ -201,8 +202,8 @@ func TestAdapter_Integration(t *testing.T) {
 		value := "ttl_value"
 
 		// Set value with TTL
-		if err := adapter.SetWithTTL(ctx, key, value, 2*time.Second); err != nil {
-			t.Fatalf("SetWithTTL failed: %v", err)
+		if setErr := adapter.SetWithTTL(ctx, key, value, 2*time.Second); setErr != nil {
+			t.Fatalf("SetWithTTL failed: %v", setErr)
 		}
 
 		// Get value immediately (before expiration)
@@ -352,15 +353,15 @@ func TestAdapter_Integration(t *testing.T) {
 
 		for i := 0; i < numIncrements; i++ {
 			go func() {
-				_, err := adapter.Incr(ctx, key)
-				done <- err
+				_, incrErr := adapter.Incr(ctx, key)
+				done <- incrErr
 			}()
 		}
 
 		// Wait for all increments to complete
 		for i := 0; i < numIncrements; i++ {
-			if err := <-done; err != nil {
-				t.Fatalf("Concurrent increment failed: %v", err)
+			if incrErr := <-done; incrErr != nil {
+				t.Fatalf("Concurrent increment failed: %v", incrErr)
 			}
 		}
 

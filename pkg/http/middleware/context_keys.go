@@ -1,3 +1,4 @@
+// Package middleware defines shared HTTP middleware primitives and context keys.
 package middleware
 
 // ContextKey is a typed key for context values to avoid collisions

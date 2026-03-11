@@ -7,10 +7,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nimburion/nimburion/pkg/audit"
-	"github.com/nimburion/nimburion/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	"github.com/nimburion/nimburion/pkg/audit"
+	"github.com/nimburion/nimburion/pkg/version"
 )
 
 const (
@@ -21,103 +22,184 @@ const (
 	policiesAnnotationPrefix     = "policies."
 )
 
-type ApplicationKind string
-type TenancyMode string
-type CompatibilityPolicy string
-type CommandKind string
-type RunPolicy string
-type InputKind string
-type DependencyReadiness string
-type DependencyDurability string
-type EndpointKind string
-type TransportFamily string
-type SecurityMode string
-type DeploymentMode string
-type HorizontalScaling string
-type MigrationStrategy string
-type FeatureStability string
-type FeatureCriticality string
+type (
+	// ApplicationKind identifies the primary runtime shape of an application.
+	ApplicationKind string
+	// TenancyMode describes the tenant isolation model exposed by the application.
+	TenancyMode string
+	// CompatibilityPolicy describes how strictly compatibility guarantees are enforced.
+	CompatibilityPolicy string
+	// CommandKind classifies one CLI command in the descriptor.
+	CommandKind string
+	// RunPolicy describes when a command is expected to run.
+	RunPolicy string
+	// InputKind describes one configuration input channel.
+	InputKind string
+	// DependencyReadiness describes how a dependency affects readiness.
+	DependencyReadiness string
+	// DependencyDurability describes the persistence expectations of a dependency.
+	DependencyDurability string
+	// EndpointKind classifies one management endpoint.
+	EndpointKind string
+	// TransportFamily identifies one transport technology.
+	TransportFamily string
+	// SecurityMode describes the transport security posture.
+	SecurityMode string
+	// DeploymentMode describes whether the runtime is stateful or stateless.
+	DeploymentMode string
+	// HorizontalScaling describes the horizontal scaling guarantees of the runtime.
+	HorizontalScaling string
+	// MigrationStrategy describes how schema migrations are expected to run.
+	MigrationStrategy string
+	// FeatureStability describes the release maturity of a feature.
+	FeatureStability string
+	// FeatureCriticality describes how essential a feature is to the application.
+	FeatureCriticality string
+)
 
 const (
-	ApplicationKindGateway   ApplicationKind = "gateway"
-	ApplicationKindService   ApplicationKind = "service"
-	ApplicationKindConsumer  ApplicationKind = "consumer"
-	ApplicationKindProducer  ApplicationKind = "producer"
-	ApplicationKindWorker    ApplicationKind = "worker"
+	// ApplicationKindGateway identifies an API or edge gateway application.
+	ApplicationKindGateway ApplicationKind = "gateway"
+	// ApplicationKindService identifies a long-running service application.
+	ApplicationKindService ApplicationKind = "service"
+	// ApplicationKindConsumer identifies a message-consuming application.
+	ApplicationKindConsumer ApplicationKind = "consumer"
+	// ApplicationKindProducer identifies a message-producing application.
+	ApplicationKindProducer ApplicationKind = "producer"
+	// ApplicationKindWorker identifies a background worker application.
+	ApplicationKindWorker ApplicationKind = "worker"
+	// ApplicationKindScheduler identifies a scheduler application.
 	ApplicationKindScheduler ApplicationKind = "scheduler"
 
-	TenancyModeSingleTenant   TenancyMode = "single_tenant"
-	TenancyModeMultiTenant    TenancyMode = "multi_tenant"
+	// TenancyModeSingleTenant marks a single-tenant runtime contract.
+	TenancyModeSingleTenant TenancyMode = "single_tenant"
+	// TenancyModeMultiTenant marks an explicitly multi-tenant runtime contract.
+	TenancyModeMultiTenant TenancyMode = "multi_tenant"
+	// TenancyModeTenantOptional marks a runtime that can operate with or without tenant context.
 	TenancyModeTenantOptional TenancyMode = "tenant_optional"
 
-	CompatibilityPolicyStrict     CompatibilityPolicy = "strict"
+	// CompatibilityPolicyStrict enforces strict compatibility guarantees.
+	CompatibilityPolicyStrict CompatibilityPolicy = "strict"
+	// CompatibilityPolicyBestEffort allows best-effort compatibility handling.
 	CompatibilityPolicyBestEffort CompatibilityPolicy = "best_effort"
 
-	CommandKindRuntime     CommandKind = "runtime"
-	CommandKindTransport   CommandKind = "transport"
-	CommandKindConfig      CommandKind = "config"
-	CommandKindMigration   CommandKind = "migration"
-	CommandKindJobs        CommandKind = "jobs"
-	CommandKindScheduler   CommandKind = "scheduler"
+	// CommandKindRuntime classifies runtime commands.
+	CommandKindRuntime CommandKind = "runtime"
+	// CommandKindTransport classifies transport commands.
+	CommandKindTransport CommandKind = "transport"
+	// CommandKindConfig classifies configuration commands.
+	CommandKindConfig CommandKind = "config"
+	// CommandKindMigration classifies migration commands.
+	CommandKindMigration CommandKind = "migration"
+	// CommandKindJobs classifies jobs commands.
+	CommandKindJobs CommandKind = "jobs"
+	// CommandKindScheduler classifies scheduler commands.
+	CommandKindScheduler CommandKind = "scheduler"
+	// CommandKindMaintenance classifies maintenance commands.
 	CommandKindMaintenance CommandKind = "maintenance"
-	CommandKindDebug       CommandKind = "debug"
+	// CommandKindDebug classifies debug commands.
+	CommandKindDebug CommandKind = "debug"
 
-	RunPolicyAlways    RunPolicy = "always"
-	RunPolicyRun       RunPolicy = "run"
+	// RunPolicyAlways marks commands always expected to be available.
+	RunPolicyAlways RunPolicy = "always"
+	// RunPolicyRun marks standard runtime commands.
+	RunPolicyRun RunPolicy = "run"
+	// RunPolicyMigration marks migration commands.
 	RunPolicyMigration RunPolicy = "migration"
+	// RunPolicyScheduled marks scheduled commands.
 	RunPolicyScheduled RunPolicy = "scheduled"
-	RunPolicyManual    RunPolicy = "manual"
-	RunPolicyOnDemand  RunPolicy = "on_demand"
+	// RunPolicyManual marks manually invoked commands.
+	RunPolicyManual RunPolicy = "manual"
+	// RunPolicyOnDemand marks on-demand commands.
+	RunPolicyOnDemand RunPolicy = "on_demand"
 
-	InputKindConfigFile     InputKind = "config_file"
-	InputKindSecretsFile    InputKind = "secrets_file"
-	InputKindEnv            InputKind = "env"
-	InputKindFlag           InputKind = "flag"
+	// InputKindConfigFile identifies config file inputs.
+	InputKindConfigFile InputKind = "config_file"
+	// InputKindSecretsFile identifies secrets file inputs.
+	InputKindSecretsFile InputKind = "secrets_file"
+	// InputKindEnv identifies environment variable inputs.
+	InputKindEnv InputKind = "env"
+	// InputKindFlag identifies command-line flag inputs.
+	InputKindFlag InputKind = "flag"
+	// InputKindSecretProvider identifies external secret provider inputs.
 	InputKindSecretProvider InputKind = "secret_provider"
 
-	DependencyReadinessHard     DependencyReadiness = "hard"
+	// DependencyReadinessHard marks dependencies that gate readiness.
+	DependencyReadinessHard DependencyReadiness = "hard"
+	// DependencyReadinessOptional marks dependencies that do not gate readiness.
 	DependencyReadinessOptional DependencyReadiness = "optional"
 
-	DependencyDurabilityDurable   DependencyDurability = "durable"
+	// DependencyDurabilityDurable marks durable dependencies.
+	DependencyDurabilityDurable DependencyDurability = "durable"
+	// DependencyDurabilityEphemeral marks ephemeral dependencies.
 	DependencyDurabilityEphemeral DependencyDurability = "ephemeral"
 
-	EndpointKindHealth        EndpointKind = "health"
-	EndpointKindReadiness     EndpointKind = "readiness"
-	EndpointKindLiveness      EndpointKind = "liveness"
-	EndpointKindMetrics       EndpointKind = "metrics"
+	// EndpointKindHealth identifies health endpoints.
+	EndpointKindHealth EndpointKind = "health"
+	// EndpointKindReadiness identifies readiness endpoints.
+	EndpointKindReadiness EndpointKind = "readiness"
+	// EndpointKindLiveness identifies liveness endpoints.
+	EndpointKindLiveness EndpointKind = "liveness"
+	// EndpointKindMetrics identifies metrics endpoints.
+	EndpointKindMetrics EndpointKind = "metrics"
+	// EndpointKindIntrospection identifies introspection endpoints.
 	EndpointKindIntrospection EndpointKind = "introspection"
 
+	// TransportFamilyHTTP identifies HTTP transports.
 	TransportFamilyHTTP TransportFamily = "http"
+	// TransportFamilyGRPC identifies gRPC transports.
 	TransportFamilyGRPC TransportFamily = "grpc"
 
-	SecurityModeInsecure            SecurityMode = "insecure"
-	SecurityModeTLS                 SecurityMode = "tls"
-	SecurityModeMTLS                SecurityMode = "mtls"
+	// SecurityModeInsecure marks transports without security.
+	SecurityModeInsecure SecurityMode = "insecure"
+	// SecurityModeTLS marks TLS-secured transports.
+	SecurityModeTLS SecurityMode = "tls"
+	// SecurityModeMTLS marks mutual-TLS-secured transports.
+	SecurityModeMTLS SecurityMode = "mtls"
+	// SecurityModeExternalTermination marks externally terminated security.
 	SecurityModeExternalTermination SecurityMode = "external_termination"
 
+	// DeploymentModeStateless marks stateless runtimes.
 	DeploymentModeStateless DeploymentMode = "stateless"
-	DeploymentModeStateful  DeploymentMode = "stateful"
+	// DeploymentModeStateful marks stateful runtimes.
+	DeploymentModeStateful DeploymentMode = "stateful"
 
-	HorizontalScalingSafe               HorizontalScaling = "safe"
+	// HorizontalScalingSafe marks runtimes safe for horizontal scaling.
+	HorizontalScalingSafe HorizontalScaling = "safe"
+	// HorizontalScalingLeaderLockRequired marks runtimes requiring leader election.
 	HorizontalScalingLeaderLockRequired HorizontalScaling = "leader_lock_required"
-	HorizontalScalingSingleInstance     HorizontalScaling = "single_instance"
+	// HorizontalScalingSingleInstance marks runtimes limited to one instance.
+	HorizontalScalingSingleInstance HorizontalScaling = "single_instance"
 
-	MigrationStrategyManual         MigrationStrategy = "manual"
-	MigrationStrategyPredeploy      MigrationStrategy = "predeploy"
-	MigrationStrategyPostdeploy     MigrationStrategy = "postdeploy"
-	MigrationStrategyOnline         MigrationStrategy = "online"
-	MigrationStrategyOffline        MigrationStrategy = "offline"
+	// MigrationStrategyManual marks manual migration workflows.
+	MigrationStrategyManual MigrationStrategy = "manual"
+	// MigrationStrategyPredeploy marks predeploy migrations.
+	MigrationStrategyPredeploy MigrationStrategy = "predeploy"
+	// MigrationStrategyPostdeploy marks postdeploy migrations.
+	MigrationStrategyPostdeploy MigrationStrategy = "postdeploy"
+	// MigrationStrategyOnline marks online migrations.
+	MigrationStrategyOnline MigrationStrategy = "online"
+	// MigrationStrategyOffline marks offline migrations.
+	MigrationStrategyOffline MigrationStrategy = "offline"
+	// MigrationStrategyExpandContract marks expand-contract migrations.
 	MigrationStrategyExpandContract MigrationStrategy = "expand_contract"
 
+	// FeatureStabilityExperimental marks experimental features.
 	FeatureStabilityExperimental FeatureStability = "experimental"
-	FeatureStabilityBeta         FeatureStability = "beta"
-	FeatureStabilityStable       FeatureStability = "stable"
-	FeatureStabilityDeprecated   FeatureStability = "deprecated"
+	// FeatureStabilityBeta marks beta features.
+	FeatureStabilityBeta FeatureStability = "beta"
+	// FeatureStabilityStable marks stable features.
+	FeatureStabilityStable FeatureStability = "stable"
+	// FeatureStabilityDeprecated marks deprecated features.
+	FeatureStabilityDeprecated FeatureStability = "deprecated"
 
-	FeatureCriticalityCore     FeatureCriticality = "core"
+	// FeatureCriticalityCore marks core features.
+	FeatureCriticalityCore FeatureCriticality = "core"
+	// FeatureCriticalityOptional marks optional features.
 	FeatureCriticalityOptional FeatureCriticality = "optional"
 )
 
+// Descriptor is the top-level service descriptor document.
 type Descriptor struct {
 	DescriptorVersion string         `json:"descriptor_version" yaml:"descriptor_version"`
 	Application       Application    `json:"application" yaml:"application"`
@@ -134,6 +216,7 @@ type Descriptor struct {
 	Artifacts         Artifacts      `json:"artifacts" yaml:"artifacts"`
 }
 
+// Application describes the identity and tenancy model of the application.
 type Application struct {
 	Name        string          `json:"name" yaml:"name"`
 	Kind        ApplicationKind `json:"kind" yaml:"kind"`
@@ -142,22 +225,26 @@ type Application struct {
 	TenancyMode TenancyMode     `json:"tenancy_mode,omitempty" yaml:"tenancy_mode,omitempty"`
 }
 
+// Compatibility describes framework and tooling compatibility expectations.
 type Compatibility struct {
 	Framework CompatibilityFramework `json:"framework" yaml:"framework"`
 	Nimbctl   CompatibilityNimbctl   `json:"nimbctl" yaml:"nimbctl"`
 	Policy    CompatibilityPolicy    `json:"policy,omitempty" yaml:"policy,omitempty"`
 }
 
+// CompatibilityFramework identifies the framework and version used by the application.
 type CompatibilityFramework struct {
 	Name    string `json:"name" yaml:"name"`
 	Version string `json:"version" yaml:"version"`
 }
 
+// CompatibilityNimbctl describes nimbctl version compatibility expectations.
 type CompatibilityNimbctl struct {
 	SupportedRange string `json:"supported_range" yaml:"supported_range"`
 	TestedRange    string `json:"tested_range,omitempty" yaml:"tested_range,omitempty"`
 }
 
+// Runtime describes runtime command and graceful shutdown behavior.
 type Runtime struct {
 	DefaultCommand           string `json:"default_command" yaml:"default_command"`
 	ConfigFileFlag           string `json:"config_file_flag,omitempty" yaml:"config_file_flag,omitempty"`
@@ -165,6 +252,7 @@ type Runtime struct {
 	SupportsGracefulShutdown bool   `json:"supports_graceful_shutdown,omitempty" yaml:"supports_graceful_shutdown,omitempty"`
 }
 
+// Command describes one command exposed by the application CLI.
 type Command struct {
 	Name      string      `json:"name" yaml:"name"`
 	Path      []string    `json:"path" yaml:"path"`
@@ -174,6 +262,7 @@ type Command struct {
 	Transport string      `json:"transport,omitempty" yaml:"transport,omitempty"`
 }
 
+// ConfigContract describes the configuration interfaces exposed by the application.
 type ConfigContract struct {
 	Render           RenderContract   `json:"render" yaml:"render"`
 	Validate         ValidateContract `json:"validate" yaml:"validate"`
@@ -182,6 +271,7 @@ type ConfigContract struct {
 	SensitivityModel SensitivityModel `json:"sensitivity_model" yaml:"sensitivity_model"`
 }
 
+// RenderContract describes config rendering capabilities.
 type RenderContract struct {
 	Supported bool         `json:"supported" yaml:"supported"`
 	Path      []string     `json:"path,omitempty" yaml:"path,omitempty"`
@@ -190,16 +280,19 @@ type RenderContract struct {
 	Outputs   []OutputSpec `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 }
 
+// ValidateContract describes config validation capabilities.
 type ValidateContract struct {
 	Supported bool     `json:"supported" yaml:"supported"`
 	Path      []string `json:"path,omitempty" yaml:"path,omitempty"`
 }
 
+// ConfigInputs describes regular and sensitive configuration input channels.
 type ConfigInputs struct {
 	Regular   []InputSpec `json:"regular" yaml:"regular"`
 	Sensitive []InputSpec `json:"sensitive" yaml:"sensitive"`
 }
 
+// InputSpec describes one configuration input mechanism.
 type InputSpec struct {
 	Kind     InputKind `json:"kind" yaml:"kind"`
 	Flag     string    `json:"flag,omitempty" yaml:"flag,omitempty"`
@@ -209,6 +302,7 @@ type InputSpec struct {
 	Provider string    `json:"provider,omitempty" yaml:"provider,omitempty"`
 }
 
+// OutputSpec describes one generated config-related artifact.
 type OutputSpec struct {
 	Name     string `json:"name" yaml:"name"`
 	Kind     string `json:"kind" yaml:"kind"`
@@ -216,22 +310,26 @@ type OutputSpec struct {
 	Required bool   `json:"required,omitempty" yaml:"required,omitempty"`
 }
 
+// SensitivityModel describes supported classification and redaction semantics.
 type SensitivityModel struct {
 	ClassificationEnum []string `json:"classification_enum,omitempty" yaml:"classification_enum,omitempty"`
 	RedactionEnum      []string `json:"redaction_enum,omitempty" yaml:"redaction_enum,omitempty"`
 	ProvenanceVisible  bool     `json:"provenance_visible,omitempty" yaml:"provenance_visible,omitempty"`
 }
 
+// ConfigProfiles describes named configuration profiles.
 type ConfigProfiles struct {
 	Environments []Profile `json:"environments,omitempty" yaml:"environments,omitempty"`
 }
 
+// Profile describes one named configuration profile.
 type Profile struct {
 	Name        string `json:"name" yaml:"name"`
 	Default     bool   `json:"default,omitempty" yaml:"default,omitempty"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 }
 
+// Dependency describes one runtime dependency and its expectations.
 type Dependency struct {
 	Name       string               `json:"name" yaml:"name"`
 	Family     string               `json:"family" yaml:"family"`
@@ -241,12 +339,14 @@ type Dependency struct {
 	Durability DependencyDurability `json:"durability,omitempty" yaml:"durability,omitempty"`
 }
 
+// Management describes management endpoint support and exposure.
 type Management struct {
 	Supported bool       `json:"supported" yaml:"supported"`
 	Transport string     `json:"transport,omitempty" yaml:"transport,omitempty"`
 	Endpoints []Endpoint `json:"endpoints,omitempty" yaml:"endpoints,omitempty"`
 }
 
+// Endpoint describes one management endpoint surface.
 type Endpoint struct {
 	Kind          EndpointKind `json:"kind" yaml:"kind"`
 	Transport     string       `json:"transport,omitempty" yaml:"transport,omitempty"`
@@ -255,6 +355,7 @@ type Endpoint struct {
 	Reports       []string     `json:"reports,omitempty" yaml:"reports,omitempty"`
 }
 
+// Transport describes one transport surface exposed by the application.
 type Transport struct {
 	Family        TransportFamily    `json:"family" yaml:"family"`
 	Services      []Service          `json:"services,omitempty" yaml:"services,omitempty"`
@@ -264,30 +365,36 @@ type Transport struct {
 	ProtoPackages []ProtoPackage     `json:"proto_packages,omitempty" yaml:"proto_packages,omitempty"`
 }
 
+// Service describes one named transport service.
 type Service struct {
 	Name    string `json:"name" yaml:"name"`
 	Package string `json:"package,omitempty" yaml:"package,omitempty"`
 }
 
+// Capability describes whether one optional transport capability is supported.
 type Capability struct {
 	Supported bool `json:"supported" yaml:"supported"`
 }
 
+// TransportSecurity describes the security mode for a transport.
 type TransportSecurity struct {
 	Mode SecurityMode `json:"mode" yaml:"mode"`
 }
 
+// ProtoPackage describes one protobuf package exposed by gRPC transports.
 type ProtoPackage struct {
 	Name      string `json:"name" yaml:"name"`
 	Ownership string `json:"ownership,omitempty" yaml:"ownership,omitempty"`
 }
 
+// Deployment describes runtime deployment and scaling characteristics.
 type Deployment struct {
 	Mode              DeploymentMode    `json:"mode,omitempty" yaml:"mode,omitempty"`
 	HorizontalScaling HorizontalScaling `json:"horizontal_scaling,omitempty" yaml:"horizontal_scaling,omitempty"`
 	Capabilities      []string          `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 }
 
+// Migrations describes schema migration support and rollout expectations.
 type Migrations struct {
 	Supported          bool              `json:"supported" yaml:"supported"`
 	Command            []string          `json:"command,omitempty" yaml:"command,omitempty"`
@@ -297,12 +404,14 @@ type Migrations struct {
 	RequiresLock       bool              `json:"requires_lock,omitempty" yaml:"requires_lock,omitempty"`
 }
 
+// Feature describes one named runtime feature in the descriptor.
 type Feature struct {
 	Name        string             `json:"name" yaml:"name"`
 	Stability   FeatureStability   `json:"stability" yaml:"stability"`
 	Criticality FeatureCriticality `json:"criticality,omitempty" yaml:"criticality,omitempty"`
 }
 
+// Artifacts describes auxiliary artifacts emitted alongside the descriptor.
 type Artifacts struct {
 	ConfigSchema         *Artifact `json:"config_schema,omitempty" yaml:"config_schema,omitempty"`
 	ProtoBundle          *Artifact `json:"proto_bundle,omitempty" yaml:"proto_bundle,omitempty"`
@@ -311,12 +420,14 @@ type Artifacts struct {
 	GRPCContractManifest *Artifact `json:"grpc_contract_manifest,omitempty" yaml:"grpc_contract_manifest,omitempty"`
 }
 
+// Artifact describes one versioned artifact location.
 type Artifact struct {
 	Format   string `json:"format" yaml:"format"`
 	Location string `json:"location" yaml:"location"`
 	Version  string `json:"version,omitempty" yaml:"version,omitempty"`
 }
 
+// Options describes the metadata used to generate a descriptor.
 type Options struct {
 	Application Application
 

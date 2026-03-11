@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -22,6 +23,7 @@ func (l *schedulerTestLogger) Error(string, ...any) {}
 func (l *schedulerTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *schedulerTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }

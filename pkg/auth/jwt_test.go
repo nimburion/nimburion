@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -70,7 +71,7 @@ func TestJWKSValidator_Validate_Success(t *testing.T) {
 	}
 
 	// Parse and validate manually to test extraction logic
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {
@@ -144,7 +145,7 @@ func TestJWKSValidator_Validate_ExpiredToken(t *testing.T) {
 	}
 
 	// Validate should fail due to expiration
-	_, err = jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	_, err = jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 
@@ -193,7 +194,7 @@ func TestJWKSValidator_Validate_InvalidIssuer(t *testing.T) {
 	}
 
 	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {
@@ -252,7 +253,7 @@ func TestJWKSValidator_Validate_InvalidAudience(t *testing.T) {
 	}
 
 	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(_ *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	})
 	if err != nil {

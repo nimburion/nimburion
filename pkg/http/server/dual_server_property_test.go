@@ -12,6 +12,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/health"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
@@ -109,18 +110,18 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 
 			// Check for startup errors (including port conflicts)
 			select {
-			case err := <-publicErrChan:
+			case publicErr := <-publicErrChan:
 				// Port conflict is expected in property tests, skip this case
-				if err != nil {
-					t.Logf("Public server failed to start (skipping): %v", err)
+				if publicErr != nil {
+					t.Logf("Public server failed to start (skipping): %v", publicErr)
 					publicCancel()
 					managementCancel()
 					return true // Skip this test case, not a failure
 				}
-			case err := <-managementErrChan:
+			case managementErr := <-managementErrChan:
 				// Port conflict is expected in property tests, skip this case
-				if err != nil {
-					t.Logf("Management server failed to start (skipping): %v", err)
+				if managementErr != nil {
+					t.Logf("Management server failed to start (skipping): %v", managementErr)
 					publicCancel()
 					managementCancel()
 					return true // Skip this test case, not a failure

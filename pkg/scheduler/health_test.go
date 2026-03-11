@@ -14,6 +14,7 @@ type healthLockProvider struct{}
 func (p *healthLockProvider) Acquire(context.Context, string, time.Duration) (*coordination.LockLease, bool, error) {
 	return nil, false, nil
 }
+
 func (p *healthLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
 	return nil
 }

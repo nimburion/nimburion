@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/tracing"
 	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 	"github.com/nimburion/nimburion/pkg/resilience"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Worker configuration constants

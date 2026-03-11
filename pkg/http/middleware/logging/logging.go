@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/middleware"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 

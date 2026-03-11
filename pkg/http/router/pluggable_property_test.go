@@ -15,6 +15,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 	ginadapter "github.com/nimburion/nimburion/pkg/http/router/gin"
 	gorillaadapter "github.com/nimburion/nimburion/pkg/http/router/gorilla"
@@ -244,7 +245,7 @@ func TestProperty_ErrorHandlingEquivalence(t *testing.T) {
 		for _, a := range adapters {
 			// Error before write -> 500
 			r1 := a.create()
-			r1.GET("/e1", func(c router.Context) error { return fmt.Errorf("boom") })
+			r1.GET("/e1", func(_ router.Context) error { return fmt.Errorf("boom") })
 			if got := perform(r1, http.MethodGet, "/e1", "", nil); got.status != http.StatusInternalServerError {
 				return false
 			}

@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -213,7 +214,7 @@ func (a *Adapter) Download(ctx context.Context, key string) ([]byte, string, err
 	return payload, aws.ToString(resp.ContentType), nil
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 // Delete removes an object by key.
 func (a *Adapter) Delete(ctx context.Context, key string) error {

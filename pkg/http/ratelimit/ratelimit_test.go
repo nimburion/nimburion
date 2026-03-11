@@ -176,7 +176,7 @@ func TestTokenBucketLimiter_TokenRefill(t *testing.T) {
 	}
 }
 
-func TestTokenBucketLimiter_ConcurrentAccess(t *testing.T) {
+func TestTokenBucketLimiter_ConcurrentAccess(_ *testing.T) {
 	limiter := NewTokenBucketLimiter(100, 50)
 	numGoroutines := 10
 	requestsPerGoroutine := 10
@@ -186,7 +186,7 @@ func TestTokenBucketLimiter_ConcurrentAccess(t *testing.T) {
 
 	// Launch multiple goroutines making concurrent requests
 	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			key := "concurrent-user"
 
@@ -339,25 +339,25 @@ func (m *mockContext) SetResponse(w router.ResponseWriter) {
 	}
 }
 
-func (m *mockContext) Param(name string) string {
+func (m *mockContext) Param(_ string) string {
 	return ""
 }
 
-func (m *mockContext) Query(name string) string {
-	return m.request.URL.Query().Get(name)
+func (m *mockContext) Query(key string) string {
+	return m.request.URL.Query().Get(key)
 }
 
-func (m *mockContext) Bind(v interface{}) error {
+func (m *mockContext) Bind(_ interface{}) error {
 	return nil
 }
 
-func (m *mockContext) JSON(code int, v interface{}) error {
+func (m *mockContext) JSON(code int, _ interface{}) error {
 	m.response.statusCode = code
 	m.response.written = true
 	return nil
 }
 
-func (m *mockContext) String(code int, s string) error {
+func (m *mockContext) String(code int, _ string) error {
 	m.response.statusCode = code
 	m.response.written = true
 	return nil
@@ -404,14 +404,14 @@ func TestRateLimit_AllowsRequestWithinLimit(t *testing.T) {
 	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             5,
-		KeyFunc: func(c router.Context) string {
+		KeyFunc: func(_ router.Context) string {
 			return "test-key"
 		},
 	}
 
 	middleware := RateLimit(limiter, cfg)
 	nextCalled := false
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	}
@@ -422,7 +422,6 @@ func TestRateLimit_AllowsRequestWithinLimit(t *testing.T) {
 	ctx := newMockContext(req)
 
 	err := handler(ctx)
-
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -441,13 +440,13 @@ func TestRateLimit_RejectsRequestExceedingLimit(t *testing.T) {
 	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             2,
-		KeyFunc: func(c router.Context) string {
+		KeyFunc: func(_ router.Context) string {
 			return "test-key"
 		},
 	}
 
 	middleware := RateLimit(limiter, cfg)
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		return nil
 	}
 
@@ -467,7 +466,6 @@ func TestRateLimit_RejectsRequestExceedingLimit(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	ctx := newMockContext(req)
 	err := handler(ctx)
-
 	if err != nil {
 		t.Errorf("expected no error (error handled in middleware), got %v", err)
 	}
@@ -493,7 +491,7 @@ func TestRateLimit_PerIPRateLimiting(t *testing.T) {
 	}
 
 	middleware := RateLimit(limiter, cfg)
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		return nil
 	}
 
@@ -546,7 +544,7 @@ func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	}
 
 	middleware := RateLimit(limiter, cfg)
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		return nil
 	}
 
@@ -702,13 +700,13 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 	cfg := Config{
 		RequestsPerSecond: 10,
 		Burst:             1,
-		KeyFunc: func(c router.Context) string {
+		KeyFunc: func(_ router.Context) string {
 			return "test-key"
 		},
 	}
 
 	middleware := RateLimit(limiter, cfg)
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		return nil
 	}
 

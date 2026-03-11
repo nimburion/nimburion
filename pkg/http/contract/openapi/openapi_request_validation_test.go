@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/routers"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 	logpkg "github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -53,12 +54,12 @@ func TestOpenAPIValidationStatusCode(t *testing.T) {
 
 type testLogger struct{}
 
-func (l testLogger) Debug(msg string, args ...any)  {}
-func (l testLogger) Info(msg string, args ...any)   {}
-func (l testLogger) Warn(msg string, args ...any)   {}
-func (l testLogger) Error(msg string, args ...any)  {}
-func (l testLogger) With(args ...any) logpkg.Logger { return l }
-func (l testLogger) WithContext(ctx context.Context) logpkg.Logger {
+func (l testLogger) Debug(_ string, _ ...any)    {}
+func (l testLogger) Info(_ string, _ ...any)     {}
+func (l testLogger) Warn(_ string, _ ...any)     {}
+func (l testLogger) Error(_ string, _ ...any)    {}
+func (l testLogger) With(_ ...any) logpkg.Logger { return l }
+func (l testLogger) WithContext(_ context.Context) logpkg.Logger {
 	return l
 }
 
@@ -84,15 +85,16 @@ func (c *openapiTestContext) Response() router.ResponseWriter { return c.resp }
 func (c *openapiTestContext) SetResponse(w router.ResponseWriter) {
 	c.resp = w.(openapiTestResponseWriter)
 }
-func (c *openapiTestContext) Param(name string) string          { return "" }
-func (c *openapiTestContext) Query(name string) string          { return "" }
-func (c *openapiTestContext) Bind(v interface{}) error          { return nil }
-func (c *openapiTestContext) Get(key string) interface{}        { return nil }
-func (c *openapiTestContext) Set(key string, value interface{}) {}
+func (c *openapiTestContext) Param(_ string) string       { return "" }
+func (c *openapiTestContext) Query(_ string) string       { return "" }
+func (c *openapiTestContext) Bind(_ interface{}) error    { return nil }
+func (c *openapiTestContext) Get(_ string) interface{}    { return nil }
+func (c *openapiTestContext) Set(_ string, _ interface{}) {}
 func (c *openapiTestContext) JSON(code int, v interface{}) error {
 	c.resp.WriteHeader(code)
 	return json.NewEncoder(c.resp).Encode(v)
 }
+
 func (c *openapiTestContext) String(code int, s string) error {
 	c.resp.WriteHeader(code)
 	_, err := c.resp.Write([]byte(s))
@@ -118,7 +120,7 @@ paths:
 	}
 
 	nextCalled := false
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	}
@@ -133,8 +135,8 @@ paths:
 
 	req := httptest.NewRequest(http.MethodPost, "/items", nil)
 	ctx := newOpenAPITestContext(req)
-	if err := strictMw(next)(ctx); err != nil {
-		t.Fatalf("strict middleware error: %v", err)
+	if middlewareErr := strictMw(next)(ctx); middlewareErr != nil {
+		t.Fatalf("strict middleware error: %v", middlewareErr)
 	}
 	if ctx.resp.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 in strict mode, got %d", ctx.resp.Code)
@@ -179,7 +181,7 @@ paths:
 	}
 
 	nextCalled := false
-	next := func(c router.Context) error {
+	next := func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	}

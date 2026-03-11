@@ -14,34 +14,53 @@ import (
 	"github.com/nimburion/nimburion/pkg/policy"
 )
 
-type ClaimValueSource = policy.ValueSource
-type ClaimOperator = policy.Operator
-type ScopeLogic = policy.ScopeLogic
-type ScopeRequirement = policy.ScopeRequirement
-type ClaimRule = policy.ClaimRule
-
-const (
-	ClaimValueSourceRoute  = policy.ValueSourceRoute
-	ClaimValueSourceHeader = policy.ValueSourceHeader
-	ClaimValueSourceQuery  = policy.ValueSourceQuery
-
-	ClaimOperatorRequired = policy.OperatorRequired
-	ClaimOperatorEquals   = policy.OperatorEquals
-	ClaimOperatorOneOf    = policy.OperatorOneOf
-	ClaimOperatorRegex    = policy.OperatorRegex
-
-	ScopeLogicAND = policy.ScopeLogicAND
-	ScopeLogicOR  = policy.ScopeLogicOR
+type (
+	// ClaimValueSource aliases the policy value source type for HTTP authorization helpers.
+	ClaimValueSource = policy.ValueSource
+	// ClaimOperator aliases the policy claim operator type for HTTP authorization helpers.
+	ClaimOperator = policy.Operator
+	// ScopeLogic aliases the policy scope logic type for HTTP authorization helpers.
+	ScopeLogic = policy.ScopeLogic
+	// ScopeRequirement aliases the policy scope requirement type for HTTP authorization helpers.
+	ScopeRequirement = policy.ScopeRequirement
+	// ClaimRule aliases the policy claim rule type for HTTP authorization helpers.
+	ClaimRule = policy.ClaimRule
 )
 
+const (
+	// ClaimValueSourceRoute resolves claim comparison values from route parameters.
+	ClaimValueSourceRoute = policy.ValueSourceRoute
+	// ClaimValueSourceHeader resolves claim comparison values from HTTP headers.
+	ClaimValueSourceHeader = policy.ValueSourceHeader
+	// ClaimValueSourceQuery resolves claim comparison values from query parameters.
+	ClaimValueSourceQuery = policy.ValueSourceQuery
+
+	// ClaimOperatorRequired requires the claim to be present.
+	ClaimOperatorRequired = policy.OperatorRequired
+	// ClaimOperatorEquals requires the claim to equal the resolved comparison value.
+	ClaimOperatorEquals = policy.OperatorEquals
+	// ClaimOperatorOneOf requires the claim to match one of the configured values.
+	ClaimOperatorOneOf = policy.OperatorOneOf
+	// ClaimOperatorRegex requires the claim to match the configured regular expression.
+	ClaimOperatorRegex = policy.OperatorRegex
+
+	// ScopeLogicAND requires all scopes to be present.
+	ScopeLogicAND = policy.ScopeLogicAND
+	// ScopeLogicOR requires at least one scope to be present.
+	ScopeLogicOR = policy.ScopeLogicOR
+)
+
+// RequireScopes enforces that all requiredScopes are present on the authenticated subject.
 func RequireScopes(requiredScopes ...string) router.MiddlewareFunc {
 	return RequireScopesWithLogic(ScopeLogicAND, requiredScopes...)
 }
 
+// RequireAnyScope enforces that at least one of requiredScopes is present.
 func RequireAnyScope(requiredScopes ...string) router.MiddlewareFunc {
 	return RequireScopesWithLogic(ScopeLogicOR, requiredScopes...)
 }
 
+// RequireScopesWithLogic enforces requiredScopes using the provided scope logic.
 func RequireScopesWithLogic(logic ScopeLogic, requiredScopes ...string) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
@@ -74,10 +93,12 @@ func RequireScopesWithLogic(logic ScopeLogic, requiredScopes ...string) router.M
 	}
 }
 
+// ClaimsGuard enforces declarative claim rules against authenticated claims.
 func ClaimsGuard(rules ...ClaimRule) router.MiddlewareFunc {
 	return ClaimsGuardWithMappings(nil, rules...)
 }
 
+// ClaimsGuardWithMappings enforces claim rules using canonical claim mappings.
 func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
@@ -109,6 +130,7 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 	}
 }
 
+// ClaimsGuardFromConfig builds a claim guard from auth configuration.
 func ClaimsGuardFromConfig(authCfg authconfig.Config) router.MiddlewareFunc {
 	rules := ClaimRulesFromConfig(authCfg)
 	if len(rules) == 0 {
@@ -117,6 +139,7 @@ func ClaimsGuardFromConfig(authCfg authconfig.Config) router.MiddlewareFunc {
 	return ClaimsGuardWithMappings(authCfg.Claims.Mappings, rules...)
 }
 
+// ClaimRulesFromConfig converts auth config claim rules into policy claim rules.
 func ClaimRulesFromConfig(authCfg authconfig.Config) []ClaimRule {
 	rules := make([]ClaimRule, 0, len(authCfg.Claims.Rules))
 	for _, rule := range authCfg.Claims.Rules {
@@ -184,6 +207,7 @@ func claimToString(value interface{}) (string, bool) {
 	}
 }
 
+// HasAllScopes reports whether userScopes contains every required scope.
 func HasAllScopes(userScopes, requiredScopes []string) bool {
 	return policy.EvaluateScopes(policy.Subject{Scopes: userScopes}, policy.ScopeRequirement{
 		Scopes: requiredScopes,
@@ -191,6 +215,7 @@ func HasAllScopes(userScopes, requiredScopes []string) bool {
 	})
 }
 
+// HasAnyScope reports whether userScopes contains at least one required scope.
 func HasAnyScope(userScopes, requiredScopes []string) bool {
 	return policy.EvaluateScopes(policy.Subject{Scopes: userScopes}, policy.ScopeRequirement{
 		Scopes: requiredScopes,

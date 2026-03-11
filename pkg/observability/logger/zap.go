@@ -7,6 +7,8 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 // ZapLogger is a Logger implementation using uber-go/zap for structured logging.
@@ -153,12 +155,14 @@ func (l *ZapLogger) WithContext(ctx context.Context) Logger {
 }
 
 // getRequestIDFromContext extracts the request ID from the context.
-// This function looks for the request ID under the "request_id" key.
 func getRequestIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
 
+	if requestID, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
+		return requestID
+	}
 	if requestID, ok := ctx.Value("request_id").(string); ok {
 		return requestID
 	}

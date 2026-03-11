@@ -225,7 +225,7 @@ func TestManagementServer_ReadyEndpoint_Unhealthy(t *testing.T) {
 	metricsRegistry := metrics.NewRegistry()
 
 	// Register an unhealthy checker
-	healthRegistry.Register(health.NewCustomChecker("unhealthy-db", func(ctx context.Context) (health.Status, string, error) {
+	healthRegistry.Register(health.NewCustomChecker("unhealthy-db", func(_ context.Context) (health.Status, string, error) {
 		return health.StatusUnhealthy, "Database connection failed", nil
 	}))
 
@@ -274,7 +274,7 @@ func TestManagementServer_ReadyEndpoint_DegradedStaysAvailable(t *testing.T) {
 	healthRegistry := health.NewRegistry()
 	metricsRegistry := metrics.NewRegistry()
 
-	healthRegistry.Register(health.NewCustomChecker("degraded-cache", func(ctx context.Context) (health.Status, string, error) {
+	healthRegistry.Register(health.NewCustomChecker("degraded-cache", func(_ context.Context) (health.Status, string, error) {
 		return health.StatusDegraded, "cache is degraded", nil
 	}))
 

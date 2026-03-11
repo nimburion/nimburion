@@ -86,7 +86,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 		limit = len(values)
 	}
 
-	out := make([]Event, 0, min(limit, len(values)))
+	out := make([]Event, 0, minInt(limit, len(values)))
 	for _, raw := range values {
 		var evt Event
 		if err := json.Unmarshal([]byte(raw), &evt); err != nil {
@@ -114,7 +114,7 @@ func (s *RedisStore) key(channel string) string {
 	return fmt.Sprintf("%s:%s", s.prefix, channel)
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

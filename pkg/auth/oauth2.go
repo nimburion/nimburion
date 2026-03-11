@@ -161,7 +161,7 @@ func isValidAbsoluteURL(raw string) bool {
 	return validateHTTPURL(raw) == nil
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 func validateHTTPURL(raw string) error {
 	parsed, err := url.Parse(raw)

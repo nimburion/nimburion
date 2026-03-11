@@ -1,3 +1,4 @@
+// Package retry provides retry helpers for transient operations.
 package retry
 
 import (
@@ -6,22 +7,32 @@ import (
 	"time"
 )
 
+// Classification describes the retry semantics of an error.
 type Classification string
 
 const (
+	// ClassificationRetryable marks failures that may be retried safely.
 	ClassificationRetryable Classification = "retryable"
-	ClassificationPoison    Classification = "poison"
-	ClassificationTerminal  Classification = "terminal"
+	// ClassificationPoison marks failures that should be quarantined or dead-lettered.
+	ClassificationPoison Classification = "poison"
+	// ClassificationTerminal marks failures that should not be retried.
+	ClassificationTerminal Classification = "terminal"
 )
 
+// Disposition describes the action taken after classifying a failure.
 type Disposition string
 
 const (
+	// DispositionImmediateRetry retries the operation immediately.
 	DispositionImmediateRetry Disposition = "immediate_retry"
-	DispositionDelayedRetry   Disposition = "delayed_retry"
-	DispositionDeadLetter     Disposition = "dead_letter"
-	DispositionQuarantine     Disposition = "quarantine"
-	DispositionDrop           Disposition = "drop"
+	// DispositionDelayedRetry retries the operation after a delay.
+	DispositionDelayedRetry Disposition = "delayed_retry"
+	// DispositionDeadLetter routes the failure to a dead-letter sink.
+	DispositionDeadLetter Disposition = "dead_letter"
+	// DispositionQuarantine routes the failure to quarantine.
+	DispositionQuarantine Disposition = "quarantine"
+	// DispositionDrop discards the failure without further handling.
+	DispositionDrop Disposition = "drop"
 )
 
 type taggedError struct {
@@ -32,6 +43,7 @@ type taggedError struct {
 func (e *taggedError) Error() string { return e.err.Error() }
 func (e *taggedError) Unwrap() error { return e.err }
 
+// Retryable tags err as retryable.
 func Retryable(err error) error {
 	if err == nil {
 		return nil
@@ -39,6 +51,7 @@ func Retryable(err error) error {
 	return &taggedError{err: err, classification: ClassificationRetryable}
 }
 
+// Poison tags err as poison and unsuitable for normal retries.
 func Poison(err error) error {
 	if err == nil {
 		return nil
@@ -46,6 +59,7 @@ func Poison(err error) error {
 	return &taggedError{err: err, classification: ClassificationPoison}
 }
 
+// Terminal tags err as terminal and non-retryable.
 func Terminal(err error) error {
 	if err == nil {
 		return nil
@@ -53,6 +67,7 @@ func Terminal(err error) error {
 	return &taggedError{err: err, classification: ClassificationTerminal}
 }
 
+// Classify returns the tagged classification for err or retryable by default.
 func Classify(err error) Classification {
 	if err == nil {
 		return ClassificationRetryable
@@ -64,6 +79,7 @@ func Classify(err error) Classification {
 	return ClassificationRetryable
 }
 
+// Budget configures retry attempt and backoff limits.
 type Budget struct {
 	MaxAttempts    int
 	InitialBackoff time.Duration
@@ -71,6 +87,7 @@ type Budget struct {
 	AttemptTimeout time.Duration
 }
 
+// Normalize applies defaults to unset retry budget fields.
 func (b *Budget) Normalize(defaultMaxAttempts int, defaultInitialBackoff, defaultMaxBackoff, defaultAttemptTimeout time.Duration) {
 	if b.MaxAttempts <= 0 {
 		b.MaxAttempts = defaultMaxAttempts
@@ -86,11 +103,13 @@ func (b *Budget) Normalize(defaultMaxAttempts int, defaultInitialBackoff, defaul
 	}
 }
 
+// Policy configures dead-letter and quarantine behavior.
 type Policy struct {
 	DeadLetterEnabled bool
 	QuarantineEnabled bool
 }
 
+// Decision describes the retry handling chosen for one failure.
 type Decision struct {
 	Classification Classification
 	Disposition    Disposition
@@ -99,6 +118,7 @@ type Decision struct {
 	Delay          time.Duration
 }
 
+// QuarantineRecord captures one failure routed to quarantine.
 type QuarantineRecord struct {
 	Scope          string
 	Key            string
@@ -110,6 +130,7 @@ type QuarantineRecord struct {
 	Metadata       map[string]string
 }
 
+// Validate checks that the quarantine record contains the required fields.
 func (r *QuarantineRecord) Validate() error {
 	if r == nil {
 		return errors.New("quarantine record is nil")
@@ -129,10 +150,12 @@ func (r *QuarantineRecord) Validate() error {
 	return nil
 }
 
+// QuarantineSink stores quarantined failures.
 type QuarantineSink interface {
 	Quarantine(ctx context.Context, record *QuarantineRecord) error
 }
 
+// Decide selects the next retry disposition for class and attempt state.
 func Decide(class Classification, attempt, maxAttempts int, budget Budget, policy Policy) Decision {
 	if maxAttempts <= 0 {
 		maxAttempts = 1
@@ -172,19 +195,20 @@ func Decide(class Classification, attempt, maxAttempts int, budget Budget, polic
 	}
 }
 
-func ExponentialBackoff(attempt int, initial, max time.Duration) time.Duration {
+// ExponentialBackoff returns a capped exponential backoff for attempt.
+func ExponentialBackoff(attempt int, initial, maxBackoff time.Duration) time.Duration {
 	if attempt <= 0 {
 		return initial
 	}
 	backoff := initial
 	for i := 1; i < attempt; i++ {
-		if backoff >= max/2 {
-			return max
+		if backoff >= maxBackoff/2 {
+			return maxBackoff
 		}
 		backoff *= 2
 	}
-	if backoff > max {
-		return max
+	if backoff > maxBackoff {
+		return maxBackoff
 	}
 	return backoff
 }

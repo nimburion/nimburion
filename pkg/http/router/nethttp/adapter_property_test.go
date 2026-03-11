@@ -9,6 +9,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
@@ -310,7 +311,7 @@ func TestProperty35_RouterInterfaceCompatibility(t *testing.T) {
 
 			// Request a different route
 			requestedPath := "/" + segment2
-			
+
 			// Only test if paths are different
 			if registeredPath == requestedPath {
 				return true // Skip this case

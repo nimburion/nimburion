@@ -10,9 +10,12 @@ import (
 type Layer string
 
 const (
+	// LayerTransport identifies transport-level validation.
 	LayerTransport Layer = "transport"
-	LayerContract  Layer = "contract"
-	LayerDomain    Layer = "domain"
+	// LayerContract identifies contract-level validation.
+	LayerContract Layer = "contract"
+	// LayerDomain identifies domain-level validation.
+	LayerDomain Layer = "domain"
 )
 
 // Validator validates one request payload at a specific layer.

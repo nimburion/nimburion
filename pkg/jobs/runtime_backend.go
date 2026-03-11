@@ -165,7 +165,7 @@ func (b *RuntimeBackend) Reserve(ctx context.Context, queue string, leaseFor tim
 }
 
 // Ack marks a reserved job as successfully processed.
-func (b *RuntimeBackend) Ack(ctx context.Context, lease *Lease) error {
+func (b *RuntimeBackend) Ack(_ context.Context, lease *Lease) error {
 	state, err := b.popLease(lease)
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func (b *RuntimeBackend) Nack(ctx context.Context, lease *Lease, nextRunAt time.
 }
 
 // Renew extends the lease expiry for an in-flight job.
-func (b *RuntimeBackend) Renew(ctx context.Context, lease *Lease, leaseFor time.Duration) error {
+func (b *RuntimeBackend) Renew(_ context.Context, lease *Lease, leaseFor time.Duration) error {
 	if b == nil {
 		return jobsError(ErrNotInitialized, "runtime backend is not initialized")
 	}

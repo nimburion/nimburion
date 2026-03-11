@@ -5,15 +5,16 @@ import (
 	"errors"
 	"strings"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+
 	frameworkauth "github.com/nimburion/nimburion/pkg/auth"
 	grpcmetadata "github.com/nimburion/nimburion/pkg/grpc/metadata"
 	grpcstatusmap "github.com/nimburion/nimburion/pkg/grpc/status"
 	grpcstream "github.com/nimburion/nimburion/pkg/grpc/stream"
 	"github.com/nimburion/nimburion/pkg/policy"
 	"github.com/nimburion/nimburion/pkg/tenant"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 )
 
 type claimsContextKey struct{}
@@ -26,7 +27,7 @@ func ClaimsFromContext(ctx context.Context) (*frameworkauth.Claims, bool) {
 
 // AuthenticateUnary validates bearer metadata and injects claims into the context.
 func AuthenticateUnary(validator frameworkauth.JWTValidator) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		nextCtx, err := authenticateContext(ctx, validator)
 		if err != nil {
 			return nil, err
@@ -37,7 +38,7 @@ func AuthenticateUnary(validator frameworkauth.JWTValidator) grpc.UnaryServerInt
 
 // AuthenticateStream validates bearer metadata and injects claims into the stream context.
 func AuthenticateStream(validator frameworkauth.JWTValidator) grpc.StreamServerInterceptor {
-	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		nextCtx, err := authenticateContext(stream.Context(), validator)
 		if err != nil {
 			return err
@@ -48,7 +49,7 @@ func AuthenticateStream(validator frameworkauth.JWTValidator) grpc.StreamServerI
 
 // RequireScopesUnary enforces scope requirements on unary RPCs.
 func RequireScopesUnary(requirement policy.ScopeRequirement) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if err := authorizeContext(ctx, requirement); err != nil {
 			return nil, err
 		}
@@ -58,7 +59,7 @@ func RequireScopesUnary(requirement policy.ScopeRequirement) grpc.UnaryServerInt
 
 // RequireScopesStream enforces scope requirements on streaming RPCs.
 func RequireScopesStream(requirement policy.ScopeRequirement) grpc.StreamServerInterceptor {
-	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if err := authorizeContext(stream.Context(), requirement); err != nil {
 			return err
 		}

@@ -1,9 +1,10 @@
 package reflection
 
 import (
-	grpcserver "github.com/nimburion/nimburion/pkg/grpc/server"
 	"google.golang.org/grpc"
 	grpcreflection "google.golang.org/grpc/reflection"
+
+	grpcserver "github.com/nimburion/nimburion/pkg/grpc/server"
 )
 
 // Registration returns one optional gRPC registration for server reflection.

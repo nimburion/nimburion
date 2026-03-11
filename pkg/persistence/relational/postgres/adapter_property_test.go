@@ -9,6 +9,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -154,8 +155,8 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 
 			// Execute transaction that should commit
 			err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
-				_, err := adapter.ExecContext(txCtx, "INSERT INTO test_tx_commit (value) VALUES ($1)", "test")
-				return err
+				_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_tx_commit (value) VALUES ($1)", "test")
+				return execErr
 			})
 			if err != nil {
 				t.Logf("Transaction failed: %v", err)
@@ -204,9 +205,9 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 
 			// Execute transaction that should rollback
 			err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
-				_, err := adapter.ExecContext(txCtx, "INSERT INTO test_tx_rollback (value) VALUES ($1)", "test")
-				if err != nil {
-					return err
+				_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_tx_rollback (value) VALUES ($1)", "test")
+				if execErr != nil {
+					return execErr
 				}
 				// Return error to trigger rollback
 				return fmt.Errorf("intentional error")
@@ -257,14 +258,14 @@ func TestProperty14_DatabaseAdapterContract(t *testing.T) {
 			// Execute transaction with nested operations
 			err = adapter.WithTransaction(ctx, func(txCtx context.Context) error {
 				// First insert
-				_, err := adapter.ExecContext(txCtx, "INSERT INTO test_nested_tx (value) VALUES ($1)", "first")
-				if err != nil {
-					return err
+				_, execErr := adapter.ExecContext(txCtx, "INSERT INTO test_nested_tx (value) VALUES ($1)", "first")
+				if execErr != nil {
+					return execErr
 				}
 
 				// Nested operation using same transaction context
-				_, err = adapter.ExecContext(txCtx, "INSERT INTO test_nested_tx (value) VALUES ($1)", "second")
-				return err
+				_, execErr = adapter.ExecContext(txCtx, "INSERT INTO test_nested_tx (value) VALUES ($1)", "second")
+				return execErr
 			})
 			if err != nil {
 				t.Logf("Transaction failed: %v", err)

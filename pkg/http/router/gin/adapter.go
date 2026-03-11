@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	ginpkg "github.com/gin-gonic/gin"
+
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
@@ -212,7 +213,7 @@ func (c *ginContext) Bind(v interface{}) error {
 	return json.NewDecoder(c.ctx.Request.Body).Decode(v)
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 func (c *ginContext) JSON(code int, v interface{}) error {
 	c.response.Header().Set("Content-Type", "application/json")

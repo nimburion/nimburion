@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 // Config configures OAuth2/OIDC authentication integration.
@@ -44,6 +45,7 @@ type Extension struct {
 // DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"auth"} }
 
+// ApplyDefaults registers default auth configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("auth.enabled", false)
 	v.SetDefault("auth.jwks_cache_ttl", time.Hour)
@@ -57,6 +59,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	})
 }
 
+// BindEnv binds auth configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"auth.enabled", "AUTH_ENABLED",
@@ -67,6 +70,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that enabled auth configuration is complete and coherent.
 func (e Extension) Validate() error {
 	if !e.Auth.Enabled {
 		return nil
@@ -137,10 +141,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

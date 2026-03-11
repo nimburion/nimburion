@@ -8,10 +8,11 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	reliabilityretry "github.com/nimburion/nimburion/pkg/reliability/retry"
 	"github.com/nimburion/nimburion/pkg/resilience"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Retry and DLQ configuration constants

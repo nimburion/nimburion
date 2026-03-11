@@ -17,4 +17,5 @@ func (swaggerConfigFeature) Contributions() corefeature.Contributions {
 	}
 }
 
+// NewConfigFeature returns the feature that registers the OpenAPI config extension.
 func NewConfigFeature() corefeature.Feature { return swaggerConfigFeature{} }

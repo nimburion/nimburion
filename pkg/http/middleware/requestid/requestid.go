@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/nimburion/nimburion/pkg/http/router"
+
 	"github.com/nimburion/nimburion/pkg/http/middleware"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 // RequestIDHeader is the HTTP header name for request ID.

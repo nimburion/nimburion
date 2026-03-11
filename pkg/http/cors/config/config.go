@@ -5,10 +5,12 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
+// Config configures HTTP CORS policy.
 type Config struct {
 	Enabled                   bool          `mapstructure:"enabled"`
 	AllowAllOrigins           bool          `mapstructure:"allow_all_origins"`
@@ -27,12 +29,15 @@ type Config struct {
 	OptionsResponseStatusCode int           `mapstructure:"options_response_status_code"`
 }
 
+// Extension contributes the CORS config section as family-owned config surface.
 type Extension struct {
 	CORS Config `mapstructure:"cors"`
 }
 
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"cors"} }
 
+// ApplyDefaults registers default CORS configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("cors.enabled", false)
 	v.SetDefault("cors.allow_all_origins", false)
@@ -51,6 +56,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("cors.options_response_status_code", 204)
 }
 
+// BindEnv binds CORS configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"cors.enabled", "CORS_ENABLED",
@@ -71,6 +77,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that enabled CORS configuration is coherent.
 func (e Extension) Validate() error {
 	if !e.CORS.Enabled {
 		return nil
@@ -116,10 +123,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

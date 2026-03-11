@@ -213,13 +213,13 @@ func TestAdditionalProviders_SendAndClose(t *testing.T) {
 		{"mailjet", func(url string) (email.Provider, error) {
 			return mailjet.New(emailconfig.MailjetConfig{APIKey: "mj-key", APISecret: "mj-secret", From: "noreply@example.com", BaseURL: url}, nil)
 		}},
-		{"smtp", func(url string) (email.Provider, error) {
+		{"smtp", func(_ string) (email.Provider, error) {
 			return smtp.New(emailconfig.SMTPConfig{Host: "smtp.example.com", Port: 587, From: "noreply@example.com"}, nil)
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
 			defer server.Close()
 			p, err := tc.new(server.URL)
 			if err != nil {

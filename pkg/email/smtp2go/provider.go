@@ -1,3 +1,4 @@
+// Package smtp2go provides an email provider backed by the SMTP2GO API.
 package smtp2go
 
 import (
@@ -13,13 +14,18 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
-type Config = emailconfig.TokenConfig
-type Provider struct {
-	cfg        Config
-	httpClient *http.Client
-	log        logger.Logger
-}
+type (
+	// Config configures the SMTP2GO email provider.
+	Config = emailconfig.TokenConfig
+	// Provider sends email through the SMTP2GO API.
+	Provider struct {
+		cfg        Config
+		httpClient *http.Client
+		log        logger.Logger
+	}
+)
 
+// New constructs an SMTP2GO-backed email provider.
 func New(cfg Config, log logger.Logger) (*Provider, error) {
 	if strings.TrimSpace(cfg.Token) == "" {
 		return nil, coreerrors.NewValidationWithCode("validation.email.smtp2go.token.required", "smtp2go token is required", nil, nil)
@@ -32,6 +38,8 @@ func New(cfg Config, log logger.Logger) (*Provider, error) {
 	}
 	return &Provider{cfg: cfg, httpClient: emailkit.DefaultHTTPClient(nil, cfg.OperationTimeout), log: log}, nil
 }
+
+// Send delivers message using the configured SMTP2GO account.
 func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	msg, err := email.ApplyDefaultSender(message.Normalized(), p.cfg.From)
 	if err != nil {
@@ -43,4 +51,6 @@ func (p *Provider) Send(ctx context.Context, message email.Message) error {
 	payload := map[string]interface{}{"api_key": p.cfg.Token, "sender": msg.From, "to": msg.To, "cc": msg.Cc, "bcc": msg.Bcc, "subject": msg.Subject, "text_body": msg.TextBody, "html_body": msg.HTMLBody}
 	return emailkit.SendJSON(ctx, p.httpClient, p.cfg.OperationTimeout, strings.TrimRight(p.cfg.BaseURL, "/")+"/v3/email/send", payload, nil)
 }
+
+// Close releases provider resources.
 func (p *Provider) Close() error { return nil }

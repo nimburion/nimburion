@@ -10,6 +10,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/coordination"
 )
 
@@ -62,7 +63,7 @@ func (p *scriptedLockProvider) Release(context.Context, *coordination.LockLease)
 func (p *scriptedLockProvider) HealthCheck(context.Context) error { return nil }
 func (p *scriptedLockProvider) Close() error                      { return nil }
 
-func (p *scriptedLockProvider) stats() (acquires int, releases int) {
+func (p *scriptedLockProvider) stats() (acquires, releases int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.acquires, p.releases

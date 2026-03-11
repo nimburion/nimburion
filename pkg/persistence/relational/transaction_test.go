@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+type contextKey string
+
+const testContextKey contextKey = "k"
+
 type fakeTransaction struct {
 	ctx        context.Context
 	committed  bool
@@ -26,7 +30,7 @@ func (t *fakeTransaction) Context() context.Context {
 }
 
 func TestTransactionContract(t *testing.T) {
-	base := context.WithValue(context.Background(), "k", "v")
+	base := context.WithValue(context.Background(), testContextKey, "v")
 	tx := &fakeTransaction{ctx: base}
 
 	if err := tx.Commit(); err != nil {
@@ -43,7 +47,7 @@ func TestTransactionContract(t *testing.T) {
 		t.Fatal("expected rolledback flag")
 	}
 
-	if got := tx.Context().Value("k"); got != "v" {
+	if got := tx.Context().Value(testContextKey); got != "v" {
 		t.Fatalf("unexpected context value: %v", got)
 	}
 }

@@ -63,7 +63,7 @@ func TestBuildSpec_ConvertsPathParamsAndGeneratesOperations(t *testing.T) {
 }
 
 func TestBuildSpec_AppliesEndpointAnnotations(t *testing.T) {
-	handler := Annotate(func(c router.Context) error { return nil }, EndpointAnnotations{
+	handler := Annotate(func(_ router.Context) error { return nil }, EndpointAnnotations{
 		Summary:     "Get user by ID",
 		Description: "Returns user details for the provided identifier.",
 		Tags:        []string{"users", "read"},
@@ -114,8 +114,8 @@ func TestWriteSpec_JSONAndYAML(t *testing.T) {
 		t.Fatalf("read json spec: %v", err)
 	}
 	var parsed map[string]interface{}
-	if err := json.Unmarshal(jsonData, &parsed); err != nil {
-		t.Fatalf("json must be valid: %v", err)
+	if unmarshalErr := json.Unmarshal(jsonData, &parsed); unmarshalErr != nil {
+		t.Fatalf("json must be valid: %v", unmarshalErr)
 	}
 	if parsed["openapi"] != "3.0.3" {
 		t.Fatalf("unexpected openapi version: %v", parsed["openapi"])

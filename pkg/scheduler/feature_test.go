@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
@@ -14,7 +16,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/jobs"
 	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 type testJobsRuntime struct{}

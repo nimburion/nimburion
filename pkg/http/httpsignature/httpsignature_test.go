@@ -192,7 +192,7 @@ func TestMiddleware_DisabledRemainsDisabledWithEmptyConfig(t *testing.T) {
 	}
 }
 
-func applySignedHeaders(req *http.Request, cfg Config, keyID string, secret string, body string, ts time.Time, nonce string) {
+func applySignedHeaders(req *http.Request, cfg Config, keyID, secret, body string, ts time.Time, nonce string) {
 	timestamp := ts.UTC().Format(time.RFC3339)
 	payload := canonicalPayload(req.Method, req.URL.EscapedPath(), req.URL.RawQuery, timestamp, nonce, []byte(body))
 	mac := hmac.New(sha256.New, []byte(secret))

@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nimburion/nimburion/internal/safepath"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -16,6 +15,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/nimburion/nimburion/internal/safepath"
 )
 
 const headerSchemaMessage = "schema_message"

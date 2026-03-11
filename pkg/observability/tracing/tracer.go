@@ -29,19 +29,19 @@ type TracerProvider struct {
 type TracerConfig struct {
 	// ServiceName identifies the service in traces
 	ServiceName string
-	
+
 	// ServiceVersion is the version of the service
 	ServiceVersion string
-	
+
 	// Environment identifies the deployment environment (dev, staging, prod)
 	Environment string
-	
+
 	// Endpoint is the OTLP collector endpoint (e.g., "localhost:4317")
 	Endpoint string
-	
+
 	// SampleRate is the fraction of traces to sample (0.0 to 1.0)
 	SampleRate float64
-	
+
 	// Enabled controls whether tracing is active
 	Enabled bool
 }
@@ -58,7 +58,7 @@ func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*TracerProvider, 
 			config:   cfg,
 		}, nil
 	}
-	
+
 	// Validate configuration
 	if cfg.ServiceName == "" {
 		return nil, fmt.Errorf("service name is required")
@@ -69,7 +69,7 @@ func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*TracerProvider, 
 	if cfg.SampleRate < 0 || cfg.SampleRate > 1 {
 		return nil, fmt.Errorf("sample rate must be between 0 and 1")
 	}
-	
+
 	// Create OTLP exporter
 	exporter, err := otlptrace.New(
 		ctx,
@@ -81,7 +81,7 @@ func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*TracerProvider, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
-	
+
 	// Create resource with service information
 	res, err := resource.New(
 		ctx,
@@ -94,17 +94,17 @@ func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*TracerProvider, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
-	
+
 	// Create tracer provider with sampling
 	provider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SampleRate)),
 	)
-	
+
 	// Set global tracer provider
 	otel.SetTracerProvider(provider)
-	
+
 	// Set global propagator for context propagation
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
@@ -112,7 +112,7 @@ func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*TracerProvider, 
 			propagation.Baggage{},
 		),
 	)
-	
+
 	return &TracerProvider{
 		provider: provider,
 		config:   cfg,
@@ -133,15 +133,15 @@ func (tp *TracerProvider) Shutdown(ctx context.Context) error {
 	if tp.provider == nil {
 		return nil
 	}
-	
+
 	// Create a timeout context for shutdown
 	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	
+
 	if err := tp.provider.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("failed to shutdown tracer provider: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -151,10 +151,10 @@ func (tp *TracerProvider) ForceFlush(ctx context.Context) error {
 	if tp.provider == nil {
 		return nil
 	}
-	
+
 	if err := tp.provider.ForceFlush(ctx); err != nil {
 		return fmt.Errorf("failed to flush tracer provider: %w", err)
 	}
-	
+
 	return nil
 }

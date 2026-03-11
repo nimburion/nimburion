@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	ratelimitconfig "github.com/nimburion/nimburion/pkg/http/ratelimit/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/redis/go-redis/v9"
 )
 
 func TestNewRedisRateLimiter_ValidationErrorsAreTyped(t *testing.T) {
@@ -82,7 +83,7 @@ func newFakeRedisClient() *fakeRedisClient {
 	}
 }
 
-func (c *fakeRedisClient) Incr(ctx context.Context, key string) *redis.IntCmd {
+func (c *fakeRedisClient) Incr(_ context.Context, key string) *redis.IntCmd {
 	if exp, ok := c.expires[key]; ok && time.Now().After(exp) {
 		delete(c.data, key)
 		delete(c.expires, key)
@@ -92,12 +93,12 @@ func (c *fakeRedisClient) Incr(ctx context.Context, key string) *redis.IntCmd {
 	return redis.NewIntResult(value, nil)
 }
 
-func (c *fakeRedisClient) Expire(ctx context.Context, key string, expiration time.Duration) *redis.BoolCmd {
+func (c *fakeRedisClient) Expire(_ context.Context, key string, expiration time.Duration) *redis.BoolCmd {
 	c.expires[key] = time.Now().Add(expiration)
 	return redis.NewBoolResult(true, nil)
 }
 
-func (c *fakeRedisClient) Ping(ctx context.Context) *redis.StatusCmd {
+func (c *fakeRedisClient) Ping(_ context.Context) *redis.StatusCmd {
 	return redis.NewStatusResult("PONG", nil)
 }
 

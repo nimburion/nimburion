@@ -1,3 +1,4 @@
+// Package construct builds email providers from framework configuration.
 package construct
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
+// NewProvider constructs an email provider from framework configuration.
 func NewProvider(cfg emailconfig.Config, log logger.Logger) (email.Provider, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Provider)) {
 	case "smtp":

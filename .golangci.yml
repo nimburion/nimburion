@@ -92,17 +92,47 @@ linters:
         linters:
           - gosec
 
+      - path: "pkg/core/errors/errors\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/version/semver\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/email/smtp/provider\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/http/middleware/metrics/metrics\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/observability/metrics/http\\.go$"
+        text: "var-naming: avoid package names that conflict with Go standard library package names"
+        linters:
+          - revive
+
+      - path: "pkg/grpc/stream/stream\\.go$"
+        text: "context-as-argument: context.Context should be the first parameter of a function"
+        linters:
+          - revive
+
       - path: "pkg/auth/oauth2\\.go$"
         text: "G117: Exported struct field .* matches secret pattern"
         linters:
           - gosec
 
-      - path: "pkg/config/config\\.go$"
+      - path: "pkg/email/config/config\\.go$"
         text: "G117: Exported struct field .* matches secret pattern"
         linters:
           - gosec
 
-      - path: "pkg/email/(mailchimp_provider|mailgun_provider|providers_extra|sendgrid_provider|ses_provider|smtp_provider)\\.go$"
+      - path: "pkg/eventbus/config/config\\.go$"
         text: "G117: Exported struct field .* matches secret pattern"
         linters:
           - gosec
@@ -112,12 +142,37 @@ linters:
         linters:
           - gosec
 
-      - path: "pkg/store/(dynamodb/adapter|opensearch/adapter|s3/adapter)\\.go$"
+      - path: "pkg/persistence/config/config\\.go$"
         text: "G117: Exported struct field .* matches secret pattern"
         linters:
           - gosec
 
-      - path: "pkg/(i18n/context|jobs/contract|middleware/session/oauth_tokens)\\.go$"
+      - path: "pkg/persistence/keyvalue/dynamodb/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/object/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/object/s3/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/search/config/config\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/persistence/search/opensearch/adapter\\.go$"
+        text: "G117: Exported struct field .* matches secret pattern"
+        linters:
+          - gosec
+
+      - path: "pkg/http/session/oauth_tokens\\.go$"
         text: "G101: Potential hardcoded credentials"
         linters:
           - gosec

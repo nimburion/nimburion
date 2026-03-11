@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/nimburion/nimburion/pkg/coordination"
 	"github.com/nimburion/nimburion/pkg/jobs"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/tracing"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Scheduler runtime constants

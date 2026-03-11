@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 const (
@@ -43,6 +44,7 @@ type Config struct {
 	Mailjet    MailjetConfig  `mapstructure:"mailjet"`
 }
 
+// TokenConfig configures providers authenticated with a single token.
 type TokenConfig struct {
 	Token            string        `mapstructure:"token"`
 	From             string        `mapstructure:"from"`
@@ -50,6 +52,7 @@ type TokenConfig struct {
 	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
 }
 
+// SMTPConfig configures SMTP-backed email delivery.
 type SMTPConfig struct {
 	Host               string        `mapstructure:"host"`
 	Port               int           `mapstructure:"port"`
@@ -61,6 +64,7 @@ type SMTPConfig struct {
 	OperationTimeout   time.Duration `mapstructure:"operation_timeout"`
 }
 
+// SESConfig configures AWS SES-backed email delivery.
 type SESConfig struct {
 	Region           string        `mapstructure:"region"`
 	Endpoint         string        `mapstructure:"endpoint"`
@@ -71,6 +75,7 @@ type SESConfig struct {
 	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
 }
 
+// MailgunConfig configures Mailgun-backed email delivery.
 type MailgunConfig struct {
 	Token            string        `mapstructure:"token"`
 	Domain           string        `mapstructure:"domain"`
@@ -79,6 +84,7 @@ type MailgunConfig struct {
 	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
 }
 
+// PostmarkConfig configures Postmark-backed email delivery.
 type PostmarkConfig struct {
 	ServerToken      string        `mapstructure:"server_token"`
 	From             string        `mapstructure:"from"`
@@ -86,6 +92,7 @@ type PostmarkConfig struct {
 	OperationTimeout time.Duration `mapstructure:"operation_timeout"`
 }
 
+// MailjetConfig configures Mailjet-backed email delivery.
 type MailjetConfig struct {
 	APIKey           string        `mapstructure:"api_key"`
 	APISecret        string        `mapstructure:"api_secret"`

@@ -16,34 +16,40 @@ import (
 
 type providerTestLogger struct{}
 
-func (l *providerTestLogger) Debug(msg string, args ...any) {}
-func (l *providerTestLogger) Info(msg string, args ...any)  {}
-func (l *providerTestLogger) Warn(msg string, args ...any)  {}
-func (l *providerTestLogger) Error(msg string, args ...any) {}
-func (l *providerTestLogger) With(args ...any) logger.Logger {
+func (l *providerTestLogger) Debug(_ string, _ ...any) {}
+func (l *providerTestLogger) Info(_ string, _ ...any)  {}
+func (l *providerTestLogger) Warn(_ string, _ ...any)  {}
+func (l *providerTestLogger) Error(_ string, _ ...any) {}
+func (l *providerTestLogger) With(_ ...any) logger.Logger {
 	return l
 }
-func (l *providerTestLogger) WithContext(ctx context.Context) logger.Logger {
+
+func (l *providerTestLogger) WithContext(_ context.Context) logger.Logger {
 	return l
 }
 
 type providerMockEventBus struct{}
 
-func (m *providerMockEventBus) Publish(ctx context.Context, topic string, message *eventbus.Message) error {
+func (m *providerMockEventBus) Publish(_ context.Context, _ string, _ *eventbus.Message) error {
 	return nil
 }
-func (m *providerMockEventBus) PublishBatch(ctx context.Context, topic string, messages []*eventbus.Message) error {
+
+func (m *providerMockEventBus) PublishBatch(_ context.Context, _ string, _ []*eventbus.Message) error {
 	return nil
 }
-func (m *providerMockEventBus) Subscribe(ctx context.Context, topic string, handler eventbus.MessageHandler) error {
+
+func (m *providerMockEventBus) Subscribe(_ context.Context, _ string, _ eventbus.MessageHandler) error {
 	return nil
 }
-func (m *providerMockEventBus) Unsubscribe(topic string) error {
+
+func (m *providerMockEventBus) Unsubscribe(_ string) error {
 	return nil
 }
-func (m *providerMockEventBus) HealthCheck(ctx context.Context) error {
+
+func (m *providerMockEventBus) HealthCheck(_ context.Context) error {
 	return nil
 }
+
 func (m *providerMockEventBus) Close() error {
 	return nil
 }
@@ -200,7 +206,7 @@ func TestRedisRuntimeAdapter_DefensiveErrors(t *testing.T) {
 
 func TestRedisRuntimeAdapter_SubscribeNotSupported(t *testing.T) {
 	adapter := &redisRuntimeAdapter{}
-	err := adapter.Subscribe(context.Background(), "queue", func(ctx context.Context, job *Job) error {
+	err := adapter.Subscribe(context.Background(), "queue", func(_ context.Context, _ *Job) error {
 		return nil
 	})
 	if err == nil {
@@ -236,7 +242,7 @@ func TestNewEventBusFromConfig_UnsupportedType(t *testing.T) {
 	}
 }
 
-func TestProviderTestDoublesCompile(t *testing.T) {
+func TestProviderTestDoublesCompile(_ *testing.T) {
 	var _ eventbus.EventBus = (*providerMockEventBus)(nil)
 	var _ logger.Logger = (*providerTestLogger)(nil)
 }

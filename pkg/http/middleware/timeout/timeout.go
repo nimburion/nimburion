@@ -118,6 +118,6 @@ func parseMode(mode Mode) Mode {
 	}
 }
 
-func isDeadlineExceeded(err error, reqErr error) bool {
+func isDeadlineExceeded(err, reqErr error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(reqErr, context.DeadlineExceeded)
 }

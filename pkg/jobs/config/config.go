@@ -5,13 +5,16 @@ import (
 	"strings"
 	"time"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 const (
+	// BackendEventBus selects the event bus-backed jobs runtime.
 	BackendEventBus = "eventbus"
-	BackendRedis    = "redis"
+	// BackendRedis selects the Redis-backed jobs runtime.
+	BackendRedis = "redis"
 )
 
 // Config configures jobs runtime and backend behavior.
@@ -63,6 +66,7 @@ func (Extension) DisabledCoreConfigSections() []string {
 	return []string{"jobs"}
 }
 
+// ApplyDefaults registers default jobs configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("jobs.backend", BackendEventBus)
 	v.SetDefault("jobs.default_queue", "default")
@@ -80,6 +84,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("jobs.redis.operation_timeout", 5*time.Second)
 }
 
+// BindEnv binds jobs configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"jobs.backend", "JOBS_BACKEND",
@@ -100,6 +105,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that jobs configuration is coherent for the selected backend.
 func (e Extension) Validate() error {
 	backend := strings.ToLower(strings.TrimSpace(e.Jobs.Backend))
 	if backend == "" {
@@ -162,10 +168,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

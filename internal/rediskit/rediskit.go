@@ -1,3 +1,4 @@
+// Package rediskit provides low-level helpers shared by Redis-backed adapters.
 package rediskit
 
 import (

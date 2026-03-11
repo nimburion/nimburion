@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -20,11 +21,13 @@ type Extension struct {
 // DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"swagger"} }
 
+// ApplyDefaults registers default OpenAPI configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("swagger.enabled", false)
 	v.SetDefault("swagger.spec_path", "/api/openapi/openapi.yaml")
 }
 
+// BindEnv binds OpenAPI configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"swagger.enabled", "SWAGGER_ENABLED",
@@ -33,10 +36,15 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

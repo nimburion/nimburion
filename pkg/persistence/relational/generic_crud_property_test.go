@@ -26,7 +26,7 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("Create then Read returns same entity", prop.ForAll(
-		func(id int64, name string, status string) bool {
+		func(id int64, name, status string) bool {
 			db, mock, err := sqlmock.New()
 			if err != nil {
 				t.Logf("failed to create mock: %v", err)
@@ -61,8 +61,8 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 			)
 
 			// Create entity
-			if err := repo.Create(context.Background(), entity); err != nil {
-				t.Logf("Create failed: %v", err)
+			if createErr := repo.Create(context.Background(), entity); createErr != nil {
+				t.Logf("Create failed: %v", createErr)
 				return false
 			}
 
@@ -85,7 +85,7 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 	))
 
 	properties.Property("Update modifies entity correctly", prop.ForAll(
-		func(id int64, originalName string, updatedName string) bool {
+		func(id int64, originalName, updatedName string) bool {
 			if originalName == updatedName {
 				return true // Skip trivial case
 			}
@@ -157,8 +157,8 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 			)
 
 			// Delete entity
-			if err := repo.Delete(context.Background(), id); err != nil {
-				t.Logf("Delete failed: %v", err)
+			if deleteErr := repo.Delete(context.Background(), id); deleteErr != nil {
+				t.Logf("Delete failed: %v", deleteErr)
 				return false
 			}
 
@@ -299,7 +299,7 @@ func TestProperty_PaginationConsistency(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("pagination returns correct page size", prop.ForAll(
-		func(totalItems int, pageSize int, page int) bool {
+		func(totalItems, pageSize, page int) bool {
 			// Constrain inputs to reasonable ranges
 			if totalItems < 0 || totalItems > 100 {
 				return true // Skip invalid inputs
@@ -377,7 +377,7 @@ func TestProperty_PaginationConsistency(t *testing.T) {
 	))
 
 	properties.Property("consecutive pages do not overlap", prop.ForAll(
-		func(totalItems int, pageSize int) bool {
+		func(totalItems, pageSize int) bool {
 			// Constrain inputs to reasonable ranges
 			if totalItems < 2 || totalItems > 50 {
 				return true // Skip invalid inputs
@@ -490,7 +490,7 @@ func TestProperty_PaginationConsistency(t *testing.T) {
 	))
 
 	properties.Property("last page returns fewer items when necessary", prop.ForAll(
-		func(totalItems int, pageSize int) bool {
+		func(totalItems, pageSize int) bool {
 			// Constrain inputs
 			if totalItems <= 0 || totalItems > 100 {
 				return true
@@ -564,7 +564,7 @@ func TestProperty_PaginationConsistency(t *testing.T) {
 	))
 
 	properties.Property("empty page beyond data returns zero items", prop.ForAll(
-		func(totalItems int, pageSize int) bool {
+		func(totalItems, pageSize int) bool {
 			// Constrain inputs
 			if totalItems < 0 || totalItems > 50 {
 				return true

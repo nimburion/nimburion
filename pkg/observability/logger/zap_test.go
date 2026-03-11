@@ -3,6 +3,8 @@ package logger
 import (
 	"context"
 	"testing"
+
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 func TestNewZapLogger(t *testing.T) {
@@ -206,7 +208,7 @@ func TestZapLogger_WithContext(t *testing.T) {
 	}{
 		{
 			name:      "context with request ID",
-			ctx:       context.WithValue(context.Background(), "request_id", "test-request-123"),
+			ctx:       context.WithValue(context.Background(), middleware.RequestIDKey, "test-request-123"),
 			expectID:  true,
 			requestID: "test-request-123",
 		},
@@ -372,7 +374,7 @@ func TestZapLogger_RequestIDPropagation(t *testing.T) {
 	defer logger.Sync()
 
 	// Create context with request ID
-	ctx := context.WithValue(context.Background(), "request_id", "req-12345")
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "req-12345")
 
 	// Create logger with context
 	ctxLogger := logger.WithContext(ctx)
@@ -392,7 +394,7 @@ func TestGetRequestIDFromContext(t *testing.T) {
 	}{
 		{
 			name: "context with request ID",
-			ctx:  context.WithValue(context.Background(), "request_id", "test-123"),
+			ctx:  context.WithValue(context.Background(), middleware.RequestIDKey, "test-123"),
 			want: "test-123",
 		},
 		{
@@ -407,7 +409,7 @@ func TestGetRequestIDFromContext(t *testing.T) {
 		},
 		{
 			name: "context with wrong type",
-			ctx:  context.WithValue(context.Background(), "request_id", 12345),
+			ctx:  context.WithValue(context.Background(), middleware.RequestIDKey, 12345),
 			want: "",
 		},
 	}
@@ -461,7 +463,7 @@ func BenchmarkZapLogger_WithContext(b *testing.B) {
 	})
 	defer logger.Sync()
 
-	ctx := context.WithValue(context.Background(), "request_id", "bench-123")
+	ctx := context.WithValue(context.Background(), middleware.RequestIDKey, "bench-123")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

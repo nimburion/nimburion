@@ -255,7 +255,7 @@ func (r *GenericCrudRepository[T, ID]) Update(ctx context.Context, entity *T) er
 // updateWithOptimisticLock updates an entity with optimistic locking
 func (r *GenericCrudRepository[T, ID]) updateWithOptimisticLock(
 	ctx context.Context,
-	entity *T,
+	_ *T,
 	versioned Versioned,
 	id ID,
 	columns []string,

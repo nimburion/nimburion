@@ -1,3 +1,4 @@
+// Package observability exposes framework features for observability components.
 package observability
 
 import (

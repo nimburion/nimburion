@@ -257,9 +257,9 @@ func readAndRestoreBody(req *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
-func buildPayload(req *http.Request, timestamp string, nonce string, body []byte) string {
+func buildPayload(req *http.Request, timestamp, nonce string, body []byte) string {
 	requestURI := req.URL.EscapedPath()
 	if query := req.URL.RawQuery; query != "" {
 		requestURI += "?" + query

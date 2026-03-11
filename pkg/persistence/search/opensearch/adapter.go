@@ -470,7 +470,7 @@ func shouldRetryOnStatus(status int) bool {
 	}
 }
 
-func ignoreCloseError(err error) {}
+func ignoreCloseError(_ error) {}
 
 func uint64ToInt(v uint64) (int, error) {
 	if v > uint64(math.MaxInt) {

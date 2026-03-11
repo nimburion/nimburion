@@ -1,3 +1,4 @@
+// Package persistence exposes framework features for persistence components.
 package persistence
 
 import (

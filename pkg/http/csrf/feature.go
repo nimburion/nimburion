@@ -17,4 +17,5 @@ func (configFeature) Contributions() corefeature.Contributions {
 	}
 }
 
+// NewConfigFeature returns the feature that registers the CSRF config extension.
 func NewConfigFeature() corefeature.Feature { return configFeature{} }

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
-	"github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 func TestRequestID_GeneratesUUID(t *testing.T) {
@@ -177,7 +177,7 @@ func TestGetRequestID_WithValidContext(t *testing.T) {
 
 func TestGetRequestID_WithNilContext(t *testing.T) {
 	// Given: A nil context
-	var ctx context.Context = nil
+	var ctx context.Context
 
 	// When: GetRequestID is called
 	requestID := GetRequestID(ctx)

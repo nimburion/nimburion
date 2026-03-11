@@ -3,10 +3,11 @@ package status
 import (
 	"errors"
 
-	"github.com/nimburion/nimburion/pkg/core/errorbridge"
-	grpcvalidation "github.com/nimburion/nimburion/pkg/grpc/validation"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	grpcvalidation "github.com/nimburion/nimburion/pkg/grpc/validation"
 )
 
 // Code returns the gRPC code for one framework error.
@@ -27,7 +28,7 @@ func Code(err error) codes.Code {
 		}
 	}
 
-	if appErr, ok := errorbridge.AsAppError(err); ok {
+	if appErr, ok := coreerrors.AsAppError(err); ok {
 		switch appErr.HTTPStatus {
 		case 400:
 			return codes.InvalidArgument
@@ -74,7 +75,7 @@ func SafeMessage(err error) string {
 		return validationErr.Message
 	}
 
-	if appErr, ok := errorbridge.AsAppError(err); ok {
+	if appErr, ok := coreerrors.AsAppError(err); ok {
 		if appErr.FallbackMessage != "" {
 			return appErr.FallbackMessage
 		}

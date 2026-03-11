@@ -40,7 +40,7 @@ func TestCircuitBreaker_ClosedToOpen(t *testing.T) {
 
 	// Next execution should fail immediately
 	err := cb.Execute(failingFn)
-	if err != ErrCircuitBreakerOpen {
+	if !errors.Is(err, ErrCircuitBreakerOpen) {
 		t.Errorf("expected ErrCircuitBreakerOpen, got %v", err)
 	}
 }

@@ -22,6 +22,7 @@ func (l *schedulerTestLogger) Error(string, ...any) {}
 func (l *schedulerTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *schedulerTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }
@@ -80,12 +81,14 @@ func (p *fakeLockProvider) Acquire(context.Context, string, time.Duration) (*coo
 		ExpireAt: time.Now().UTC().Add(time.Second),
 	}, true, nil
 }
+
 func (p *fakeLockProvider) Renew(context.Context, *coordination.LockLease, time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.renews++
 	return nil
 }
+
 func (p *fakeLockProvider) Release(context.Context, *coordination.LockLease) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -95,7 +98,7 @@ func (p *fakeLockProvider) Release(context.Context, *coordination.LockLease) err
 func (p *fakeLockProvider) HealthCheck(context.Context) error { return nil }
 func (p *fakeLockProvider) Close() error                      { return nil }
 
-func (p *fakeLockProvider) counts() (leases int, renews int, releases int) {
+func (p *fakeLockProvider) counts() (leases, renews, releases int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.leaseCount, p.renews, p.releases

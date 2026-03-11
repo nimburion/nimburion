@@ -1,3 +1,4 @@
+// Package memcachedkit provides low-level helpers shared by memcached adapters.
 package memcachedkit
 
 import (

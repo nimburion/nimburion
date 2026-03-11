@@ -1,3 +1,4 @@
+// Package postgres provides a PostgreSQL-backed coordination lock provider.
 package postgres
 
 import (
@@ -11,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	// Register the lib/pq SQL driver for sql.Open("postgres", ...).
 	_ "github.com/lib/pq"
+
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"

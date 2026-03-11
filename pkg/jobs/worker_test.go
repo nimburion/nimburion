@@ -21,6 +21,7 @@ func (l *workerTestLogger) Error(string, ...any) {}
 func (l *workerTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *workerTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }
@@ -131,7 +132,7 @@ func (b *fakeBackend) push(job *Job) {
 	b.deliveries <- fakeDelivery{job: cloneJob(job), lease: lease}
 }
 
-func (b *fakeBackend) snapshot() (acks int, nacks int, dlqs int, closeCalls int) {
+func (b *fakeBackend) snapshot() (acks, nacks, dlqs, closeCalls int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return len(b.acks), len(b.nacks), len(b.dlqLeases), b.closeCalls

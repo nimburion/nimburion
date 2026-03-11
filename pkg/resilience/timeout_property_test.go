@@ -14,7 +14,7 @@ import (
 // **Validates: Requirements 32.1-32.6**
 // Property 30: Timeout Enforcement
 // For any operation with a configured timeout (HTTP request, database query, cache operation,
-// message broker operation), the operation should be cancelled and return a timeout error when
+// message broker operation), the operation should be canceled and return a timeout error when
 // the timeout duration is exceeded.
 func TestProperty_TimeoutEnforcement(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
@@ -32,10 +32,10 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 	})
 
 	properties.Property("operations exceeding timeout return ErrTimeout", prop.ForAll(
-		func(timeout time.Duration, operationDuration time.Duration) bool {
+		func(timeout, operationDuration time.Duration) bool {
 			ctx := context.Background()
 
-			fn := func(ctx context.Context) error {
+			fn := func(_ context.Context) error {
 				// Simulate operation with the given duration
 				select {
 				case <-time.After(operationDuration):
@@ -52,7 +52,7 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 
 			// If operation duration significantly exceeds timeout, should get ErrTimeout
 			if operationDuration > timeout+tolerance {
-				if err != ErrTimeout {
+				if !errors.Is(err, ErrTimeout) {
 					t.Logf("Expected ErrTimeout when operation (%v) exceeds timeout (%v), got %v",
 						operationDuration, timeout, err)
 					return false
@@ -78,13 +78,12 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 			ctx := context.Background()
 
 			// Operation that completes quickly (within 5ms)
-			fn := func(ctx context.Context) error {
+			fn := func(_ context.Context) error {
 				time.Sleep(5 * time.Millisecond)
 				return nil
 			}
 
 			err := WithTimeout(ctx, timeout, fn)
-
 			if err != nil {
 				t.Logf("Expected no error for fast operation with timeout %v, got %v", timeout, err)
 				return false
@@ -100,14 +99,14 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 			ctx := context.Background()
 
 			expectedErr := errors.New("function error")
-			fn := func(ctx context.Context) error {
+			fn := func(_ context.Context) error {
 				// Return error quickly
 				return expectedErr
 			}
 
 			err := WithTimeout(ctx, timeout, fn)
 
-			if err != expectedErr {
+			if !errors.Is(err, expectedErr) {
 				t.Logf("Expected function error to be returned, got %v", err)
 				return false
 			}
@@ -122,14 +121,13 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 			ctx := context.Background()
 
 			contextHadDeadline := false
-			fn := func(ctx context.Context) error {
+			fn := func(_ context.Context) error {
 				_, ok := ctx.Deadline()
 				contextHadDeadline = ok
 				return nil
 			}
 
 			err := WithTimeout(ctx, timeout, fn)
-
 			if err != nil {
 				t.Logf("Expected no error, got %v", err)
 				return false
@@ -155,14 +153,14 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 			timeout := time.Duration(timeoutMs) * time.Millisecond
 			ctx := context.Background()
 
-			fn := func(ctx context.Context) error {
+			fn := func(_ context.Context) error {
 				time.Sleep(10 * time.Millisecond)
 				return nil
 			}
 
 			err := WithTimeout(ctx, timeout, fn)
 
-			if err != ErrTimeout {
+			if !errors.Is(err, ErrTimeout) {
 				t.Logf("Expected ErrTimeout for timeout %v, got %v", timeout, err)
 				return false
 			}
@@ -190,7 +188,7 @@ func TestProperty_TimeoutFuncWrapper(t *testing.T) {
 	})
 
 	properties.Property("TimeoutFunc enforces configured timeout", prop.ForAll(
-		func(timeout time.Duration, operationDuration time.Duration) bool {
+		func(timeout, operationDuration time.Duration) bool {
 			tf := NewTimeoutFunc(timeout)
 			ctx := context.Background()
 
@@ -209,7 +207,7 @@ func TestProperty_TimeoutFuncWrapper(t *testing.T) {
 			tolerance := 5 * time.Millisecond
 
 			if operationDuration > timeout+tolerance {
-				if err != ErrTimeout {
+				if !errors.Is(err, ErrTimeout) {
 					t.Logf("Expected ErrTimeout, got %v", err)
 					return false
 				}
@@ -228,7 +226,7 @@ func TestProperty_TimeoutFuncWrapper(t *testing.T) {
 	))
 
 	properties.Property("TimeoutFunc custom timeout overrides default", prop.ForAll(
-		func(defaultTimeout time.Duration, customTimeout time.Duration, operationDuration time.Duration) bool {
+		func(defaultTimeout, customTimeout, operationDuration time.Duration) bool {
 			tf := NewTimeoutFunc(defaultTimeout)
 			ctx := context.Background()
 
@@ -248,7 +246,7 @@ func TestProperty_TimeoutFuncWrapper(t *testing.T) {
 
 			// Should use custom timeout, not default
 			if operationDuration > customTimeout+tolerance {
-				if err != ErrTimeout {
+				if !errors.Is(err, ErrTimeout) {
 					t.Logf("Expected ErrTimeout with custom timeout %v, got %v", customTimeout, err)
 					return false
 				}
@@ -285,7 +283,7 @@ func TestProperty_TimeoutWithContextCancellation(t *testing.T) {
 	})
 
 	properties.Property("parent context cancellation propagates to function", prop.ForAll(
-		func(timeout time.Duration, cancelDelay time.Duration) bool {
+		func(timeout, cancelDelay time.Duration) bool {
 			ctx, cancel := context.WithCancel(context.Background())
 
 			// Cancel context after delay
@@ -304,12 +302,12 @@ func TestProperty_TimeoutWithContextCancellation(t *testing.T) {
 
 			// Should get either timeout or cancellation error
 			if err == nil {
-				t.Log("Expected error from cancelled context or timeout")
+				t.Log("Expected error from canceled context or timeout")
 				return false
 			}
 
 			// Error should be either ErrTimeout or context.Canceled
-			if err != ErrTimeout && !errors.Is(err, context.Canceled) {
+			if !errors.Is(err, ErrTimeout) && !errors.Is(err, context.Canceled) {
 				t.Logf("Expected ErrTimeout or context.Canceled, got %v", err)
 				return false
 			}
@@ -382,7 +380,7 @@ func TestProperty_ConcurrentTimeoutOperations(t *testing.T) {
 						return false
 					}
 				} else {
-					if res.err != ErrTimeout {
+					if !errors.Is(res.err, ErrTimeout) {
 						t.Logf("Expected slow operation %d to timeout, got: %v", res.id, res.err)
 						return false
 					}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -64,8 +65,8 @@ func TestClosePreventsSubsequentOperations(t *testing.T) {
 	expectations.ExpectClose()
 
 	a := &Adapter{db: db, logger: &mockLogger{}}
-	if err := a.Close(); err != nil {
-		t.Fatalf("close error: %v", err)
+	if closeErr := a.Close(); closeErr != nil {
+		t.Fatalf("close error: %v", closeErr)
 	}
 
 	_, err = a.ExecContext(context.Background(), "SELECT 1")
@@ -117,7 +118,7 @@ func TestWithTransaction_CommitOnSuccess(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 
-	err = a.WithTransaction(context.Background(), func(ctx context.Context) error {
+	err = a.WithTransaction(context.Background(), func(_ context.Context) error {
 		return nil
 	})
 	if err != nil {

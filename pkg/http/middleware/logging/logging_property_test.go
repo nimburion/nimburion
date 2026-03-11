@@ -8,10 +8,11 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
 	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
 
 // TestProperty13_HTTPRequestLogging verifies that HTTP request logging includes all required information.
@@ -169,7 +170,7 @@ func TestProperty13_HTTPRequestLogging(t *testing.T) {
 
 			// Register handler that returns an error
 			testError := http.ErrAbortHandler
-			handler := func(c router.Context) error {
+			handler := func(_ router.Context) error {
 				return testError
 			}
 

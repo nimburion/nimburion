@@ -1,3 +1,4 @@
+// Package idempotency provides idempotent execution guards for handlers.
 package idempotency
 
 import (
@@ -8,11 +9,15 @@ import (
 )
 
 const (
+	// DefaultRetention is the default retention for processed idempotency keys.
 	DefaultRetention = 30 * 24 * time.Hour
-	DefaultCleanup   = time.Hour
+	// DefaultCleanup is the default cleanup cadence for processed idempotency keys.
+	DefaultCleanup = time.Hour
+	// DefaultBatchSize is the default cleanup batch size for processed idempotency keys.
 	DefaultBatchSize = 1000
 )
 
+// CreateTablePostgres is the PostgreSQL schema for idempotency key storage.
 const CreateTablePostgres = `
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   scope TEXT NOT NULL,
@@ -24,6 +29,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_processed_at ON idempotency_keys (processed_at);
 `
 
+// Store persists processed idempotency keys.
 type Store interface {
 	IsProcessed(ctx context.Context, scope, key string) (bool, error)
 	MarkProcessed(ctx context.Context, scope, key string, processedAt time.Time) error
@@ -40,10 +46,12 @@ type AtomicStore interface {
 // of suppressing duplicates atomically under contention.
 var ErrAtomicExecutionRequired = errors.New("non-transactional idempotency requires a store with atomic execution support; use ExecuteOnceTransactional or provide an AtomicStore")
 
+// Guard protects handlers from duplicate execution.
 type Guard struct {
 	store Store
 }
 
+// NewGuard constructs a Guard backed by store.
 func NewGuard(store Store) (*Guard, error) {
 	if store == nil {
 		return nil, errors.New("idempotency store is required")
@@ -51,6 +59,7 @@ func NewGuard(store Store) (*Guard, error) {
 	return &Guard{store: store}, nil
 }
 
+// ExecuteOnce runs handler only when scope and key have not been processed before.
 func (g *Guard) ExecuteOnce(ctx context.Context, scope, key string, handler func(context.Context) error) (bool, error) {
 	if g == nil || g.store == nil {
 		return false, errors.New("idempotency guard is not initialized")
@@ -71,15 +80,18 @@ func (g *Guard) ExecuteOnce(ctx context.Context, scope, key string, handler func
 	return atomicStore.ExecuteAtomically(ctx, scope, key, handler)
 }
 
+// TxStore exposes idempotency operations inside a transaction boundary.
 type TxStore interface {
 	IsProcessed(ctx context.Context, scope, key string) (bool, error)
 	MarkProcessed(ctx context.Context, scope, key string, processedAt time.Time) error
 }
 
+// TxExecutor executes idempotency operations in a transaction boundary.
 type TxExecutor interface {
 	WithTransaction(ctx context.Context, fn func(context.Context, TxStore) error) error
 }
 
+// ExecuteOnceTransactional runs handler and records scope/key atomically in one transaction.
 func ExecuteOnceTransactional(ctx context.Context, executor TxExecutor, scope, key string, handler func(context.Context) error) (bool, error) {
 	if executor == nil {
 		return false, errors.New("transaction executor is required")
@@ -119,6 +131,7 @@ func ExecuteOnceTransactional(ctx context.Context, executor TxExecutor, scope, k
 	return executed, nil
 }
 
+// CleanerConfig configures periodic cleanup of processed idempotency keys.
 type CleanerConfig struct {
 	CleanupEvery time.Duration
 	Retention    time.Duration
@@ -137,11 +150,13 @@ func (c *CleanerConfig) normalize() {
 	}
 }
 
+// Cleaner periodically removes old processed idempotency keys from store.
 type Cleaner struct {
 	store  Store
 	config CleanerConfig
 }
 
+// NewCleaner constructs a Cleaner backed by store.
 func NewCleaner(store Store, config CleanerConfig) (*Cleaner, error) {
 	if store == nil {
 		return nil, errors.New("idempotency store is required")
@@ -150,6 +165,7 @@ func NewCleaner(store Store, config CleanerConfig) (*Cleaner, error) {
 	return &Cleaner{store: store, config: config}, nil
 }
 
+// Run executes cleanup until ctx is done.
 func (c *Cleaner) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("context is nil")

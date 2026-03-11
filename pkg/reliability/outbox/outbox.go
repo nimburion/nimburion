@@ -1,3 +1,4 @@
+// Package outbox provides outbox primitives for reliable event publication.
 package outbox
 
 import (
@@ -7,19 +8,27 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
 const (
-	DefaultPollInterval   = time.Second
-	DefaultBatchSize      = 100
-	DefaultCleanupEvery   = time.Minute
-	DefaultCleanupRetain  = 7 * 24 * time.Hour
+	// DefaultPollInterval is the default relay polling cadence.
+	DefaultPollInterval = time.Second
+	// DefaultBatchSize is the default number of outbox entries processed per batch.
+	DefaultBatchSize = 100
+	// DefaultCleanupEvery is the default cleanup cadence for published entries.
+	DefaultCleanupEvery = time.Minute
+	// DefaultCleanupRetain is the default retention window for published entries.
+	DefaultCleanupRetain = 7 * 24 * time.Hour
+	// DefaultInitialBackoff is the default initial relay retry backoff.
 	DefaultInitialBackoff = time.Second
-	DefaultMaxBackoff     = time.Minute
+	// DefaultMaxBackoff is the default maximum relay retry backoff.
+	DefaultMaxBackoff = time.Minute
 )
 
+// CreateTablePostgres is the PostgreSQL schema for outbox storage.
 const CreateTablePostgres = `
 CREATE TABLE IF NOT EXISTS outbox (
   id TEXT PRIMARY KEY,
@@ -40,6 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_outbox_pending ON outbox (published, available_at
 CREATE INDEX IF NOT EXISTS idx_outbox_created_at ON outbox (created_at);
 `
 
+// Record is the publishable payload stored in the outbox.
 type Record struct {
 	ID          string
 	Key         string
@@ -48,6 +58,7 @@ type Record struct {
 	ContentType string
 }
 
+// Entry represents one outbox row.
 type Entry struct {
 	ID          string
 	Topic       string
@@ -60,6 +71,7 @@ type Entry struct {
 	LastError   string
 }
 
+// Validate checks that the outbox entry contains the required fields.
 func (e *Entry) Validate() error {
 	if e == nil {
 		return errors.New("outbox entry is nil")
@@ -79,6 +91,7 @@ func (e *Entry) Validate() error {
 	return nil
 }
 
+// Store persists outbox entries and relay state.
 type Store interface {
 	Insert(ctx context.Context, entry *Entry) error
 	FetchPending(ctx context.Context, limit int, now time.Time) ([]*Entry, error)
@@ -89,14 +102,17 @@ type Store interface {
 	OldestPendingAgeSeconds(ctx context.Context, now time.Time) (float64, error)
 }
 
+// Writer exposes outbox writes inside a transaction boundary.
 type Writer interface {
 	Insert(ctx context.Context, entry *Entry) error
 }
 
+// TxExecutor executes outbox operations in a transaction boundary.
 type TxExecutor interface {
 	WithTransaction(ctx context.Context, fn func(context.Context, Writer) error) error
 }
 
+// ExecuteTransactional runs businessFn and inserts entry atomically.
 func ExecuteTransactional(ctx context.Context, executor TxExecutor, entry *Entry, businessFn func(context.Context) error) error {
 	if executor == nil {
 		return errors.New("transaction executor is required")
@@ -118,6 +134,7 @@ func ExecuteTransactional(ctx context.Context, executor TxExecutor, entry *Entry
 	})
 }
 
+// Metrics tracks relay queue depth and publish outcomes.
 type Metrics struct {
 	pendingSizeGauge      prometheus.Gauge
 	oldestEventAgeGauge   prometheus.Gauge
@@ -125,6 +142,7 @@ type Metrics struct {
 	failedTotalCounter    prometheus.Counter
 }
 
+// NewMetrics registers outbox metrics in registry.
 func NewMetrics(registry *prometheus.Registry, namespace string) (*Metrics, error) {
 	if registry == nil {
 		return nil, errors.New("registry is nil")
@@ -152,6 +170,7 @@ func NewMetrics(registry *prometheus.Registry, namespace string) (*Metrics, erro
 	}, nil
 }
 
+// Snapshot refreshes gauges from the current store state.
 func (m *Metrics) Snapshot(ctx context.Context, store Store, now time.Time) {
 	if m == nil || store == nil {
 		return
@@ -164,22 +183,26 @@ func (m *Metrics) Snapshot(ctx context.Context, store Store, now time.Time) {
 	}
 }
 
+// IncPublished increments the published counter.
 func (m *Metrics) IncPublished() {
 	if m != nil {
 		m.publishedTotalCounter.Inc()
 	}
 }
 
+// IncFailed increments the failed counter.
 func (m *Metrics) IncFailed() {
 	if m != nil {
 		m.failedTotalCounter.Inc()
 	}
 }
 
+// Publisher publishes one outbox record to a topic.
 type Publisher interface {
 	Publish(ctx context.Context, topic string, record *Record) error
 }
 
+// PublisherConfig configures relay polling, cleanup, and backoff behavior.
 type PublisherConfig struct {
 	PollInterval     time.Duration
 	BatchSize        int
@@ -210,6 +233,7 @@ func (c *PublisherConfig) normalize() {
 	}
 }
 
+// Relay polls the outbox and publishes pending entries.
 type Relay struct {
 	store     Store
 	publisher Publisher
@@ -221,6 +245,7 @@ type Relay struct {
 	running bool
 }
 
+// NewRelay constructs a Relay backed by store and publisher.
 func NewRelay(store Store, publisher Publisher, log logger.Logger, metrics *Metrics, config PublisherConfig) (*Relay, error) {
 	if store == nil {
 		return nil, errors.New("outbox store is required")
@@ -235,6 +260,7 @@ func NewRelay(store Store, publisher Publisher, log logger.Logger, metrics *Metr
 	return &Relay{store: store, publisher: publisher, logger: log, metrics: metrics, config: config}, nil
 }
 
+// Run starts the relay loop until ctx is done.
 func (r *Relay) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("context is nil")
@@ -302,7 +328,7 @@ func (r *Relay) publishEntry(ctx context.Context, entry *Entry, now time.Time) e
 		retryCount := entry.RetryCount + 1
 		nextAttempt := now.Add(exponentialBackoff(retryCount, r.config.InitialBackoff, r.config.MaxBackoff))
 		if markErr := r.store.MarkFailed(ctx, entry.ID, retryCount, nextAttempt, err.Error()); markErr != nil {
-			return fmt.Errorf("mark failed error after publish error (%v): %w", err, markErr)
+			return fmt.Errorf("mark failed error after publish error (%w): %w", err, markErr)
 		}
 		if r.metrics != nil {
 			r.metrics.IncFailed()
@@ -326,19 +352,19 @@ func (r *Relay) cleanup(ctx context.Context, now time.Time) error {
 	return nil
 }
 
-func exponentialBackoff(attempt int, initial, max time.Duration) time.Duration {
+func exponentialBackoff(attempt int, initial, maxBackoff time.Duration) time.Duration {
 	if attempt <= 0 {
 		return initial
 	}
 	backoff := initial
 	for i := 1; i < attempt; i++ {
 		backoff *= 2
-		if backoff >= max {
-			return max
+		if backoff >= maxBackoff {
+			return maxBackoff
 		}
 	}
-	if backoff > max {
-		return max
+	if backoff > maxBackoff {
+		return maxBackoff
 	}
 	return backoff
 }

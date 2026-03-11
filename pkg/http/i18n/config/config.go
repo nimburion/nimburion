@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 // Config configures HTTP locale negotiation.
@@ -19,12 +20,15 @@ type Config struct {
 	CatalogPath      string   `mapstructure:"catalog_path"`
 }
 
+// Extension contributes the i18n config section as family-owned config surface.
 type Extension struct {
 	I18n Config `mapstructure:"i18n"`
 }
 
+// DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"i18n"} }
 
+// ApplyDefaults registers default i18n configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("i18n.enabled", false)
 	v.SetDefault("i18n.default_locale", "en")
@@ -34,6 +38,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("i18n.fallback_mode", "base")
 }
 
+// BindEnv binds i18n configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"i18n.enabled", "I18N_ENABLED",
@@ -46,6 +51,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that enabled i18n configuration is coherent.
 func (e Extension) Validate() error {
 	if !e.I18n.Enabled {
 		return nil
@@ -90,10 +96,15 @@ func validationErrorf(code, format string, args ...any) error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

@@ -10,13 +10,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
+
 	"github.com/nimburion/nimburion/pkg/audit"
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coordinationpostgres "github.com/nimburion/nimburion/pkg/coordination/postgres"
 	coordinationredis "github.com/nimburion/nimburion/pkg/coordination/redis"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
-	"github.com/nimburion/nimburion/pkg/core/errorbridge"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/descriptor"
@@ -27,9 +30,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/scheduler"
 	schedulerconfig "github.com/nimburion/nimburion/pkg/scheduler/config"
 	"github.com/nimburion/nimburion/pkg/version"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -138,7 +138,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Show version information",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			info := version.Current(opts.Name)
 			fmt.Printf("Service:    %s\n", info.Service)
 			fmt.Printf("Version:    %s\n", info.Version)
@@ -153,7 +153,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 		runCmd := &cobra.Command{
 			Use:   "run",
 			Short: "Run the application",
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(cmd *cobra.Command, _ []string) error {
 				cfg, log, err := loadConfig(cmd)
 				if err != nil {
 					return err
@@ -170,7 +170,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "healthcheck",
 		Short: "Check connectivity to framework and service dependencies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := loadConfig(cmd)
 			if err != nil {
 				return err
@@ -193,7 +193,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "introspect",
 		Short: "Show framework introspection data when debug is enabled",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !debug {
 				return errors.New("framework introspection is disabled; rerun with --debug")
 			}
@@ -212,8 +212,8 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := app.Prepare(cmd.Context()); err != nil {
-				return err
+			if prepareErr := app.Prepare(cmd.Context()); prepareErr != nil {
+				return prepareErr
 			}
 
 			out, err := formatSettings(app.Runtime().Introspection.Snapshot())
@@ -230,7 +230,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	describeCmd := &cobra.Command{
 		Use:   "describe",
 		Short: "Emit the machine-readable service descriptor",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			descOpts := opts.Descriptor
 			if descOpts.Application.Name == "" {
 				descOpts.Application.Name = opts.Name
@@ -264,7 +264,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	configCmd.AddCommand(&cobra.Command{
 		Use:   "validate",
 		Short: "Validate configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := applySecretFileFlag(opts.EnvPrefix, secretFilePath); err != nil {
 				return err
 			}
@@ -299,7 +299,7 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 	showCmd := &cobra.Command{
 		Use:   "show",
 		Short: "Show current configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := applySecretFileFlag(opts.EnvPrefix, secretFilePath); err != nil {
 				return err
 			}
@@ -429,21 +429,6 @@ func collectFeatureCLIContributions(features []corefeature.Feature) ([]any, []*c
 	return configExtensions, commands
 }
 
-func appendUnique(values []string, extras ...string) []string {
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		seen[value] = struct{}{}
-	}
-	for _, extra := range extras {
-		if _, ok := seen[extra]; ok {
-			continue
-		}
-		values = append(values, extra)
-		seen[extra] = struct{}{}
-	}
-	return values
-}
-
 func policyAnnotationKeys(annotations map[string]string) []string {
 	keys := make([]string, 0, len(annotations))
 	for key := range annotations {
@@ -453,104 +438,6 @@ func policyAnnotationKeys(annotations map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func resolveWorkerQueues(flagQueues []string, configDefault string) []string {
-	queues := make([]string, 0, len(flagQueues)+1)
-	for _, queue := range flagQueues {
-		trimmed := strings.TrimSpace(queue)
-		if trimmed != "" {
-			queues = append(queues, trimmed)
-		}
-	}
-	if len(queues) > 0 {
-		return queues
-	}
-	if trimmed := strings.TrimSpace(configDefault); trimmed != "" {
-		return []string{trimmed}
-	}
-	return []string{"default"}
-}
-
-func parseStringMapFlag(raw []string) (map[string]string, error) {
-	out := map[string]string{}
-	for _, item := range raw {
-		trimmed := strings.TrimSpace(item)
-		if trimmed == "" {
-			continue
-		}
-		parts := strings.SplitN(trimmed, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid header %q: expected key=value", item)
-		}
-		key := strings.TrimSpace(parts[0])
-		if key == "" {
-			return nil, fmt.Errorf("invalid header %q: key is required", item)
-		}
-		out[key] = strings.TrimSpace(parts[1])
-	}
-	return out, nil
-}
-
-func cloneStringMap(input map[string]string) map[string]string {
-	if len(input) == 0 {
-		return map[string]string{}
-	}
-	out := make(map[string]string, len(input))
-	for key, value := range input {
-		out[key] = value
-	}
-	return out
-}
-
-func runFrameworkDependencyHealthChecks(
-	ctx context.Context,
-	cfg *config.Config,
-	log logger.Logger,
-	buildJobsRuntime func(*config.Config, logger.Logger) (jobs.Runtime, error),
-	buildSchedulerLockProvider func(*config.Config, logger.Logger) (coordination.LockProvider, error),
-) error {
-	if cfg == nil {
-		return errors.New("config is required")
-	}
-
-	var errs []error
-
-	var jobsRuntime jobs.Runtime
-	if shouldCheckJobsRuntimeHealth(cfg) {
-		runtime, err := buildJobsRuntime(cfg, log)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("create jobs runtime for healthcheck: %w", errorbridge.Canonicalize(err)))
-		} else {
-			jobsRuntime = runtime
-			checker := jobs.NewRuntimeHealthChecker("", jobsRuntime, jobsHealthTimeout(cfg))
-			if checkErr := healthCheckResultError(checker.Check(ctx)); checkErr != nil {
-				errs = append(errs, checkErr)
-			}
-		}
-	}
-	if jobsRuntime != nil {
-		if closeErr := jobsRuntime.Close(); closeErr != nil {
-			errs = append(errs, fmt.Errorf("close jobs runtime after healthcheck: %w", errorbridge.Canonicalize(closeErr)))
-		}
-	}
-
-	if shouldCheckSchedulerLockHealth(cfg) {
-		lockProvider, err := buildSchedulerLockProvider(cfg, log)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("create scheduler lock provider for healthcheck: %w", errorbridge.Canonicalize(err)))
-		} else {
-			checker := scheduler.NewLockProviderHealthChecker("", lockProvider, schedulerLockHealthTimeout(cfg))
-			if checkErr := healthCheckResultError(checker.Check(ctx)); checkErr != nil {
-				errs = append(errs, checkErr)
-			}
-			if closeErr := lockProvider.Close(); closeErr != nil {
-				errs = append(errs, fmt.Errorf("close scheduler lock provider after healthcheck: %w", errorbridge.Canonicalize(closeErr)))
-			}
-		}
-	}
-
-	return errors.Join(errs...)
 }
 
 type healthcheckRuntimeOptions struct {
@@ -580,7 +467,7 @@ func runHealthcheckWithRegistry(ctx context.Context, opts healthcheckRuntimeOpti
 		HealthRegistry: registry,
 		HealthRegistrations: []coreapp.Hook{{
 			Name: "framework_dependencies",
-			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+			Fn: func(_ context.Context, runtime *coreapp.Runtime) error {
 				registerFrameworkDependencyHealthChecks(runtime.HealthRegistry(), opts.cfg, opts.log, opts.buildJobsRuntime, opts.buildSchedulerLockProvider)
 				if opts.checkDependencies != nil {
 					runtime.HealthRegistry().RegisterFunc("application-dependencies", func(ctx context.Context) health.CheckResult {
@@ -642,7 +529,7 @@ func registerFrameworkDependencyHealthChecks(
 				return health.CheckResult{
 					Name:   "jobs-runtime",
 					Status: health.StatusUnhealthy,
-					Error:  fmt.Sprintf("create jobs runtime for healthcheck: %v", errorbridge.Canonicalize(err)),
+					Error:  fmt.Sprintf("create jobs runtime for healthcheck: %v", coreerrors.Canonicalize(err)),
 				}
 			}
 			defer func() {
@@ -661,7 +548,7 @@ func registerFrameworkDependencyHealthChecks(
 				return health.CheckResult{
 					Name:   "scheduler-lock-provider",
 					Status: health.StatusUnhealthy,
-					Error:  fmt.Sprintf("create scheduler lock provider for healthcheck: %v", errorbridge.Canonicalize(err)),
+					Error:  fmt.Sprintf("create scheduler lock provider for healthcheck: %v", coreerrors.Canonicalize(err)),
 				}
 			}
 			defer func() {
@@ -741,73 +628,6 @@ func healthCheckResultError(result health.CheckResult) error {
 	}
 	return coreerrors.NewUnavailable(fmt.Sprintf("%s: %s", result.Name, msg), nil).
 		WithDetails(map[string]interface{}{"check": result.Name})
-}
-
-func schedulerTasksFromConfig(cfg *config.Config) ([]scheduler.Task, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-
-	defaultTimezone := strings.TrimSpace(cfg.Scheduler.Timezone)
-	tasks := make([]scheduler.Task, 0, len(cfg.Scheduler.Tasks))
-	seen := map[string]struct{}{}
-
-	for idx, configured := range cfg.Scheduler.Tasks {
-		name := strings.TrimSpace(configured.Name)
-		if name == "" {
-			return nil, fmt.Errorf("scheduler.tasks[%d].name is required", idx)
-		}
-		if _, ok := seen[name]; ok {
-			return nil, fmt.Errorf("scheduler.tasks contains duplicate name %q", name)
-		}
-		seen[name] = struct{}{}
-
-		payload := strings.TrimSpace(configured.Payload)
-		if payload == "" {
-			payload = "{}"
-		}
-
-		timezone := strings.TrimSpace(configured.Timezone)
-		if timezone == "" {
-			timezone = defaultTimezone
-		}
-
-		task := scheduler.Task{
-			Name:           name,
-			Schedule:       strings.TrimSpace(configured.Cron),
-			Queue:          strings.TrimSpace(configured.Queue),
-			JobName:        strings.TrimSpace(configured.JobName),
-			Payload:        []byte(payload),
-			Headers:        cloneStringMap(configured.Headers),
-			TenantID:       strings.TrimSpace(configured.TenantID),
-			IdempotencyKey: strings.TrimSpace(configured.IdempotencyKey),
-			Timezone:       timezone,
-			LockTTL:        configured.LockTTL,
-			MisfirePolicy:  strings.TrimSpace(configured.MisfirePolicy),
-		}
-		if err := task.Validate(); err != nil {
-			return nil, fmt.Errorf("scheduler.tasks[%s]: %w", name, err)
-		}
-		tasks = append(tasks, task)
-	}
-
-	return tasks, nil
-}
-
-func registerSchedulerTasksFromConfig(runtime *scheduler.Runtime, cfg *config.Config) error {
-	if runtime == nil {
-		return errors.New("scheduler runtime is required")
-	}
-	tasks, err := schedulerTasksFromConfig(cfg)
-	if err != nil {
-		return err
-	}
-	for _, task := range tasks {
-		if err := runtime.Register(task); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func defaultSchedulerLockProviderFactory(cfg *config.Config, log logger.Logger) (coordination.LockProvider, error) {
@@ -935,22 +755,6 @@ func applySecretFileFlag(envPrefix, secretFilePath string) error {
 	return os.Setenv(resolveEnvPrefix(envPrefix)+"_SECRETS_FILE", filepath.Clean(secretFilePath))
 }
 
-func writeCommandf(cmd *cobra.Command, format string, args ...interface{}) error {
-	_, err := fmt.Fprintf(cmd.OutOrStdout(), format, args...)
-	return err
-}
-
-func writeCommandln(cmd *cobra.Command, args ...interface{}) error {
-	_, err := fmt.Fprintln(cmd.OutOrStdout(), args...)
-	return err
-}
-
-func mustMarkFlagRequired(cmd *cobra.Command, name string) {
-	if err := cmd.MarkFlagRequired(name); err != nil {
-		panic(fmt.Sprintf("mark flag %q required for %s: %v", name, cmd.Name(), err))
-	}
-}
-
 func formatSettings(settings map[string]interface{}) (string, error) {
 	if settings == nil {
 		return "{}\n", nil
@@ -964,10 +768,6 @@ func formatSettings(settings map[string]interface{}) (string, error) {
 
 func redactSettingsMap(settings, secrets map[string]interface{}) map[string]interface{} {
 	return audit.RedactSettings(settings, secrets)
-}
-
-func redactSettingValue(value, mask interface{}) interface{} {
-	return audit.RedactSettings(map[string]interface{}{"value": value}, map[string]interface{}{"value": mask})["value"]
 }
 
 func shouldRedactSetting(mask interface{}) bool {

@@ -9,7 +9,7 @@ import (
 func TestRegistryEvalBoolUsesSafeDefaultOnProviderError(t *testing.T) {
 	registry := NewRegistry()
 	registry.RegisterBool(BoolDefinition{Key: "new-ui", Default: false})
-	registry.SetProvider(ProviderFunc(func(ctx context.Context, key string, target TargetContext) (any, bool, error) {
+	registry.SetProvider(ProviderFunc(func(_ context.Context, _ string, _ TargetContext) (any, bool, error) {
 		return nil, false, errors.New("provider unavailable")
 	}))
 
@@ -25,7 +25,7 @@ func TestRegistryEvalBoolUsesSafeDefaultOnProviderError(t *testing.T) {
 func TestRegistryEvalBoolUsesProviderValue(t *testing.T) {
 	registry := NewRegistry()
 	registry.RegisterBool(BoolDefinition{Key: "new-ui", Default: false})
-	registry.SetProvider(ProviderFunc(func(ctx context.Context, key string, target TargetContext) (any, bool, error) {
+	registry.SetProvider(ProviderFunc(func(_ context.Context, _ string, target TargetContext) (any, bool, error) {
 		if target.Attributes["region"] == "eu" {
 			return true, true, nil
 		}

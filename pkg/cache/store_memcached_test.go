@@ -1,10 +1,9 @@
 package cache
 
 import (
+	"errors"
 	"testing"
 	"time"
-
-	"errors"
 
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )

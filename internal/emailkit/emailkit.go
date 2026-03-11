@@ -1,3 +1,4 @@
+// Package emailkit provides shared helpers used by email provider implementations.
 package emailkit
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/email"
 )
 
+// WithTimeout returns a derived context with the provided timeout when d is positive.
 func WithTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
 	if d <= 0 {
 		return context.WithCancel(ctx)
@@ -20,6 +22,7 @@ func WithTimeout(ctx context.Context, d time.Duration) (context.Context, context
 	return context.WithTimeout(ctx, d)
 }
 
+// DefaultHTTPClient returns client or a default client configured with timeout.
 func DefaultHTTPClient(client *http.Client, timeout time.Duration) *http.Client {
 	if client != nil {
 		return client
@@ -30,6 +33,7 @@ func DefaultHTTPClient(client *http.Client, timeout time.Duration) *http.Client 
 	return &http.Client{Timeout: timeout}
 }
 
+// ValidateEndpointURL validates that raw is an absolute HTTP or HTTPS endpoint URL.
 func ValidateEndpointURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -44,8 +48,10 @@ func ValidateEndpointURL(raw string) error {
 	return nil
 }
 
-func IgnoreCloseError(err error) {}
+// IgnoreCloseError intentionally ignores close errors in deferred cleanup paths.
+func IgnoreCloseError(_ error) {}
 
+// CloneStringMap returns a shallow copy of values.
 func CloneStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return map[string]string{}
@@ -57,6 +63,7 @@ func CloneStringMap(values map[string]string) map[string]string {
 	return out
 }
 
+// MapRecipients maps email addresses to provider payload objects with the email key.
 func MapRecipients(emails []string) []map[string]string {
 	out := make([]map[string]string, 0, len(emails))
 	for _, addr := range emails {
@@ -69,6 +76,7 @@ func MapRecipients(emails []string) []map[string]string {
 	return out
 }
 
+// MapRecipientsWithKey maps email addresses to provider payload objects using key.
 func MapRecipientsWithKey(emails []string, key string) []map[string]string {
 	out := make([]map[string]string, 0, len(emails))
 	for _, addr := range emails {
@@ -81,6 +89,7 @@ func MapRecipientsWithKey(emails []string, key string) []map[string]string {
 	return out
 }
 
+// MapContent builds the SendGrid-style content payload for msg.
 func MapContent(msg email.Message) []map[string]string {
 	content := make([]map[string]string, 0, 2)
 	if strings.TrimSpace(msg.TextBody) != "" {
@@ -98,6 +107,7 @@ func MapContent(msg email.Message) []map[string]string {
 	return content
 }
 
+// BuildMIMEMessage renders msg as a sanitized MIME email message.
 func BuildMIMEMessage(msg email.Message) []byte {
 	var b strings.Builder
 	b.WriteString("From: " + sanitizeHeaderValue(msg.From) + "\r\n")
@@ -173,6 +183,7 @@ func sanitizeAddressList(values []string) []string {
 	return out
 }
 
+// MapMailchimpRecipients maps recipients to the Mailchimp recipient payload shape.
 func MapMailchimpRecipients(to, cc, bcc []string) []map[string]string {
 	out := make([]map[string]string, 0, len(to)+len(cc)+len(bcc))
 	for _, addr := range to {
@@ -187,13 +198,14 @@ func MapMailchimpRecipients(to, cc, bcc []string) []map[string]string {
 	return out
 }
 
+// SendJSON sends payload as JSON to endpoint using client and optional headers.
 func SendJSON(ctx context.Context, client *http.Client, timeout time.Duration, endpoint string, payload interface{}, headers map[string]string) error {
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	if err := ValidateEndpointURL(endpoint); err != nil {
-		return err
+	if validationErr := ValidateEndpointURL(endpoint); validationErr != nil {
+		return validationErr
 	}
 	cctx, cancel := WithTimeout(ctx, timeout)
 	defer cancel()
@@ -210,6 +222,7 @@ func SendJSON(ctx context.Context, client *http.Client, timeout time.Duration, e
 		}
 		req.Header.Set(key, value)
 	}
+	// #nosec G704 -- endpoint is validated with ValidateEndpointURL before issuing the request.
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

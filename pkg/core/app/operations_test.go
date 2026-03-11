@@ -39,7 +39,7 @@ func TestPrepareFailureInjectionStopsPhase(t *testing.T) {
 		FailureInjector: injector,
 		ConfigResolvers: []Hook{{
 			Name: "config",
-			Fn: func(ctx context.Context, runtime *Runtime) error {
+			Fn: func(_ context.Context, _ *Runtime) error {
 				return nil
 			},
 		}},
@@ -125,7 +125,7 @@ func TestResilienceFailureInjection_HookTarget(t *testing.T) {
 			FailureInjector: injector,
 			ConfigResolvers: []Hook{{
 				Name: "config",
-				Fn: func(ctx context.Context, runtime *Runtime) error {
+				Fn: func(_ context.Context, _ *Runtime) error {
 					return nil
 				},
 			}},

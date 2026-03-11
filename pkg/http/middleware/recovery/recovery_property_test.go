@@ -8,10 +8,11 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
 	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
 
 // TestProperty2_PanicRecovery verifies that panic recovery middleware catches panics and returns HTTP 500.
@@ -67,7 +68,7 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Register handler that panics
-			handler := func(c router.Context) error {
+			handler := func(_ router.Context) error {
 				panic(panicValue)
 			}
 
@@ -121,7 +122,7 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Register handler that panics
-			r.GET(path, func(c router.Context) error {
+			r.GET(path, func(_ router.Context) error {
 				panic(panicValue)
 			})
 
@@ -186,7 +187,7 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Register handler that panics
-			r.GET(path, func(c router.Context) error {
+			r.GET(path, func(_ router.Context) error {
 				panic("test panic")
 			})
 
@@ -238,7 +239,7 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Register handler that panics
-			r.GET(path, func(c router.Context) error {
+			r.GET(path, func(_ router.Context) error {
 				panic("test panic")
 			})
 
@@ -286,7 +287,7 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Register handler that panics
-			r.GET(path, func(c router.Context) error {
+			r.GET(path, func(_ router.Context) error {
 				panic("test panic")
 			})
 
@@ -334,8 +335,8 @@ func TestProperty2_PanicRecovery(t *testing.T) {
 			r.Use(Recovery(mock))
 
 			// Add middleware that panics
-			panicMiddleware := func(next router.HandlerFunc) router.HandlerFunc {
-				return func(c router.Context) error {
+			panicMiddleware := func(_ router.HandlerFunc) router.HandlerFunc {
+				return func(_ router.Context) error {
 					panic(panicValue)
 				}
 			}

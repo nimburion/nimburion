@@ -11,6 +11,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+
 	"github.com/nimburion/nimburion/pkg/cache"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
@@ -398,15 +399,15 @@ func TestProperty16_RedisAtomicOperations(t *testing.T) {
 
 			for i := 0; i < numIncrements; i++ {
 				go func() {
-					_, err := adapter.Incr(ctx, key)
-					done <- err
+					_, incrErr := adapter.Incr(ctx, key)
+					done <- incrErr
 				}()
 			}
 
 			// Wait for all increments to complete
 			for i := 0; i < numIncrements; i++ {
-				if err := <-done; err != nil {
-					t.Logf("Concurrent increment failed: %v", err)
+				if incrErr := <-done; incrErr != nil {
+					t.Logf("Concurrent increment failed: %v", incrErr)
 					return false
 				}
 			}

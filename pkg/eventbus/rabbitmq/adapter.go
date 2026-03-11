@@ -7,10 +7,11 @@ import (
 	"sync"
 	"time"
 
+	amqp "github.com/rabbitmq/amqp091-go"
+
 	"github.com/nimburion/nimburion/pkg/eventbus"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Adapter implements eventbus.EventBus for RabbitMQ.

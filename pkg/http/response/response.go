@@ -6,15 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/nimburion/nimburion/pkg/core/errorbridge"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
 )
-
-type requestIDContextKey struct{}
-
-// ContextKeyRequestID is the typed context key used by this package for request IDs.
-var ContextKeyRequestID requestIDContextKey
 
 // SuccessBody represents a successful response with data.
 type SuccessBody struct {
@@ -64,7 +60,7 @@ func Error(c router.Context, err error) error {
 func MapError(ctx context.Context, err error) (int, ErrorBody) {
 	requestID := getRequestID(ctx)
 
-	appErr, ok := errorbridge.AsAppError(err)
+	appErr, ok := coreerrors.AsAppError(err)
 	if !ok {
 		return http.StatusInternalServerError, ErrorBody{
 			Error:     "internal_server_error",
@@ -101,7 +97,7 @@ func MapError(ctx context.Context, err error) (int, ErrorBody) {
 }
 
 func getRequestID(ctx context.Context) string {
-	if id, ok := ctx.Value(ContextKeyRequestID).(string); ok {
+	if id, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
 		return id
 	}
 	return ""

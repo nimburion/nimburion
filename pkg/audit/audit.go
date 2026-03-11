@@ -10,21 +10,29 @@ import (
 	"time"
 )
 
+// Class identifies the audit domain for a record.
 type Class string
 
 const (
+	// ClassOperational marks records emitted for operational events.
 	ClassOperational Class = "operational"
-	ClassBusiness    Class = "business"
-	ClassSecurity    Class = "security"
+	// ClassBusiness marks records emitted for business events.
+	ClassBusiness Class = "business"
+	// ClassSecurity marks records emitted for security events.
+	ClassSecurity Class = "security"
 )
 
+// Requirement defines the delivery guarantee expected for a record.
 type Requirement string
 
 const (
+	// RequirementBestEffort marks records that may be dropped under failure.
 	RequirementBestEffort Requirement = "best_effort"
-	RequirementRequired   Requirement = "required"
+	// RequirementRequired marks records that must be delivered.
+	RequirementRequired Requirement = "required"
 )
 
+// Record is a single chained audit event within a stream.
 type Record struct {
 	StreamID    string                 `json:"stream_id"`
 	Sequence    uint64                 `json:"sequence"`
@@ -39,6 +47,7 @@ type Record struct {
 	Digest      string                 `json:"digest,omitempty"`
 }
 
+// Validate checks that the record contains the minimum required fields.
 func (r *Record) Validate() error {
 	if r == nil {
 		return errors.New("audit record is nil")
@@ -64,6 +73,7 @@ func (r *Record) Validate() error {
 	return nil
 }
 
+// CanonicalDigest computes the canonical digest for the record without Digest set.
 func (r *Record) CanonicalDigest() (string, error) {
 	if err := r.Validate(); err != nil {
 		return "", err
@@ -78,6 +88,7 @@ func (r *Record) CanonicalDigest() (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// Seal computes and stores the record digest.
 func (r *Record) Seal() error {
 	digest, err := r.CanonicalDigest()
 	if err != nil {
@@ -87,14 +98,17 @@ func (r *Record) Seal() error {
 	return nil
 }
 
+// Sink persists audit records.
 type Sink interface {
 	Write(context.Context, *Record) error
 }
 
+// Writer validates, seals, and forwards audit records to a sink.
 type Writer struct {
 	sink Sink
 }
 
+// NewWriter constructs a Writer backed by sink.
 func NewWriter(sink Sink) (*Writer, error) {
 	if sink == nil {
 		return nil, errors.New("audit sink is required")
@@ -115,6 +129,7 @@ func (w *Writer) Write(ctx context.Context, record *Record) error {
 	return w.sink.Write(ctx, record)
 }
 
+// VerifyChain validates sequence and digest continuity for records grouped by stream.
 func VerifyChain(records []*Record) error {
 	perStream := map[string]uint64{}
 	prevDigest := map[string]string{}

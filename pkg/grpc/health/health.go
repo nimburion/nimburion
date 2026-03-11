@@ -3,10 +3,11 @@ package health
 import (
 	"context"
 
-	grpcserver "github.com/nimburion/nimburion/pkg/grpc/server"
-	frameworkhealth "github.com/nimburion/nimburion/pkg/health"
 	"google.golang.org/grpc"
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+
+	grpcserver "github.com/nimburion/nimburion/pkg/grpc/server"
+	frameworkhealth "github.com/nimburion/nimburion/pkg/health"
 )
 
 // Service exposes the shared health registry as a gRPC health service.
@@ -35,7 +36,7 @@ func Registration(registry *frameworkhealth.Registry) grpcserver.Registration {
 }
 
 // Check reports SERVING for healthy or degraded shared registry state, NOT_SERVING otherwise.
-func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
+func (s *Service) Check(ctx context.Context, _ *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	result := s.registry.Check(ctx)
 	status := grpc_health_v1.HealthCheckResponse_SERVING
 	if !result.IsReady() {

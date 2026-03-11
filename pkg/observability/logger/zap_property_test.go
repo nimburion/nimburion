@@ -14,6 +14,8 @@ import (
 	"github.com/leanovate/gopter/prop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/nimburion/nimburion/pkg/http/middleware"
 )
 
 // **Validates: Requirements 12.1, 12.2, 12.3, 12.7**
@@ -27,12 +29,12 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 
 	// Generator for log levels
 	genLogLevel := gen.OneConstOf(DebugLevel, InfoLevel, WarnLevel, ErrorLevel)
-	
+
 	// Generator for log messages
 	genMessage := gen.AlphaString().SuchThat(func(s string) bool {
 		return len(s) > 0 && len(s) < 200
 	})
-	
+
 	// Generator for request IDs (optional)
 	genRequestID := gen.OneGenOf(
 		gen.Const(""), // No request ID
@@ -40,33 +42,33 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 			return "req-" + s
 		}),
 	)
-	
+
 	// Generator for additional fields (simplified - just generate a count and keys/values separately)
 	genFieldCount := gen.IntRange(0, 5)
 
 	properties.Property("all log entries are valid JSON with required fields", prop.ForAll(
-		func(level LogLevel, message string, requestID string, fieldCount int) bool {
+		func(level LogLevel, message, requestID string, fieldCount int) bool {
 			// Capture log output
 			var buf bytes.Buffer
 			logger := createTestLogger(&buf, level)
-			
+
 			// Create context with or without request ID
 			var ctx context.Context
 			if requestID != "" {
-				ctx = context.WithValue(context.Background(), "request_id", requestID)
+				ctx = context.WithValue(context.Background(), middleware.RequestIDKey, requestID)
 			} else {
 				ctx = context.Background()
 			}
-			
+
 			// Create logger with context
 			ctxLogger := logger.WithContext(ctx)
-			
+
 			// Generate simple fields
 			var args []interface{}
 			for i := 0; i < fieldCount; i++ {
 				args = append(args, "field"+string(rune('A'+i)), "value"+string(rune('A'+i)))
 			}
-			
+
 			// Log at the appropriate level
 			switch level {
 			case DebugLevel:
@@ -78,25 +80,25 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 			case ErrorLevel:
 				ctxLogger.Error(message, args...)
 			}
-			
+
 			// Sync to ensure output is written
 			if zl, ok := logger.(*ZapLogger); ok {
 				_ = zl.Sync()
 			}
-			
+
 			// Parse the JSON output
 			output := buf.String()
 			if output == "" {
 				// No output means the log level filtered it out
 				return true
 			}
-			
+
 			var logEntry map[string]interface{}
 			if err := json.Unmarshal([]byte(output), &logEntry); err != nil {
 				t.Logf("Failed to parse JSON: %v\nOutput: %s", err, output)
 				return false
 			}
-			
+
 			// Verify required fields exist
 			requiredFields := []string{"timestamp", "level", "message"}
 			for _, field := range requiredFields {
@@ -105,20 +107,20 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 					return false
 				}
 			}
-			
+
 			// Verify message matches
 			if logEntry["message"] != message {
 				t.Logf("Message mismatch: expected %q, got %q", message, logEntry["message"])
 				return false
 			}
-			
+
 			// Verify level matches
 			expectedLevel := string(level)
 			if logEntry["level"] != expectedLevel {
 				t.Logf("Level mismatch: expected %q, got %q", expectedLevel, logEntry["level"])
 				return false
 			}
-			
+
 			// Verify timestamp is valid ISO8601 format
 			if timestamp, ok := logEntry["timestamp"].(string); ok {
 				// Try multiple timestamp formats (ISO8601 can have different formats)
@@ -143,7 +145,7 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 				t.Logf("Timestamp is not a string: %v", logEntry["timestamp"])
 				return false
 			}
-			
+
 			// Verify request_id is present when provided in context
 			if requestID != "" {
 				if rid, ok := logEntry["request_id"]; !ok {
@@ -154,7 +156,7 @@ func TestProperty_StructuredLoggingFormat(t *testing.T) {
 					return false
 				}
 			}
-			
+
 			return true
 		},
 		genLogLevel,
@@ -228,18 +230,18 @@ func TestProperty_JSONOutputAlwaysParseable(t *testing.T) {
 		func(message string) bool {
 			var buf bytes.Buffer
 			logger := createTestLogger(&buf, InfoLevel)
-			
+
 			logger.Info(message)
-			
+
 			if zl, ok := logger.(*ZapLogger); ok {
 				_ = zl.Sync()
 			}
-			
+
 			output := buf.String()
 			if output == "" {
 				return true
 			}
-			
+
 			var logEntry map[string]interface{}
 			return json.Unmarshal([]byte(output), &logEntry) == nil
 		},
@@ -263,10 +265,10 @@ func TestProperty_LogLevelFiltering(t *testing.T) {
 	})
 
 	properties.Property("log level filtering works correctly", prop.ForAll(
-		func(configLevel LogLevel, logLevel LogLevel, message string) bool {
+		func(configLevel, logLevel LogLevel, message string) bool {
 			var buf bytes.Buffer
 			logger := createTestLogger(&buf, configLevel)
-			
+
 			// Log at the specified level
 			switch logLevel {
 			case DebugLevel:
@@ -278,24 +280,24 @@ func TestProperty_LogLevelFiltering(t *testing.T) {
 			case ErrorLevel:
 				logger.Error(message)
 			}
-			
+
 			if zl, ok := logger.(*ZapLogger); ok {
 				_ = zl.Sync()
 			}
-			
+
 			output := buf.String()
-			
+
 			// Determine if log should appear based on level hierarchy
 			shouldAppear := shouldLogAppear(configLevel, logLevel)
-			
+
 			hasOutput := output != ""
-			
+
 			if shouldAppear != hasOutput {
 				t.Logf("Level filtering failed: config=%s, log=%s, shouldAppear=%v, hasOutput=%v",
 					configLevel, logLevel, shouldAppear, hasOutput)
 				return false
 			}
-			
+
 			return true
 		},
 		genConfigLevel,
@@ -314,7 +316,7 @@ func shouldLogAppear(configLevel, logLevel LogLevel) bool {
 		WarnLevel:  2,
 		ErrorLevel: 3,
 	}
-	
+
 	return levels[logLevel] >= levels[configLevel]
 }
 

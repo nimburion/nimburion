@@ -3,11 +3,12 @@ package cache
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+
 	cachefamilyconfig "github.com/nimburion/nimburion/pkg/cache/config"
 	"github.com/nimburion/nimburion/pkg/config"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -64,7 +65,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	cleanCmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Clean cache entries",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err

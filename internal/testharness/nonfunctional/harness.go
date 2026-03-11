@@ -1,3 +1,4 @@
+// Package nonfunctional provides helpers for non-functional test harnesses.
 package nonfunctional
 
 import (
@@ -10,14 +11,22 @@ import (
 type Category string
 
 const (
-	CategoryPerformance   Category = "performance"
-	CategoryLoad          Category = "load"
-	CategorySoak          Category = "soak"
-	CategoryResilience    Category = "resilience"
-	CategorySecurity      Category = "security"
+	// CategoryPerformance enables performance-focused non-functional tests.
+	CategoryPerformance Category = "performance"
+	// CategoryLoad enables load-focused non-functional tests.
+	CategoryLoad Category = "load"
+	// CategorySoak enables soak-focused non-functional tests.
+	CategorySoak Category = "soak"
+	// CategoryResilience enables resilience-focused non-functional tests.
+	CategoryResilience Category = "resilience"
+	// CategorySecurity enables security-focused non-functional tests.
+	CategorySecurity Category = "security"
+	// CategoryCompatibility enables compatibility-focused non-functional tests.
 	CategoryCompatibility Category = "compatibility"
-	CategoryRace          Category = "race"
-	CategoryOrdering      Category = "ordering"
+	// CategoryRace enables race-detection-focused non-functional tests.
+	CategoryRace Category = "race"
+	// CategoryOrdering enables ordering-focused non-functional tests.
+	CategoryOrdering Category = "ordering"
 )
 
 // Enabled reports whether the category is enabled through NIMB_NONFUNCTIONAL.

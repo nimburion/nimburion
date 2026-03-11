@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
@@ -12,7 +14,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/jobs"
 	jobsconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 func TestJobsWorkerCommand_CanonicalizesBackendFactoryErrors(t *testing.T) {

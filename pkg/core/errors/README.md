@@ -9,11 +9,13 @@
 - `AppError`
 - `Message`
 - `Params`
+- family-level canonicalization registry via `RegisterCanonicalizer`, `Canonicalize`, and `AsAppError`
 - constructors and helpers for fallback message, details, and status hints
 
 ## Composition And Wiring Expectations
 
 - application and domain layers return `*errors.AppError`
+- family packages with exported sentinel contracts register canonicalizers in `pkg/core/errors`
 - transports map core errors to HTTP, gRPC, or other protocol-specific surfaces
 - localization layers may translate stable `Code` and `Params` without owning the error type
 
@@ -33,7 +35,7 @@
 
 ## Testing Expectations
 
-- fast tests cover wrapping, cloning, and helper semantics
+- fast tests cover wrapping, cloning, helper semantics, and family canonicalization
 
 ## Status
 

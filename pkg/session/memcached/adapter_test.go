@@ -26,7 +26,7 @@ func newFakeMemcached() *fakeMemcached {
 	}
 }
 
-func (f *fakeMemcached) dial(_ context.Context, _ string, _ string) (net.Conn, error) {
+func (f *fakeMemcached) dial(_ context.Context, _, _ string) (net.Conn, error) {
 	clientConn, serverConn := net.Pipe()
 	go f.serve(serverConn)
 	return clientConn, nil
@@ -125,8 +125,8 @@ func TestAdapter_CRUD(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := client.Set(ctx, "k1", []byte("v1"), time.Minute); err != nil {
-		t.Fatalf("set: %v", err)
+	if setErr := client.Set(ctx, "k1", []byte("v1"), time.Minute); setErr != nil {
+		t.Fatalf("set: %v", setErr)
 	}
 
 	got, err := client.Get(ctx, "k1")
@@ -137,12 +137,12 @@ func TestAdapter_CRUD(t *testing.T) {
 		t.Fatalf("expected v1, got %q", string(got))
 	}
 
-	if err := client.Touch(ctx, "k1", time.Minute); err != nil {
-		t.Fatalf("touch: %v", err)
+	if touchErr := client.Touch(ctx, "k1", time.Minute); touchErr != nil {
+		t.Fatalf("touch: %v", touchErr)
 	}
 
-	if err := client.Delete(ctx, "k1"); err != nil {
-		t.Fatalf("delete: %v", err)
+	if deleteErr := client.Delete(ctx, "k1"); deleteErr != nil {
+		t.Fatalf("delete: %v", deleteErr)
 	}
 
 	_, err = client.Get(ctx, "k1")

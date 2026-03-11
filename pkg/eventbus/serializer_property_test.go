@@ -126,7 +126,7 @@ func TestProperty_MessageSerializationRoundTrip(t *testing.T) {
 
 	// Test with nested protobuf messages
 	properties.Property("Protobuf serializer handles complex messages", prop.ForAll(
-		func(intVal int64, boolVal bool, strVal string) bool {
+		func(intVal int64, _ bool, _ string) bool {
 			// Create a more complex protobuf message using multiple wrapper types
 			original := &wrapperspb.Int64Value{Value: intVal}
 

@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nimburion/nimburion/pkg/observability/metrics"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 // ExampleNewRegistry demonstrates creating a metrics registry and exposing metrics.

@@ -24,6 +24,29 @@ var (
 	ErrClosed = errors.New("scheduler closed")
 )
 
+func init() {
+	coreerrors.RegisterCanonicalizer(func(err error) (*coreerrors.AppError, bool) {
+		switch {
+		case errors.Is(err, ErrValidation):
+			return coreerrors.NewValidationWithCode("validation.scheduler", err.Error(), nil, nil), true
+		case errors.Is(err, ErrConflict):
+			return coreerrors.New("scheduler.conflict", nil, err).WithMessage(err.Error()).WithHTTPStatus(409), true
+		case errors.Is(err, ErrNotFound):
+			return coreerrors.New("scheduler.not_found", nil, err).WithMessage(err.Error()).WithHTTPStatus(404), true
+		case errors.Is(err, ErrRetryable):
+			return coreerrors.NewRetryable(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		case errors.Is(err, ErrInvalidArgument):
+			return coreerrors.New("argument.scheduler.invalid", nil, err).WithMessage(err.Error()).WithHTTPStatus(400), true
+		case errors.Is(err, ErrNotInitialized):
+			return coreerrors.NewNotInitialized(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		case errors.Is(err, ErrClosed):
+			return coreerrors.NewClosed(err.Error(), err).WithDetails(map[string]interface{}{"family": "scheduler"}), true
+		default:
+			return nil, false
+		}
+	})
+}
+
 func schedulerError(kind error, message string) error {
 	switch {
 	case errors.Is(kind, ErrValidation):

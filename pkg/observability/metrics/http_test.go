@@ -284,7 +284,7 @@ func TestHTTPMetricsConcurrency(t *testing.T) {
 	requestsPerGoroutine := 100
 
 	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+		go func(_ int) {
 			for j := 0; j < requestsPerGoroutine; j++ {
 				IncrementInFlight()
 				RecordHTTPMetrics("GET", "/api/concurrent", 200, 10*time.Millisecond)

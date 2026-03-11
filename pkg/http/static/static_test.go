@@ -28,7 +28,7 @@ func TestServe_ServesLocalFile(t *testing.T) {
 	ctx := newMockContext(req)
 
 	nextCalled := false
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	})
@@ -58,7 +58,7 @@ func TestServe_CallsNextWhenFileMissing(t *testing.T) {
 	ctx := newMockContext(req)
 
 	nextCalled := false
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	})
@@ -86,7 +86,7 @@ func TestServe_PrefixMismatchDoesNotServe(t *testing.T) {
 	ctx := newMockContext(req)
 
 	nextCalled := false
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	})
@@ -114,7 +114,7 @@ func TestServe_WithEmbedFolder(t *testing.T) {
 	ctx := newMockContext(req)
 
 	nextCalled := false
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		nextCalled = true
 		return nil
 	})
@@ -163,25 +163,25 @@ func (m *mockContext) SetResponse(w router.ResponseWriter) {
 	}
 }
 
-func (m *mockContext) Param(name string) string {
+func (m *mockContext) Param(_ string) string {
 	return ""
 }
 
-func (m *mockContext) Query(name string) string {
-	return m.request.URL.Query().Get(name)
+func (m *mockContext) Query(key string) string {
+	return m.request.URL.Query().Get(key)
 }
 
-func (m *mockContext) Bind(v interface{}) error {
+func (m *mockContext) Bind(_ interface{}) error {
 	return nil
 }
 
-func (m *mockContext) JSON(code int, v interface{}) error {
+func (m *mockContext) JSON(code int, _ interface{}) error {
 	m.response.statusCode = code
 	m.response.written = true
 	return nil
 }
 
-func (m *mockContext) String(code int, s string) error {
+func (m *mockContext) String(code int, _ string) error {
 	m.response.statusCode = code
 	m.response.written = true
 	return nil

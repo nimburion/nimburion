@@ -134,10 +134,10 @@ func TestCORS_AllowOriginWithContextFuncPreferred(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(Middleware(Config{
 		Enabled: true,
-		AllowOriginFunc: func(origin string) bool {
+		AllowOriginFunc: func(_ string) bool {
 			return false
 		},
-		AllowOriginWithContextFunc: func(c router.Context, origin string) bool {
+		AllowOriginWithContextFunc: func(_ router.Context, origin string) bool {
 			return origin == "https://ctx.example.com"
 		},
 	}))

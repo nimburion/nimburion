@@ -3,10 +3,11 @@ package interceptor
 import (
 	"context"
 
+	"google.golang.org/grpc"
+
 	grpcmetadata "github.com/nimburion/nimburion/pkg/grpc/metadata"
 	grpcstatusmap "github.com/nimburion/nimburion/pkg/grpc/status"
 	grpcvalidation "github.com/nimburion/nimburion/pkg/grpc/validation"
-	"google.golang.org/grpc"
 )
 
 // ChainUnary composes unary interceptors in order.
@@ -45,7 +46,7 @@ func ChainStream(interceptors ...grpc.StreamServerInterceptor) grpc.StreamServer
 
 // ValidationUnaryInterceptor applies layered request validation before business handling.
 func ValidationUnaryInterceptor(pipeline grpcvalidation.Pipeline) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if err := pipeline.Validate(ctx, req); err != nil {
 			return nil, grpcstatusmap.Error(err)
 		}
@@ -55,7 +56,7 @@ func ValidationUnaryInterceptor(pipeline grpcvalidation.Pipeline) grpc.UnaryServ
 
 // StatusUnaryInterceptor maps framework errors to gRPC status errors.
 func StatusUnaryInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			return resp, grpcstatusmap.Error(err)
@@ -66,7 +67,7 @@ func StatusUnaryInterceptor() grpc.UnaryServerInterceptor {
 
 // MetadataUnaryInterceptor extracts incoming metadata and stores it in the context.
 func MetadataUnaryInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		md := grpcmetadata.FromIncomingContext(ctx)
 		ctx = context.WithValue(ctx, metadataContextKey{}, md)
 		return handler(ctx, req)

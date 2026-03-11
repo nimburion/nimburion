@@ -16,7 +16,7 @@ type mockChecker struct {
 	delay  time.Duration
 }
 
-func (m *mockChecker) Check(ctx context.Context) CheckResult {
+func (m *mockChecker) Check(_ context.Context) CheckResult {
 	if m.delay > 0 {
 		time.Sleep(m.delay)
 	}
@@ -101,7 +101,7 @@ func TestRegistry_Register(t *testing.T) {
 func TestRegistry_RegisterFunc(t *testing.T) {
 	registry := NewRegistry()
 
-	checkFunc := func(ctx context.Context) CheckResult {
+	checkFunc := func(_ context.Context) CheckResult {
 		return CheckResult{
 			Name:   "func-checker",
 			Status: StatusHealthy,
@@ -439,13 +439,13 @@ func TestRegistry_Check_ContextCancellation(t *testing.T) {
 		}
 	})
 
-	// Create a context that's already cancelled
+	// Create a context that's already canceled
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	result := registry.Check(ctx)
 
-	// The check should complete even with cancelled context
+	// The check should complete even with canceled context
 	// (individual checkers decide how to handle cancellation)
 	if len(result.Checks) != 1 {
 		t.Errorf("Expected 1 check result, got %d", len(result.Checks))
@@ -494,7 +494,7 @@ type mockCheckable struct {
 	err error
 }
 
-func (m *mockCheckable) HealthCheck(ctx context.Context) error {
+func (m *mockCheckable) HealthCheck(_ context.Context) error {
 	return m.err
 }
 

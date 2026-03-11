@@ -183,7 +183,7 @@ func RunHTTPServers(ctx context.Context, servers *HTTPServers, opts *RunHTTPServ
 		ObservabilityHooks: []coreapp.Hook{
 			{
 				Name: "version_metadata",
-				Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+				Fn: func(_ context.Context, runtime *coreapp.Runtime) error {
 					runtime.Logger.Info("application version metadata",
 						"service", versionInfo.Service,
 						"version", versionInfo.Version,
@@ -264,17 +264,6 @@ func resolveTracingServiceName(opts *RunHTTPServersOptions, fallback string) str
 	return version.Unknown
 }
 
-func runStartupHooks(ctx context.Context, opts *RunHTTPServersOptions) error {
-	lifecycleApp, err := coreapp.New(coreapp.Options{
-		Logger:               opts.Logger,
-		FeatureRegistrations: toCoreHooks(opts.StartupHooks),
-	})
-	if err != nil {
-		return err
-	}
-	return lifecycleApp.Run(ctx)
-}
-
 func runShutdownHooks(ctx context.Context, opts *RunHTTPServersOptions) error {
 	timeout := opts.ShutdownHookTimeout
 	if timeout <= 0 {
@@ -303,11 +292,7 @@ func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {
 	for _, hook := range hooks {
 		coreHooks = append(coreHooks, coreapp.Hook{
 			Name: hook.Name,
-			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
-				name := strings.TrimSpace(hook.Name)
-				if name == "" {
-					name = "unnamed"
-				}
+			Fn: func(ctx context.Context, _ *coreapp.Runtime) error {
 				if hook.Fn == nil {
 					return nil
 				}
@@ -322,7 +307,7 @@ func serverRunners(servers *HTTPServers) []coreapp.Runner {
 	runners := []coreapp.Runner{
 		{
 			Name: "http_public",
-			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+			Fn: func(ctx context.Context, _ *coreapp.Runtime) error {
 				return servers.Public.Start(ctx)
 			},
 		},
@@ -330,7 +315,7 @@ func serverRunners(servers *HTTPServers) []coreapp.Runner {
 	if servers.Management != nil {
 		runners = append(runners, coreapp.Runner{
 			Name: "http_management",
-			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
+			Fn: func(ctx context.Context, _ *coreapp.Runtime) error {
 				return servers.Management.Start(ctx)
 			},
 		})

@@ -84,7 +84,7 @@ func TestMiddleware_PassesHandlerErrorsWhenNotTimeout(t *testing.T) {
 		Enabled: true,
 		Default: 50 * time.Millisecond,
 	}))
-	r.GET("/error", func(c router.Context) error {
+	r.GET("/error", func(_ router.Context) error {
 		return boom
 	})
 

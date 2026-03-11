@@ -2,8 +2,10 @@
 package errors
 
 import (
+	stderrors "errors"
 	"fmt"
 	"net/http"
+	"sync"
 )
 
 // Canonical application error codes shared across runtime and transport layers.
@@ -40,6 +42,14 @@ type AppError struct {
 	HTTPStatus      int
 	Cause           error
 }
+
+// Canonicalizer lifts package-specific errors into the canonical AppError model.
+type Canonicalizer func(error) (*AppError, bool)
+
+var (
+	canonicalizersMu sync.RWMutex
+	canonicalizers   []Canonicalizer
+)
 
 // Error implements the error interface.
 func (e *AppError) Error() string {
@@ -208,6 +218,55 @@ func NewInternal(message string, cause error) *AppError {
 	return New(CodeInternal, nil, cause).
 		WithMessage(message).
 		WithHTTPStatus(http.StatusInternalServerError)
+}
+
+// RegisterCanonicalizer adds one family-level canonicalizer to the shared registry.
+func RegisterCanonicalizer(c Canonicalizer) {
+	if c == nil {
+		return
+	}
+	canonicalizersMu.Lock()
+	defer canonicalizersMu.Unlock()
+	canonicalizers = append(canonicalizers, c)
+}
+
+// Canonicalize returns a canonical application error when the input is recognized.
+// When err is already an AppError it is returned unchanged.
+func Canonicalize(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var appErr *AppError
+	if stderrors.As(err, &appErr) {
+		return err
+	}
+
+	canonicalizersMu.RLock()
+	registered := append([]Canonicalizer(nil), canonicalizers...)
+	canonicalizersMu.RUnlock()
+
+	for _, canonicalizer := range registered {
+		if canonical, ok := canonicalizer(err); ok {
+			return canonical
+		}
+	}
+
+	return err
+}
+
+// AsAppError returns one canonical AppError when the error is already canonical
+// or can be recognized by a registered family-level canonicalizer.
+func AsAppError(err error) (*AppError, bool) {
+	if err == nil {
+		return nil, false
+	}
+	canonical := Canonicalize(err)
+	var appErr *AppError
+	if stderrors.As(canonical, &appErr) {
+		return appErr, true
+	}
+	return nil, false
 }
 
 func cloneParams(params Params) Params {

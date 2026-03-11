@@ -58,24 +58,24 @@ func (m *mockTracingContext) SetResponse(w router.ResponseWriter) {
 	}
 }
 
-func (m *mockTracingContext) Param(name string) string {
-	return m.params[name]
+func (m *mockTracingContext) Param(key string) string {
+	return m.params[key]
 }
 
-func (m *mockTracingContext) Query(name string) string {
-	return m.req.URL.Query().Get(name)
+func (m *mockTracingContext) Query(key string) string {
+	return m.req.URL.Query().Get(key)
 }
 
-func (m *mockTracingContext) Bind(v interface{}) error {
+func (m *mockTracingContext) Bind(_ interface{}) error {
 	return nil
 }
 
-func (m *mockTracingContext) JSON(code int, v interface{}) error {
+func (m *mockTracingContext) JSON(code int, _ interface{}) error {
 	m.resp.status = code
 	return nil
 }
 
-func (m *mockTracingContext) String(code int, s string) error {
+func (m *mockTracingContext) String(code int, _ string) error {
 	m.resp.status = code
 	return nil
 }
@@ -107,8 +107,8 @@ func (m *mockTracingResponseWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (m *mockTracingResponseWriter) WriteHeader(statusCode int) {
-	m.status = statusCode
+func (m *mockTracingResponseWriter) WriteHeader(code int) {
+	m.status = code
 	m.written = true
 }
 
@@ -146,7 +146,7 @@ func TestTracing_CreatesSpan(t *testing.T) {
 		TracerName: "test-tracer",
 	})
 
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return nil
 	})
 
@@ -177,7 +177,7 @@ func TestTracing_AddsHTTPAttributes(t *testing.T) {
 
 	middleware := Tracing(Config{})
 
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return nil
 	})
 
@@ -228,7 +228,7 @@ func TestTracing_ExcludedPathPrefixes(t *testing.T) {
 		ExcludedPathPrefixes: []string{"/health"},
 	})
 
-	handler := middleware(func(c router.Context) error { return nil })
+	handler := middleware(func(_ router.Context) error { return nil })
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestTracing_PathPolicyMinimal(t *testing.T) {
 		},
 	})
 
-	handler := middleware(func(c router.Context) error { return nil })
+	handler := middleware(func(_ router.Context) error { return nil })
 	if err := handler(ctx); err != nil {
 		t.Fatalf("handler returned error: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestTracing_AddsRequestID(t *testing.T) {
 
 	middleware := Tracing(Config{})
 
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return nil
 	})
 
@@ -391,7 +391,7 @@ func TestTracing_RecordsError(t *testing.T) {
 	middleware := Tracing(Config{})
 
 	testErr := errors.New("test error")
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return testErr
 	})
 
@@ -436,7 +436,7 @@ func TestTracing_CustomSpanNameFormatter(t *testing.T) {
 		},
 	})
 
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return nil
 	})
 
@@ -471,7 +471,7 @@ func TestTracing_PropagatesContext(t *testing.T) {
 
 	middleware := Tracing(Config{})
 
-	handler := middleware(func(c router.Context) error {
+	handler := middleware(func(_ router.Context) error {
 		return nil
 	})
 

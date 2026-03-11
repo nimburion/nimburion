@@ -13,12 +13,12 @@ import (
 type SDKAdapter struct{}
 
 // NewSDKAdapter returns an explanatory error when SDK support is not compiled in.
-func NewSDKAdapter(cfg Config, log logger.Logger) (*SDKAdapter, error) {
+func NewSDKAdapter(_ Config, _ logger.Logger) (*SDKAdapter, error) {
 	return nil, fmt.Errorf("opensearch-sdk adapter is not enabled; rebuild with `-tags opensearch_sdk`")
 }
 
 // HealthCheck reports that the SDK adapter is unavailable in this build.
-func (a *SDKAdapter) HealthCheck(ctx context.Context) error {
+func (a *SDKAdapter) HealthCheck(_ context.Context) error {
 	return fmt.Errorf("opensearch-sdk adapter is not enabled; rebuild with `-tags opensearch_sdk`")
 }
 

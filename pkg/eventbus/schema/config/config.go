@@ -30,6 +30,7 @@ type Extension struct {
 // DisabledCoreConfigSections disables the legacy monolithic root section when schema composition uses this family extension.
 func (Extension) DisabledCoreConfigSections() []string { return []string{"validation"} }
 
+// ApplyDefaults registers default event schema validation configuration values.
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("validation.kafka.enabled", false)
 	v.SetDefault("validation.kafka.mode", "enforce")
@@ -38,6 +39,7 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("validation.kafka.subjects", map[string]string{})
 }
 
+// BindEnv binds event schema validation configuration keys to environment variables.
 func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"validation.kafka.enabled", "VALIDATION_KAFKA_ENABLED",
@@ -47,6 +49,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	)
 }
 
+// Validate checks that event schema validation configuration is coherent.
 func (e Extension) Validate() error {
 	validModes := []string{"warn", "enforce"}
 	mode := strings.ToLower(strings.TrimSpace(e.Validation.Kafka.Mode))
@@ -79,10 +82,15 @@ func (e Extension) Validate() error {
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {
-	for index := 0; index < len(values); index += 2 {
-		if err := v.BindEnv(values[index], prefixedEnv(prefix, values[index+1])); err != nil {
+	if len(values)%2 != 0 {
+		return fmt.Errorf("bindEnvPairs requires even number of values, got %d", len(values))
+	}
+	for len(values) > 0 {
+		key, suffix := values[0], values[1]
+		if err := v.BindEnv(key, prefixedEnv(prefix, suffix)); err != nil {
 			return err
 		}
+		values = values[2:]
 	}
 	return nil
 }

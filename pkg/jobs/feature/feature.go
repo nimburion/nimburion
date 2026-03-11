@@ -1,3 +1,4 @@
+// Package jobsfeature wires CLI commands for the jobs subsystem.
 package jobsfeature
 
 import (
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+
 	"github.com/nimburion/nimburion/pkg/config"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
@@ -19,7 +22,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/jobs"
 	jobsfamilyconfig "github.com/nimburion/nimburion/pkg/jobs/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -33,6 +35,7 @@ const (
 // ConfigLoader loads config and logger for contributed jobs commands.
 type ConfigLoader func(cmd *cobra.Command) (*config.Config, logger.Logger, error)
 
+// RuntimeFactory builds a jobs runtime from family-owned config.
 type RuntimeFactory func(
 	cfg jobsfamilyconfig.Config,
 	eventBusCfg eventbusconfig.Config,
@@ -40,6 +43,7 @@ type RuntimeFactory func(
 	log logger.Logger,
 ) (jobs.Runtime, error)
 
+// BackendFactory builds a jobs backend from family-owned config.
 type BackendFactory func(
 	cfg jobsfamilyconfig.Config,
 	eventBusCfg eventbusconfig.Config,
@@ -47,8 +51,10 @@ type BackendFactory func(
 	log logger.Logger,
 ) (jobs.Backend, error)
 
+// WorkerConfigurer applies application-specific worker registrations and hooks.
 type WorkerConfigurer func(cfg *config.Config, log logger.Logger, worker jobs.Worker) error
 
+// CommandFeatureOptions configures the jobs CLI feature wiring.
 type CommandFeatureOptions struct {
 	LoadConfig      ConfigLoader
 	RuntimeFactory  RuntimeFactory
@@ -76,6 +82,7 @@ func (f commandFeature) Contributions() corefeature.Contributions {
 	}
 }
 
+// NewCommandFeature returns the feature that wires jobs CLI commands and config.
 func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	if opts.LoadConfig == nil {
 		return nil
@@ -116,7 +123,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	workerCmd := &cobra.Command{
 		Use:   "worker",
 		Short: "Run jobs worker",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if opts.ConfigureWorker == nil {
 				return errors.New("configure worker callback is required for jobs worker command")
 			}
@@ -224,7 +231,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	enqueueCmd := &cobra.Command{
 		Use:   "enqueue",
 		Short: "Enqueue a job manually",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
@@ -303,7 +310,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	dlqListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List dead-letter queue entries",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err
@@ -341,7 +348,7 @@ func NewCommandFeature(opts CommandFeatureOptions) corefeature.Feature {
 	dlqReplayCmd := &cobra.Command{
 		Use:   "replay",
 		Short: "Replay dead-letter queue entries",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, log, err := opts.LoadConfig(cmd)
 			if err != nil {
 				return err

@@ -20,12 +20,15 @@ type fakeMemcachedClient struct {
 func (f *fakeMemcachedClient) Get(ctx context.Context, key string) ([]byte, error) {
 	return f.getFn(ctx, key)
 }
+
 func (f *fakeMemcachedClient) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	return f.setFn(ctx, key, value, ttl)
 }
+
 func (f *fakeMemcachedClient) Delete(ctx context.Context, key string) error {
 	return f.deleteFn(ctx, key)
 }
+
 func (f *fakeMemcachedClient) Touch(ctx context.Context, key string, ttl time.Duration) error {
 	return f.touchFn(ctx, key, ttl)
 }
@@ -56,8 +59,8 @@ func TestMemcachedStore_LoadSaveDeleteTouch(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := s.Save(ctx, "s1", map[string]string{"a": "b"}, time.Minute); err != nil {
-		t.Fatalf("save: %v", err)
+	if saveErr := s.Save(ctx, "s1", map[string]string{"a": "b"}, time.Minute); saveErr != nil {
+		t.Fatalf("save: %v", saveErr)
 	}
 	got, err := s.Load(ctx, "s1")
 	if err != nil {
@@ -66,14 +69,14 @@ func TestMemcachedStore_LoadSaveDeleteTouch(t *testing.T) {
 	if got["a"] != "b" {
 		t.Fatalf("unexpected loaded value: %v", got)
 	}
-	if err := s.Touch(ctx, "s1", time.Minute); err != nil {
-		t.Fatalf("touch: %v", err)
+	if touchErr := s.Touch(ctx, "s1", time.Minute); touchErr != nil {
+		t.Fatalf("touch: %v", touchErr)
 	}
-	if err := s.Delete(ctx, "s1"); err != nil {
-		t.Fatalf("delete: %v", err)
+	if deleteErr := s.Delete(ctx, "s1"); deleteErr != nil {
+		t.Fatalf("delete: %v", deleteErr)
 	}
-	if err := s.Close(); err != nil {
-		t.Fatalf("close: %v", err)
+	if closeErr := s.Close(); closeErr != nil {
+		t.Fatalf("close: %v", closeErr)
 	}
 }
 

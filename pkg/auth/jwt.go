@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 )
 
@@ -128,7 +129,6 @@ func (v *JWKSValidator) Validate(ctx context.Context, tokenString string) (*Clai
 
 		return publicKey, nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("token validation failed: %w", err)
 	}

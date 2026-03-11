@@ -9,10 +9,11 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
+
 	"github.com/nimburion/nimburion/pkg/http/middleware/logging"
 	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
 
 // TestProperty1_RequestIDPropagation verifies that request IDs are properly propagated through the request lifecycle.
@@ -86,7 +87,7 @@ func TestProperty1_RequestIDPropagation(t *testing.T) {
 	))
 
 	properties.Property("generates unique UUID when X-Request-ID header is absent", prop.ForAll(
-		func(seed int) bool {
+		func(_ int) bool {
 			// Create mock logger to capture log entries
 			mock := &testutil.MockLogger{}
 

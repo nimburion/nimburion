@@ -21,6 +21,7 @@ func (l *backendTestLogger) Error(string, ...any) {}
 func (l *backendTestLogger) With(...any) logger.Logger {
 	return l
 }
+
 func (l *backendTestLogger) WithContext(context.Context) logger.Logger {
 	return l
 }

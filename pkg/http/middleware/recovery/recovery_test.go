@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
 	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
+	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
 
 func TestRecovery_CatchesPanic(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRecovery_CatchesPanic(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(requestid.RequestID(), Recovery(log))
 
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic("something went wrong")
 	})
 
@@ -129,7 +129,7 @@ func TestRecovery_IncludesRequestIDInLog(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(requestid.RequestID(), Recovery(log))
 
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic("test panic")
 	})
 
@@ -175,7 +175,7 @@ func TestRecovery_HandlesStringPanic(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(Recovery(log))
 
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic("string panic")
 	})
 
@@ -206,7 +206,7 @@ func TestRecovery_HandlesErrorPanic(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(Recovery(log))
 
-	r.GET("/panic", func(c router.Context) error {
+	r.GET("/panic", func(_ router.Context) error {
 		panic(http.ErrAbortHandler)
 	})
 

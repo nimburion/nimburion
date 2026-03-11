@@ -5,10 +5,11 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/time/rate"
+
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/router"
-	"golang.org/x/time/rate"
 )
 
 // RateLimiter defines the interface for rate limiting implementations.
@@ -49,7 +50,7 @@ type TokenBucketLimiter struct {
 //	} else {
 //	    // Reject with 429 Too Many Requests
 //	}
-func NewTokenBucketLimiter(requestsPerSecond int, burst int) *TokenBucketLimiter {
+func NewTokenBucketLimiter(requestsPerSecond, burst int) *TokenBucketLimiter {
 	return &TokenBucketLimiter{
 		rate:  rate.Limit(requestsPerSecond),
 		burst: burst,

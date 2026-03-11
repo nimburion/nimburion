@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/google/jsonschema-go/jsonschema"
+
 	nimburioncfg "github.com/nimburion/nimburion/pkg/config"
 )
 

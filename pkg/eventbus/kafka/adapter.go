@@ -7,10 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/segmentio/kafka-go"
+
 	"github.com/nimburion/nimburion/pkg/eventbus"
 	eventbusconfig "github.com/nimburion/nimburion/pkg/eventbus/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
-	"github.com/segmentio/kafka-go"
 )
 
 // Adapter implements the eventbus.EventBus interface for Apache Kafka.

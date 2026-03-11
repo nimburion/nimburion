@@ -88,7 +88,7 @@ func TestLogging_RequestFailure(t *testing.T) {
 
 	// Register test handler that returns error
 	testError := errors.New("test error")
-	r.GET("/error", func(c router.Context) error {
+	r.GET("/error", func(_ router.Context) error {
 		return testError
 	})
 

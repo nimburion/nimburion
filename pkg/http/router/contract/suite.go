@@ -136,8 +136,8 @@ func TestRouterContract(t *testing.T, createRouter func() router.Router) {
 		r.GET("/stop", func(c router.Context) error {
 			handlerCalled = true
 			return c.String(http.StatusOK, "never")
-		}, func(next router.HandlerFunc) router.HandlerFunc {
-			return func(c router.Context) error {
+		}, func(_ router.HandlerFunc) router.HandlerFunc {
+			return func(_ router.Context) error {
 				return errors.New("stop")
 			}
 		})
@@ -300,7 +300,7 @@ func TestRouterContract(t *testing.T, createRouter func() router.Router) {
 
 	t.Run("error_handling", func(t *testing.T) {
 		r := createRouter()
-		r.GET("/err1", func(c router.Context) error { return errors.New("boom") })
+		r.GET("/err1", func(_ router.Context) error { return errors.New("boom") })
 		res := performRequest(r, http.MethodGet, "/err1", nil, "")
 		if res.Code != http.StatusInternalServerError {
 			t.Fatalf("expected 500, got %d", res.Code)

@@ -28,7 +28,7 @@ func TestConfig_Validation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			log, _ := logger.NewZapLogger(logger.Config{
 				Level:  logger.InfoLevel,
 				Format: logger.JSONFormat,
@@ -58,7 +58,7 @@ func TestGetTx(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// This is a minimal test - full transaction tests are in integration tests
 			// since they require a real database
 		})

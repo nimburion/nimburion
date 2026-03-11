@@ -1,3 +1,4 @@
+// Package policy defines authorization policy contracts and evaluators.
 package policy
 
 import (
@@ -7,6 +8,7 @@ import (
 	"strings"
 )
 
+// Subject describes the identity attributes evaluated by authorization policies.
 type Subject struct {
 	ID       string
 	TenantID string
@@ -15,18 +17,23 @@ type Subject struct {
 	Attrs    map[string]string
 }
 
+// ScopeLogic defines how required scopes are combined.
 type ScopeLogic int
 
 const (
+	// ScopeLogicAND requires all listed scopes.
 	ScopeLogicAND ScopeLogic = iota
+	// ScopeLogicOR requires at least one listed scope.
 	ScopeLogicOR
 )
 
+// ScopeRequirement declares the scopes required for one policy check.
 type ScopeRequirement struct {
 	Scopes []string
 	Logic  ScopeLogic
 }
 
+// EvaluateScopes reports whether subject satisfies requirement.
 func EvaluateScopes(subject Subject, requirement ScopeRequirement) bool {
 	requiredScopes := normalizeStrings(requirement.Scopes)
 	if len(requiredScopes) == 0 {
@@ -56,25 +63,39 @@ func EvaluateScopes(subject Subject, requirement ScopeRequirement) bool {
 	return true
 }
 
-type ValueSource string
-type Operator string
-
-const (
-	ValueSourceSubject ValueSource = "subject"
-	ValueSourceRoute   ValueSource = "route"
-	ValueSourceHeader  ValueSource = "header"
-	ValueSourceQuery   ValueSource = "query"
-
-	OperatorRequired Operator = "required"
-	OperatorEquals   Operator = "equals"
-	OperatorOneOf    Operator = "one_of"
-	OperatorRegex    Operator = "regex"
+type (
+	// ValueSource identifies where a policy value is resolved from.
+	ValueSource string
+	// Operator identifies the predicate applied to a resolved claim.
+	Operator string
 )
 
+const (
+	// ValueSourceSubject resolves values from subject attributes.
+	ValueSourceSubject ValueSource = "subject"
+	// ValueSourceRoute resolves values from route parameters.
+	ValueSourceRoute ValueSource = "route"
+	// ValueSourceHeader resolves values from request headers.
+	ValueSourceHeader ValueSource = "header"
+	// ValueSourceQuery resolves values from query parameters.
+	ValueSourceQuery ValueSource = "query"
+
+	// OperatorRequired requires a claim to be present.
+	OperatorRequired Operator = "required"
+	// OperatorEquals requires a claim to equal one resolved value.
+	OperatorEquals Operator = "equals"
+	// OperatorOneOf requires a claim to match one configured value.
+	OperatorOneOf Operator = "one_of"
+	// OperatorRegex requires a claim to match a regular expression.
+	OperatorRegex Operator = "regex"
+)
+
+// ValueResolver resolves comparison values for claim rules.
 type ValueResolver interface {
 	Value(ctx context.Context, source ValueSource, key string) (string, error)
 }
 
+// ClaimRule declares one subject claim predicate.
 type ClaimRule struct {
 	Claim    string
 	Aliases  []string
@@ -85,6 +106,7 @@ type ClaimRule struct {
 	Optional bool
 }
 
+// EvaluateClaimRule evaluates one claim rule against subject and resolver.
 func EvaluateClaimRule(ctx context.Context, subject Subject, resolver ValueResolver, rule ClaimRule) (bool, error) {
 	claimValue := ResolveSubjectValue(subject, rule.Claim, rule.Aliases)
 	operator := strings.ToLower(strings.TrimSpace(string(rule.Operator)))
@@ -127,6 +149,7 @@ func EvaluateClaimRule(ctx context.Context, subject Subject, resolver ValueResol
 	}
 }
 
+// ResolveSubjectValue resolves one named subject attribute using aliases as fallbacks.
 func ResolveSubjectValue(subject Subject, name string, aliases []string) string {
 	candidates := append([]string{name}, aliases...)
 	for _, candidate := range candidates {
@@ -156,10 +179,12 @@ func ResolveSubjectValue(subject Subject, name string, aliases []string) string 
 	return ""
 }
 
+// Authorizer decides whether subject may perform action on resource.
 type Authorizer interface {
-	Allow(ctx context.Context, subject Subject, action string, resource string, attrs map[string]string) (Decision, error)
+	Allow(ctx context.Context, subject Subject, action, resource string, attrs map[string]string) (Decision, error)
 }
 
+// Decision is the result of an authorization check.
 type Decision struct {
 	Allowed bool
 	Reason  string
