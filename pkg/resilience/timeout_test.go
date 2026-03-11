@@ -77,9 +77,9 @@ func TestWithTimeout_RespectsFunctionContext(t *testing.T) {
 	ctx := context.Background()
 	timeout := 100 * time.Millisecond
 
-	fn := func(_ context.Context) error {
+	fn := func(timeoutCtx context.Context) error {
 		// Check if context has deadline
-		deadline, ok := ctx.Deadline()
+		deadline, ok := timeoutCtx.Deadline()
 		if !ok {
 			return errors.New("context should have deadline")
 		}

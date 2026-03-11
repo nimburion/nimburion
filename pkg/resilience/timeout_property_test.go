@@ -35,13 +35,13 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 		func(timeout, operationDuration time.Duration) bool {
 			ctx := context.Background()
 
-			fn := func(_ context.Context) error {
-				// Simulate operation with the given duration
+			fn := func(timeoutCtx context.Context) error {
+				// Simulate operation with the given duration.
 				select {
 				case <-time.After(operationDuration):
 					return nil
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-timeoutCtx.Done():
+					return timeoutCtx.Err()
 				}
 			}
 
@@ -121,8 +121,8 @@ func TestProperty_TimeoutEnforcement(t *testing.T) {
 			ctx := context.Background()
 
 			contextHadDeadline := false
-			fn := func(_ context.Context) error {
-				_, ok := ctx.Deadline()
+			fn := func(timeoutCtx context.Context) error {
+				_, ok := timeoutCtx.Deadline()
 				contextHadDeadline = ok
 				return nil
 			}
