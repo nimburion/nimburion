@@ -1,10 +1,10 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -51,34 +51,42 @@ func (e Extension) Validate() error {
 		return nil
 	}
 	if strings.TrimSpace(e.I18n.DefaultLocale) == "" {
-		return errors.New("i18n.default_locale is required when i18n is enabled")
+		return validationError("validation.i18n.default_locale.required", "i18n.default_locale is required when i18n is enabled")
 	}
 	if len(e.I18n.SupportedLocales) == 0 {
-		return errors.New("i18n.supported_locales must contain at least one locale when i18n is enabled")
+		return validationError("validation.i18n.supported_locales.required", "i18n.supported_locales must contain at least one locale when i18n is enabled")
 	}
 	if strings.TrimSpace(e.I18n.QueryParam) == "" {
-		return errors.New("i18n.query_param is required when i18n is enabled")
+		return validationError("validation.i18n.query_param.required", "i18n.query_param is required when i18n is enabled")
 	}
 	if strings.TrimSpace(e.I18n.HeaderName) == "" {
-		return errors.New("i18n.header_name is required when i18n is enabled")
+		return validationError("validation.i18n.header_name.required", "i18n.header_name is required when i18n is enabled")
 	}
 	normalizedSupported := make([]string, 0, len(e.I18n.SupportedLocales))
 	for index, locale := range e.I18n.SupportedLocales {
 		trimmed := strings.TrimSpace(locale)
 		if trimmed == "" {
-			return fmt.Errorf("i18n.supported_locales[%d] cannot be empty", index)
+			return validationErrorf("validation.i18n.supported_locales.empty", "i18n.supported_locales[%d] cannot be empty", index)
 		}
 		normalizedSupported = append(normalizedSupported, strings.ToLower(trimmed))
 	}
 	validFallbackModes := []string{"base", "default"}
 	if !contains(validFallbackModes, strings.ToLower(strings.TrimSpace(e.I18n.FallbackMode))) {
-		return fmt.Errorf("invalid i18n.fallback_mode: %s (must be one of: %v)", e.I18n.FallbackMode, validFallbackModes)
+		return validationErrorf("validation.i18n.fallback_mode.invalid", "invalid i18n.fallback_mode: %s (must be one of: %v)", e.I18n.FallbackMode, validFallbackModes)
 	}
 	defaultLocale := strings.ToLower(strings.TrimSpace(e.I18n.DefaultLocale))
 	if defaultLocale != "" && len(normalizedSupported) > 0 && !contains(normalizedSupported, defaultLocale) {
-		return errors.New("i18n.default_locale must be included in i18n.supported_locales")
+		return validationError("validation.i18n.default_locale.membership", "i18n.default_locale must be included in i18n.supported_locales")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

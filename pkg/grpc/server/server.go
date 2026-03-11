@@ -146,13 +146,17 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	select {
 	case <-done:
 		if s.listener != nil {
-			_ = s.listener.Close()
+			if err := s.listener.Close(); err != nil {
+				s.logger.Warn("failed to close grpc listener after graceful shutdown", "error", err)
+			}
 		}
 		return nil
 	case <-shutdownCtx.Done():
 		s.server.Stop()
 		if s.listener != nil {
-			_ = s.listener.Close()
+			if err := s.listener.Close(); err != nil {
+				s.logger.Warn("failed to close grpc listener after forced shutdown", "error", err)
+			}
 		}
 		return fmt.Errorf("grpc server shutdown timed out: %w", shutdownCtx.Err())
 	}
@@ -204,11 +208,10 @@ func Run(ctx context.Context, srv *Server, opts Options) error {
 func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {
 	out := make([]coreapp.Hook, 0, len(hooks))
 	for _, hook := range hooks {
-		current := hook
 		out = append(out, coreapp.Hook{
-			Name: current.Name,
+			Name: hook.Name,
 			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
-				return current.Fn(ctx)
+				return hook.Fn(ctx)
 			},
 		})
 	}

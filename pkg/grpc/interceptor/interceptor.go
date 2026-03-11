@@ -77,6 +77,9 @@ type metadataContextKey struct{}
 
 // ContextMetadata returns metadata previously attached by MetadataUnaryInterceptor.
 func ContextMetadata(ctx context.Context) grpcmetadata.Map {
-	values, _ := ctx.Value(metadataContextKey{}).(grpcmetadata.Map)
+	values, ok := ctx.Value(metadataContextKey{}).(grpcmetadata.Map)
+	if !ok {
+		return nil
+	}
 	return values
 }

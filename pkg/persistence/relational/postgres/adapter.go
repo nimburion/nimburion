@@ -152,7 +152,7 @@ func (a *Adapter) WithTransaction(ctx context.Context, fn func(ctx context.Conte
 				"original_error", err,
 				"rollback_error", rbErr,
 			)
-			return fmt.Errorf("failed to rollback transaction: %w (original error: %v)", rbErr, err)
+			return errors.Join(err, fmt.Errorf("failed to rollback transaction: %w", rbErr))
 		}
 		return err
 	}

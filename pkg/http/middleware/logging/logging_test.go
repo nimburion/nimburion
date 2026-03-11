@@ -10,9 +10,9 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/http/middleware"
 
+	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
-	"github.com/nimburion/nimburion/pkg/http/middleware/testutil"
 )
 
 func TestLogging_RequestStartAndCompletion(t *testing.T) {
@@ -116,7 +116,8 @@ func TestLogging_RequestFailure(t *testing.T) {
 	if failedLog.Level != "error" {
 		t.Errorf("expected level 'error', got %q", failedLog.Level)
 	}
-	if failedLog.Fields["error"] != testError {
+	loggedErr, ok := failedLog.Fields["error"].(error)
+	if !ok || !errors.Is(loggedErr, testError) {
 		t.Errorf("expected error %v, got %v", testError, failedLog.Fields["error"])
 	}
 }

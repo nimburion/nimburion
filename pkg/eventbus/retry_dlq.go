@@ -295,7 +295,7 @@ func ConsumeWithRetry(
 			},
 		}
 		if err := quarantineSink.Quarantine(ctx, record); err != nil {
-			return fmt.Errorf("handler failed after retries (%v) and quarantine failed: %w", lastErr, err)
+			return fmt.Errorf("handler failed after retries (%w) and quarantine failed: %w", lastErr, err)
 		}
 		log.Error("message routed to quarantine",
 			"original_topic", consumerTopic,
@@ -309,7 +309,7 @@ func ConsumeWithRetry(
 	dlqTopic := consumerTopic + config.DLQTopicSuffix
 	if err := sendToDLQ(ctx, producer, dlqTopic, consumerTopic, message, lastErr, attempts); err != nil {
 		metrics.incDLQFailure()
-		return fmt.Errorf("handler failed after retries (%v) and dlq publish failed: %w", lastErr, err)
+		return fmt.Errorf("handler failed after retries (%w) and dlq publish failed: %w", lastErr, err)
 	}
 
 	metrics.incDLQ()

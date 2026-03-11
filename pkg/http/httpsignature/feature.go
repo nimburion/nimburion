@@ -1,11 +1,11 @@
 package httpsignature
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	corefeature "github.com/nimburion/nimburion/pkg/core/feature"
 	httpsignatureconfig "github.com/nimburion/nimburion/pkg/http/httpsignature/config"
 	"github.com/spf13/viper"
@@ -50,35 +50,43 @@ func (e Extension) Validate() error {
 		return nil
 	}
 	if strings.TrimSpace(cfg.KeyIDHeader) == "" {
-		return errors.New("security.http_signature.key_id_header is required when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.key_id_header.required", "security.http_signature.key_id_header is required when security.http_signature.enabled is true")
 	}
 	if strings.TrimSpace(cfg.TimestampHeader) == "" {
-		return errors.New("security.http_signature.timestamp_header is required when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.timestamp_header.required", "security.http_signature.timestamp_header is required when security.http_signature.enabled is true")
 	}
 	if strings.TrimSpace(cfg.SignatureHeader) == "" {
-		return errors.New("security.http_signature.signature_header is required when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.signature_header.required", "security.http_signature.signature_header is required when security.http_signature.enabled is true")
 	}
 	if cfg.RequireNonce && strings.TrimSpace(cfg.NonceHeader) == "" {
-		return errors.New("security.http_signature.nonce_header is required when security.http_signature.require_nonce is true")
+		return validationError("validation.security.http_signature.nonce_header.required", "security.http_signature.nonce_header is required when security.http_signature.require_nonce is true")
 	}
 	if cfg.MaxClockSkew <= 0 {
-		return errors.New("security.http_signature.max_clock_skew must be greater than zero when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.max_clock_skew.invalid", "security.http_signature.max_clock_skew must be greater than zero when security.http_signature.enabled is true")
 	}
 	if cfg.NonceTTL <= 0 {
-		return errors.New("security.http_signature.nonce_ttl must be greater than zero when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.nonce_ttl.invalid", "security.http_signature.nonce_ttl must be greater than zero when security.http_signature.enabled is true")
 	}
 	if len(cfg.StaticKeys) == 0 {
-		return errors.New("security.http_signature.static_keys must contain at least one key when security.http_signature.enabled is true")
+		return validationError("validation.security.http_signature.static_keys.required", "security.http_signature.static_keys must contain at least one key when security.http_signature.enabled is true")
 	}
 	for keyID, secret := range cfg.StaticKeys {
 		if strings.TrimSpace(keyID) == "" {
-			return errors.New("security.http_signature.static_keys contains an empty key id")
+			return validationError("validation.security.http_signature.static_keys.key_id.empty", "security.http_signature.static_keys contains an empty key id")
 		}
 		if strings.TrimSpace(secret) == "" {
-			return fmt.Errorf("security.http_signature.static_keys.%s cannot be empty", keyID)
+			return validationErrorf("validation.security.http_signature.static_keys.secret.empty", "security.http_signature.static_keys.%s cannot be empty", keyID)
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

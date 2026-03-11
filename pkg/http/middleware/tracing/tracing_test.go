@@ -14,8 +14,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/middleware"
+	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
 func hasAttr(attrs []attribute.KeyValue, key string) bool {
@@ -396,7 +396,7 @@ func TestTracing_RecordsError(t *testing.T) {
 	})
 
 	err := handler(ctx)
-	if err != testErr {
+	if !errors.Is(err, testErr) {
 		t.Fatalf("expected error to be propagated")
 	}
 

@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -119,18 +119,18 @@ func (e Extension) Validate() error {
 	e.Observability.RequestLogging.Fields = normalizeStringSlice(e.Observability.RequestLogging.Fields)
 	validLogLevels := []string{"debug", "info", "warn", "error"}
 	if !contains(validLogLevels, strings.ToLower(strings.TrimSpace(e.Observability.LogLevel))) {
-		return fmt.Errorf("invalid observability.log_level: %s (must be one of: %v)", e.Observability.LogLevel, validLogLevels)
+		return validationErrorf("validation.observability.log_level.invalid", "invalid observability.log_level: %s (must be one of: %v)", e.Observability.LogLevel, validLogLevels)
 	}
 	validLogFormats := []string{"json", "text"}
 	if !contains(validLogFormats, strings.ToLower(strings.TrimSpace(e.Observability.LogFormat))) {
-		return fmt.Errorf("invalid observability.log_format: %s (must be one of: %v)", e.Observability.LogFormat, validLogFormats)
+		return validationErrorf("validation.observability.log_format.invalid", "invalid observability.log_format: %s (must be one of: %v)", e.Observability.LogFormat, validLogFormats)
 	}
 	if e.Observability.AsyncLogging.Enabled {
 		if e.Observability.AsyncLogging.QueueSize <= 0 {
-			return errors.New("observability.async_logging.queue_size must be greater than 0 when async logging is enabled")
+			return validationError("validation.observability.async_logging.queue_size.invalid", "observability.async_logging.queue_size must be greater than 0 when async logging is enabled")
 		}
 		if e.Observability.AsyncLogging.WorkerCount <= 0 {
-			return errors.New("observability.async_logging.worker_count must be greater than 0 when async logging is enabled")
+			return validationError("validation.observability.async_logging.worker_count.invalid", "observability.async_logging.worker_count must be greater than 0 when async logging is enabled")
 		}
 	}
 	validOutputs := []string{"logger", "stdout", "stderr"}
@@ -139,7 +139,7 @@ func (e Extension) Validate() error {
 		output = "logger"
 	}
 	if !contains(validOutputs, output) {
-		return fmt.Errorf("observability.request_logging.output must be one of %v", validOutputs)
+		return validationErrorf("validation.observability.request_logging.output.invalid", "observability.request_logging.output must be one of %v", validOutputs)
 	}
 	validFields := []string{
 		"request_id", "method", "path", "status", "duration_ms", "error",
@@ -151,43 +151,51 @@ func (e Extension) Validate() error {
 	for index, field := range e.Observability.RequestLogging.Fields {
 		normalizedField := strings.ToLower(strings.TrimSpace(field))
 		if !contains(validFields, normalizedField) {
-			return fmt.Errorf("observability.request_logging.fields[%d] must be one of %v", index, validFields)
+			return validationErrorf("validation.observability.request_logging.fields.invalid", "observability.request_logging.fields[%d] must be one of %v", index, validFields)
 		}
 	}
 	validRequestLoggingModes := []string{"off", "minimal", "full"}
 	for index, policy := range e.Observability.RequestLogging.PathPolicies {
 		if strings.TrimSpace(policy.PathPrefix) == "" {
-			return fmt.Errorf("observability.request_logging.path_policies[%d].path_prefix is required", index)
+			return validationErrorf("validation.observability.request_logging.path_policies.path_prefix.required", "observability.request_logging.path_policies[%d].path_prefix is required", index)
 		}
 		if !contains(validRequestLoggingModes, strings.ToLower(strings.TrimSpace(policy.Mode))) {
-			return fmt.Errorf("observability.request_logging.path_policies[%d].mode must be one of %v", index, validRequestLoggingModes)
+			return validationErrorf("validation.observability.request_logging.path_policies.mode.invalid", "observability.request_logging.path_policies[%d].mode must be one of %v", index, validRequestLoggingModes)
 		}
 	}
 	validRequestTracingModes := []string{"off", "minimal", "full"}
 	for index, policy := range e.Observability.RequestTracing.PathPolicies {
 		if strings.TrimSpace(policy.PathPrefix) == "" {
-			return fmt.Errorf("observability.request_tracing.path_policies[%d].path_prefix is required", index)
+			return validationErrorf("validation.observability.request_tracing.path_policies.path_prefix.required", "observability.request_tracing.path_policies[%d].path_prefix is required", index)
 		}
 		if !contains(validRequestTracingModes, strings.ToLower(strings.TrimSpace(policy.Mode))) {
-			return fmt.Errorf("observability.request_tracing.path_policies[%d].mode must be one of %v", index, validRequestTracingModes)
+			return validationErrorf("validation.observability.request_tracing.path_policies.mode.invalid", "observability.request_tracing.path_policies[%d].mode must be one of %v", index, validRequestTracingModes)
 		}
 	}
 	if e.Observability.RequestTimeout.Enabled && e.Observability.RequestTimeout.Default <= 0 {
-		return errors.New("observability.request_timeout.default must be greater than zero when request timeout is enabled")
+		return validationError("validation.observability.request_timeout.default.invalid", "observability.request_timeout.default must be greater than zero when request timeout is enabled")
 	}
 	validRequestTimeoutModes := []string{"off", "on"}
 	for index, policy := range e.Observability.RequestTimeout.PathPolicies {
 		if strings.TrimSpace(policy.PathPrefix) == "" {
-			return fmt.Errorf("observability.request_timeout.path_policies[%d].path_prefix is required", index)
+			return validationErrorf("validation.observability.request_timeout.path_policies.path_prefix.required", "observability.request_timeout.path_policies[%d].path_prefix is required", index)
 		}
 		if !contains(validRequestTimeoutModes, strings.ToLower(strings.TrimSpace(policy.Mode))) {
-			return fmt.Errorf("observability.request_timeout.path_policies[%d].mode must be one of %v", index, validRequestTimeoutModes)
+			return validationErrorf("validation.observability.request_timeout.path_policies.mode.invalid", "observability.request_timeout.path_policies[%d].mode must be one of %v", index, validRequestTimeoutModes)
 		}
 	}
 	if e.Observability.TracingEnabled && strings.TrimSpace(e.Observability.TracingEndpoint) == "" {
-		return errors.New("observability.tracing_endpoint is required when tracing is enabled")
+		return validationError("validation.observability.tracing_endpoint.required", "observability.tracing_endpoint is required when tracing is enabled")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// Canonical application error codes shared across runtime and transport layers.
 const (
 	CodeValidationFailed = "validation.failed"
 	CodeInvalidArgument  = "argument.invalid"

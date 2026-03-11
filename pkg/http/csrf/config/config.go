@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -60,13 +60,13 @@ func (e Extension) Validate() error {
 		return nil
 	}
 	if strings.TrimSpace(e.CSRF.HeaderName) == "" {
-		return errors.New("csrf.header_name is required when csrf is enabled")
+		return validationError("validation.csrf.header_name.required", "csrf.header_name is required when csrf is enabled")
 	}
 	if strings.TrimSpace(e.CSRF.CookieName) == "" {
-		return errors.New("csrf.cookie_name is required when csrf is enabled")
+		return validationError("validation.csrf.cookie_name.required", "csrf.cookie_name is required when csrf is enabled")
 	}
 	if e.CSRF.CookieTTL <= 0 {
-		return errors.New("csrf.cookie_ttl must be greater than zero when csrf is enabled")
+		return validationError("validation.csrf.cookie_ttl.invalid", "csrf.cookie_ttl must be greater than zero when csrf is enabled")
 	}
 	validSameSite := []string{"lax", "strict", "none"}
 	value := strings.ToLower(strings.TrimSpace(e.CSRF.CookieSameSite))
@@ -75,7 +75,15 @@ func (e Extension) Validate() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid csrf.cookie_same_site: %s (must be one of: %v)", e.CSRF.CookieSameSite, validSameSite)
+	return validationErrorf("validation.csrf.cookie_same_site.invalid", "invalid csrf.cookie_same_site: %s (must be one of: %v)", e.CSRF.CookieSameSite, validSameSite)
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

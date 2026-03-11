@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -75,26 +75,34 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 
 func (e Extension) Validate() error {
 	if e.HTTP.Port <= 0 || e.HTTP.Port > 65535 {
-		return fmt.Errorf("invalid http.port: %d (must be between 1 and 65535)", e.HTTP.Port)
+		return validationErrorf("validation.http.port.invalid", "invalid http.port: %d (must be between 1 and 65535)", e.HTTP.Port)
 	}
 	if e.Management.MTLSEnabled {
 		if strings.TrimSpace(e.Management.TLSCertFile) == "" {
-			return errors.New("management.tls_cert_file is required when management.mtls_enabled is true")
+			return validationError("validation.management.tls_cert_file.required", "management.tls_cert_file is required when management.mtls_enabled is true")
 		}
 		if strings.TrimSpace(e.Management.TLSKeyFile) == "" {
-			return errors.New("management.tls_key_file is required when management.mtls_enabled is true")
+			return validationError("validation.management.tls_key_file.required", "management.tls_key_file is required when management.mtls_enabled is true")
 		}
 		if strings.TrimSpace(e.Management.TLSCAFile) == "" {
-			return errors.New("management.tls_ca_file is required when management.mtls_enabled is true")
+			return validationError("validation.management.tls_ca_file.required", "management.tls_ca_file is required when management.mtls_enabled is true")
 		}
 	}
 	if e.Management.Enabled && (e.Management.Port <= 0 || e.Management.Port > 65535) {
-		return errors.New("management.port must be between 1 and 65535 when management is enabled")
+		return validationError("validation.management.port.invalid", "management.port must be between 1 and 65535 when management is enabled")
 	}
 	if e.HTTP.MaxRequestSize < 0 {
-		return errors.New("http.max_request_size cannot be negative")
+		return validationError("validation.http.max_request_size.invalid", "http.max_request_size cannot be negative")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

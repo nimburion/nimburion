@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -76,18 +76,26 @@ func (e Extension) Validate() error {
 	}
 	validTypes := []string{DatabaseTypePostgres, DatabaseTypeMySQL, DatabaseTypeMongoDB, DatabaseTypeDynamoDB}
 	if !contains(validTypes, e.Database.Type) {
-		return fmt.Errorf("invalid database.type: %s (must be one of: %v)", e.Database.Type, validTypes)
+		return validationErrorf("validation.database.type.invalid", "invalid database.type: %s (must be one of: %v)", e.Database.Type, validTypes)
 	}
 	if e.Database.Type != DatabaseTypeDynamoDB && strings.TrimSpace(e.Database.URL) == "" {
-		return errors.New("database.url is required when database.type is specified")
+		return validationError("validation.database.url.required", "database.url is required when database.type is specified")
 	}
 	if e.Database.Type == DatabaseTypeMongoDB && strings.TrimSpace(e.Database.DatabaseName) == "" {
-		return errors.New("database.database_name is required when database.type is mongodb")
+		return validationError("validation.database.database_name.required", "database.database_name is required when database.type is mongodb")
 	}
 	if e.Database.Type == DatabaseTypeDynamoDB && strings.TrimSpace(e.Database.Region) == "" {
-		return errors.New("database.region is required when database.type is dynamodb")
+		return validationError("validation.database.region.required", "database.region is required when database.type is dynamodb")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

@@ -301,18 +301,17 @@ func toCoreHooks(hooks []LifecycleHook) []coreapp.Hook {
 
 	coreHooks := make([]coreapp.Hook, 0, len(hooks))
 	for _, hook := range hooks {
-		currentHook := hook
 		coreHooks = append(coreHooks, coreapp.Hook{
-			Name: currentHook.Name,
+			Name: hook.Name,
 			Fn: func(ctx context.Context, runtime *coreapp.Runtime) error {
-				name := strings.TrimSpace(currentHook.Name)
+				name := strings.TrimSpace(hook.Name)
 				if name == "" {
 					name = "unnamed"
 				}
-				if currentHook.Fn == nil {
+				if hook.Fn == nil {
 					return nil
 				}
-				return currentHook.Fn(ctx)
+				return hook.Fn(ctx)
 			},
 		})
 	}

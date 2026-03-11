@@ -487,17 +487,16 @@ func (a *App) runRunners(ctx context.Context, cancel context.CancelFunc) error {
 
 	errCh := make(chan error, len(a.runners))
 	for _, runner := range a.runners {
-		currentRunner := runner
 		go func() {
-			if currentRunner.Fn == nil {
+			if runner.Fn == nil {
 				errCh <- nil
 				return
 			}
-			if err := a.runtime.Failures.Apply(ctx, RunnerFailureTarget(currentRunner.Name)); err != nil {
-				errCh <- fmt.Errorf("runner %q failure injection failed: %w", currentRunner.Name, err)
+			if err := a.runtime.Failures.Apply(ctx, RunnerFailureTarget(runner.Name)); err != nil {
+				errCh <- fmt.Errorf("runner %q failure injection failed: %w", runner.Name, err)
 				return
 			}
-			errCh <- currentRunner.Fn(ctx, a.runtime)
+			errCh <- runner.Fn(ctx, a.runtime)
 		}()
 	}
 
@@ -596,14 +595,13 @@ func adaptFeatureHooks(hooks []feature.Hook) []Hook {
 
 	adapted := make([]Hook, 0, len(hooks))
 	for _, hook := range hooks {
-		currentHook := hook
 		adapted = append(adapted, Hook{
-			Name: currentHook.Name,
+			Name: hook.Name,
 			Fn: func(ctx context.Context, runtime *Runtime) error {
-				if currentHook.Fn == nil {
+				if hook.Fn == nil {
 					return nil
 				}
-				return currentHook.Fn(ctx, runtime)
+				return hook.Fn(ctx, runtime)
 			},
 		})
 	}
@@ -617,14 +615,13 @@ func adaptFeatureRunners(runners []feature.Runner) []Runner {
 
 	adapted := make([]Runner, 0, len(runners))
 	for _, runner := range runners {
-		currentRunner := runner
 		adapted = append(adapted, Runner{
-			Name: currentRunner.Name,
+			Name: runner.Name,
 			Fn: func(ctx context.Context, runtime *Runtime) error {
-				if currentRunner.Fn == nil {
+				if runner.Fn == nil {
 					return nil
 				}
-				return currentRunner.Fn(ctx, runtime)
+				return runner.Fn(ctx, runtime)
 			},
 		})
 	}

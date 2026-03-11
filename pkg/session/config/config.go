@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -100,29 +100,37 @@ func (e Extension) Validate() error {
 	validStores := []string{"inmemory", "redis", "memcached"}
 	store := strings.ToLower(strings.TrimSpace(e.Session.Store))
 	if !contains(validStores, store) {
-		return fmt.Errorf("invalid session.store: %s (must be one of: %v)", e.Session.Store, validStores)
+		return validationErrorf("validation.session.store.invalid", "invalid session.store: %s (must be one of: %v)", e.Session.Store, validStores)
 	}
 	if e.Session.TTL <= 0 {
-		return errors.New("session.ttl must be greater than zero when session is enabled")
+		return validationError("validation.session.ttl.invalid", "session.ttl must be greater than zero when session is enabled")
 	}
 	if e.Session.IdleTimeout <= 0 {
-		return errors.New("session.idle_timeout must be greater than zero when session is enabled")
+		return validationError("validation.session.idle_timeout.invalid", "session.idle_timeout must be greater than zero when session is enabled")
 	}
 	validSameSite := []string{"lax", "strict", "none"}
 	if !contains(validSameSite, strings.ToLower(strings.TrimSpace(e.Session.CookieSameSite))) {
-		return fmt.Errorf("invalid session.cookie_same_site: %s (must be one of: %v)", e.Session.CookieSameSite, validSameSite)
+		return validationErrorf("validation.session.cookie_same_site.invalid", "invalid session.cookie_same_site: %s (must be one of: %v)", e.Session.CookieSameSite, validSameSite)
 	}
 	switch store {
 	case "redis":
 		if strings.TrimSpace(e.Session.Redis.URL) == "" {
-			return errors.New("session.redis.url is required when session.store=redis")
+			return validationError("validation.session.redis.url.required", "session.redis.url is required when session.store=redis")
 		}
 	case "memcached":
 		if len(e.Session.Memcached.Addresses) == 0 {
-			return errors.New("session.memcached.addresses must contain at least one endpoint when session.store=memcached")
+			return validationError("validation.session.memcached.addresses.required", "session.memcached.addresses must contain at least one endpoint when session.store=memcached")
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

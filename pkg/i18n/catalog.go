@@ -241,10 +241,11 @@ func loadYAMLCatalog(catalog *Catalog, locale, filePath string) error {
 func flattenCatalog(payload map[string]interface{}, prefix string) map[string]string {
 	out := map[string]string{}
 	for key, value := range payload {
-		fullKey := key
-		if prefix != "" {
-			fullKey = prefix + "." + key
+		fullKey := prefix
+		if fullKey != "" {
+			fullKey += "."
 		}
+		fullKey += key
 		switch node := value.(type) {
 		case map[string]interface{}:
 			child := flattenCatalog(node, fullKey)

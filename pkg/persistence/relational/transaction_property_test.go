@@ -3,8 +3,10 @@ package relational
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/leanovate/gopter"
@@ -86,10 +88,9 @@ func TestProperty_TransactionAtomicity(t *testing.T) {
 
 			return count == len(operations)
 		},
-		gen.SliceOf(gen.IntRange(1, 1000)).SuchThat(func(v interface{}) bool {
-			slice := v.([]int)
-			return len(slice) > 0 && len(slice) <= 10
-		}),
+		gen.IntRange(1, 10).FlatMap(func(size any) gopter.Gen {
+			return gen.SliceOfN(size.(int), gen.IntRange(1, 1000))
+		}, reflect.TypeOf([]int{})),
 	))
 
 	// Property: Failed transaction rolls back all operations
@@ -257,7 +258,7 @@ func withTransaction(ctx context.Context, db *sql.DB, fn func(ctx context.Contex
 
 	if err := fn(txCtx); err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			return fmt.Errorf("failed to rollback transaction: %w (original error: %v)", rbErr, err)
+			return errors.Join(err, fmt.Errorf("failed to rollback transaction: %w", rbErr))
 		}
 		return err
 	}

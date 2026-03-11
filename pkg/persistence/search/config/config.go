@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -81,7 +81,7 @@ func (e Extension) Validate() error {
 	searchType := strings.ToLower(strings.TrimSpace(e.Search.Type))
 	validTypes := []string{"opensearch", "elasticsearch"}
 	if !contains(validTypes, searchType) {
-		return fmt.Errorf("invalid search.type: %s (must be one of: %v)", e.Search.Type, validTypes)
+		return validationErrorf("validation.search.type.invalid", "invalid search.type: %s (must be one of: %v)", e.Search.Type, validTypes)
 	}
 	driver := strings.ToLower(strings.TrimSpace(e.Search.Driver))
 	if driver == "" {
@@ -89,26 +89,34 @@ func (e Extension) Validate() error {
 	}
 	validDrivers := []string{"http", "opensearch-sdk", "elasticsearch-sdk"}
 	if !contains(validDrivers, driver) {
-		return fmt.Errorf("invalid search.driver: %s (must be one of: %v)", e.Search.Driver, validDrivers)
+		return validationErrorf("validation.search.driver.invalid", "invalid search.driver: %s (must be one of: %v)", e.Search.Driver, validDrivers)
 	}
 	if driver == "opensearch-sdk" && searchType != "opensearch" {
-		return errors.New("search.driver=opensearch-sdk requires search.type=opensearch")
+		return validationError("validation.search.driver.opensearch_sdk.type", "search.driver=opensearch-sdk requires search.type=opensearch")
 	}
 	if driver == "elasticsearch-sdk" && searchType != "elasticsearch" {
-		return errors.New("search.driver=elasticsearch-sdk requires search.type=elasticsearch")
+		return validationError("validation.search.driver.elasticsearch_sdk.type", "search.driver=elasticsearch-sdk requires search.type=elasticsearch")
 	}
 	if strings.TrimSpace(e.Search.URL) == "" && len(e.Search.URLs) == 0 {
-		return errors.New("search.url or search.urls is required when search.type is specified")
+		return validationError("validation.search.url.required", "search.url or search.urls is required when search.type is specified")
 	}
 	if e.Search.AWSAuthEnabled {
 		if strings.TrimSpace(e.Search.AWSRegion) == "" {
-			return errors.New("search.aws_region is required when search.aws_auth_enabled is true")
+			return validationError("validation.search.aws_region.required", "search.aws_region is required when search.aws_auth_enabled is true")
 		}
 		if strings.TrimSpace(e.Search.AWSService) == "" {
-			return errors.New("search.aws_service is required when search.aws_auth_enabled is true")
+			return validationError("validation.search.aws_service.required", "search.aws_service is required when search.aws_auth_enabled is true")
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

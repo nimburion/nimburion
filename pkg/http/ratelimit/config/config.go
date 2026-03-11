@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -63,21 +63,29 @@ func (e Extension) Validate() error {
 	}
 	validTypes := []string{"local", "redis"}
 	if !contains(validTypes, strings.ToLower(strings.TrimSpace(e.RateLimit.Type))) {
-		return fmt.Errorf("invalid rate_limit.type: %s (must be one of: %v)", e.RateLimit.Type, validTypes)
+		return validationErrorf("validation.rate_limit.type.invalid", "invalid rate_limit.type: %s (must be one of: %v)", e.RateLimit.Type, validTypes)
 	}
 	if strings.EqualFold(strings.TrimSpace(e.RateLimit.Type), "redis") && strings.TrimSpace(e.RateLimit.Redis.URL) == "" {
-		return errors.New("rate_limit.redis.url is required when rate_limit.type=redis")
+		return validationError("validation.rate_limit.redis.url.required", "rate_limit.redis.url is required when rate_limit.type=redis")
 	}
 	if e.RateLimit.RequestsPerSecond <= 0 {
-		return errors.New("rate_limit.requests_per_second must be greater than zero when rate limiting is enabled")
+		return validationError("validation.rate_limit.requests_per_second.invalid", "rate_limit.requests_per_second must be greater than zero when rate limiting is enabled")
 	}
 	if e.RateLimit.Burst < 0 {
-		return errors.New("rate_limit.burst cannot be negative")
+		return validationError("validation.rate_limit.burst.invalid", "rate_limit.burst cannot be negative")
 	}
 	if e.RateLimit.Window <= 0 {
-		return errors.New("rate_limit.window must be greater than zero")
+		return validationError("validation.rate_limit.window.invalid", "rate_limit.window must be greater than zero")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

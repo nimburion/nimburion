@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -47,12 +47,20 @@ func (e Extension) Validate() error {
 	}
 	validTypes := []string{"redis", "inmemory"}
 	if !contains(validTypes, e.Cache.Type) {
-		return fmt.Errorf("invalid cache.type: %s (must be one of: %v)", e.Cache.Type, validTypes)
+		return validationErrorf("validation.cache.type.invalid", "invalid cache.type: %s (must be one of: %v)", e.Cache.Type, validTypes)
 	}
 	if e.Cache.Type == "redis" && strings.TrimSpace(e.Cache.URL) == "" {
-		return errors.New("cache.url is required when cache.type is redis")
+		return validationError("validation.cache.url.required", "cache.url is required when cache.type is redis")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

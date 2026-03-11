@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -86,30 +86,38 @@ func (e Extension) Validate() error {
 	}
 	validTypes := []string{EventBusTypeKafka, EventBusTypeRabbitMQ, EventBusTypeSQS}
 	if !contains(validTypes, e.EventBus.Type) {
-		return fmt.Errorf("invalid eventbus.type: %s (must be one of: %v)", e.EventBus.Type, validTypes)
+		return validationErrorf("validation.eventbus.type.invalid", "invalid eventbus.type: %s (must be one of: %v)", e.EventBus.Type, validTypes)
 	}
 	switch e.EventBus.Type {
 	case EventBusTypeKafka:
 		if len(e.EventBus.Brokers) == 0 {
-			return errors.New("eventbus.brokers is required when eventbus.type is specified")
+			return validationError("validation.eventbus.brokers.required", "eventbus.brokers is required when eventbus.type is specified")
 		}
 	case EventBusTypeRabbitMQ:
 		if strings.TrimSpace(e.EventBus.URL) == "" && len(e.EventBus.Brokers) == 0 {
-			return errors.New("eventbus.url (or eventbus.brokers[0]) is required when eventbus.type is rabbitmq")
+			return validationError("validation.eventbus.url.required", "eventbus.url (or eventbus.brokers[0]) is required when eventbus.type is rabbitmq")
 		}
 	case EventBusTypeSQS:
 		if strings.TrimSpace(e.EventBus.Region) == "" {
-			return errors.New("eventbus.region is required when eventbus.type is sqs")
+			return validationError("validation.eventbus.region.required", "eventbus.region is required when eventbus.type is sqs")
 		}
 		if strings.TrimSpace(e.EventBus.QueueURL) == "" {
-			return errors.New("eventbus.queue_url is required when eventbus.type is sqs")
+			return validationError("validation.eventbus.queue_url.required", "eventbus.queue_url is required when eventbus.type is sqs")
 		}
 	}
 	validSerializers := []string{"json", "protobuf", "avro"}
 	if !contains(validSerializers, e.EventBus.Serializer) {
-		return fmt.Errorf("invalid eventbus.serializer: %s (must be one of: %v)", e.EventBus.Serializer, validSerializers)
+		return validationErrorf("validation.eventbus.serializer.invalid", "invalid eventbus.serializer: %s (must be one of: %v)", e.EventBus.Serializer, validSerializers)
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

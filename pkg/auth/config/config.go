@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -72,60 +72,68 @@ func (e Extension) Validate() error {
 		return nil
 	}
 	if strings.TrimSpace(e.Auth.Issuer) == "" {
-		return errors.New("auth.issuer is required when auth is enabled")
+		return validationError("validation.auth.issuer.required", "auth.issuer is required when auth is enabled")
 	}
 	if strings.TrimSpace(e.Auth.JWKSUrl) == "" {
-		return errors.New("auth.jwks_url is required when auth is enabled")
+		return validationError("validation.auth.jwks_url.required", "auth.jwks_url is required when auth is enabled")
 	}
 	if strings.TrimSpace(e.Auth.Audience) == "" {
-		return errors.New("auth.audience is required when auth is enabled")
+		return validationError("validation.auth.audience.required", "auth.audience is required when auth is enabled")
 	}
 	if len(e.Auth.Claims.Rules) == 0 {
-		return errors.New("auth.claims.rules must contain at least one rule when auth is enabled")
+		return validationError("validation.auth.claims.rules.required", "auth.claims.rules must contain at least one rule when auth is enabled")
 	}
 	validSources := []string{"route", "header", "query"}
 	validOperators := []string{"required", "equals", "one_of", "regex"}
 	for index, rule := range e.Auth.Claims.Rules {
 		if strings.TrimSpace(rule.Claim) == "" {
-			return fmt.Errorf("auth.claims.rules[%d].claim is required", index)
+			return validationErrorf("validation.auth.claims.rules.claim.required", "auth.claims.rules[%d].claim is required", index)
 		}
 		operator := strings.ToLower(strings.TrimSpace(rule.Operator))
 		if operator == "" {
 			operator = "required"
 		}
 		if !contains(validOperators, operator) {
-			return fmt.Errorf("auth.claims.rules[%d].operator must be one of %v", index, validOperators)
+			return validationErrorf("validation.auth.claims.rules.operator.invalid", "auth.claims.rules[%d].operator must be one of %v", index, validOperators)
 		}
 		switch operator {
 		case "equals":
 			source := strings.ToLower(strings.TrimSpace(rule.Source))
 			if !contains(validSources, source) {
-				return fmt.Errorf("auth.claims.rules[%d].source must be one of %v when operator=equals", index, validSources)
+				return validationErrorf("validation.auth.claims.rules.source.invalid", "auth.claims.rules[%d].source must be one of %v when operator=equals", index, validSources)
 			}
 			if strings.TrimSpace(rule.Key) == "" {
-				return fmt.Errorf("auth.claims.rules[%d].key is required when operator=equals", index)
+				return validationErrorf("validation.auth.claims.rules.key.required", "auth.claims.rules[%d].key is required when operator=equals", index)
 			}
 		case "one_of":
 			if len(rule.Values) == 0 {
-				return fmt.Errorf("auth.claims.rules[%d].values must contain at least one value when operator=one_of", index)
+				return validationErrorf("validation.auth.claims.rules.values.required", "auth.claims.rules[%d].values must contain at least one value when operator=one_of", index)
 			}
 		case "regex":
 			if len(rule.Values) != 1 || strings.TrimSpace(rule.Values[0]) == "" {
-				return fmt.Errorf("auth.claims.rules[%d].values must contain exactly one regex pattern when operator=regex", index)
+				return validationErrorf("validation.auth.claims.rules.regex.required", "auth.claims.rules[%d].values must contain exactly one regex pattern when operator=regex", index)
 			}
 		}
 	}
 	for claimName, aliases := range e.Auth.Claims.Mappings {
 		if strings.TrimSpace(claimName) == "" {
-			return errors.New("auth.claims.mappings contains an empty claim name")
+			return validationError("validation.auth.claims.mappings.claim_name.empty", "auth.claims.mappings contains an empty claim name")
 		}
 		for aliasIndex, alias := range aliases {
 			if strings.TrimSpace(alias) == "" {
-				return fmt.Errorf("auth.claims.mappings.%s[%d] cannot be empty", claimName, aliasIndex)
+				return validationErrorf("validation.auth.claims.mappings.alias.empty", "auth.claims.mappings.%s[%d] cannot be empty", claimName, aliasIndex)
 			}
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

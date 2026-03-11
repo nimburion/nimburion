@@ -102,13 +102,13 @@ func (r *Runner) Run(ctx context.Context) (Result, error) {
 
 	result := Result{Status: StatusRunning}
 	completed := make([]Step, 0, len(r.definition.Steps))
-	_ = r.emit(ctx, "", StatusRunning, nil)
+	ignoreEmitError(r.emit(ctx, "", StatusRunning, nil))
 
 	for _, step := range r.definition.Steps {
 		if err := step.Execute(ctx); err != nil {
-			_ = r.emit(ctx, step.Name, StatusFailed, err)
+			ignoreEmitError(r.emit(ctx, step.Name, StatusFailed, err))
 			result.Status = StatusCompensating
-			_ = r.emit(ctx, step.Name, StatusCompensating, err)
+			ignoreEmitError(r.emit(ctx, step.Name, StatusCompensating, err))
 
 			for idx := len(completed) - 1; idx >= 0; idx-- {
 				done := completed[idx]
@@ -116,23 +116,23 @@ func (r *Runner) Run(ctx context.Context) (Result, error) {
 					continue
 				}
 				if compErr := done.Compensate(ctx); compErr != nil {
-					_ = r.emit(ctx, done.Name, StatusFailed, compErr)
+					ignoreEmitError(r.emit(ctx, done.Name, StatusFailed, compErr))
 					return result, errors.Join(err, compErr)
 				}
 				result.Compensated = append(result.Compensated, done.Name)
 			}
 			result.Status = StatusCompensated
-			_ = r.emit(ctx, step.Name, StatusCompensated, err)
+			ignoreEmitError(r.emit(ctx, step.Name, StatusCompensated, err))
 			return result, err
 		}
 
 		completed = append(completed, step)
 		result.CompletedSteps = append(result.CompletedSteps, step.Name)
-		_ = r.emit(ctx, step.Name, StatusRunning, nil)
+		ignoreEmitError(r.emit(ctx, step.Name, StatusRunning, nil))
 	}
 
 	result.Status = StatusCompleted
-	_ = r.emit(ctx, "", StatusCompleted, nil)
+	ignoreEmitError(r.emit(ctx, "", StatusCompleted, nil))
 	return result, nil
 }
 
@@ -151,3 +151,5 @@ func (r *Runner) emit(ctx context.Context, stepName string, status Status, err e
 	}
 	return r.observer.OnEvent(ctx, event)
 }
+
+func ignoreEmitError(_ error) {}

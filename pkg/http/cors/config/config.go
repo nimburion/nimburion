@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -76,35 +76,43 @@ func (e Extension) Validate() error {
 		return nil
 	}
 	if len(e.CORS.AllowMethods) == 0 {
-		return errors.New("cors.allow_methods must contain at least one method when cors is enabled")
+		return validationError("validation.cors.allow_methods.required", "cors.allow_methods must contain at least one method when cors is enabled")
 	}
 	if e.CORS.AllowCredentials && e.CORS.AllowAllOrigins {
-		return errors.New("cors.allow_credentials cannot be true when cors.allow_all_origins is true")
+		return validationError("validation.cors.allow_credentials.invalid", "cors.allow_credentials cannot be true when cors.allow_all_origins is true")
 	}
 	if e.CORS.AllowAllOrigins && len(e.CORS.AllowOrigins) > 0 {
-		return errors.New("cors.allow_all_origins and cors.allow_origins cannot both be set")
+		return validationError("validation.cors.allow_origins.conflict", "cors.allow_all_origins and cors.allow_origins cannot both be set")
 	}
 	if e.CORS.MaxAge < 0 {
-		return errors.New("cors.max_age cannot be negative")
+		return validationError("validation.cors.max_age.invalid", "cors.max_age cannot be negative")
 	}
 	if e.CORS.OptionsResponseStatusCode < 200 || e.CORS.OptionsResponseStatusCode > 299 {
-		return errors.New("cors.options_response_status_code must be between 200 and 299")
+		return validationError("validation.cors.options_response_status_code.invalid", "cors.options_response_status_code must be between 200 and 299")
 	}
 	for index, origin := range e.CORS.AllowOrigins {
 		trimmed := strings.TrimSpace(origin)
 		if trimmed == "" {
-			return fmt.Errorf("cors.allow_origins[%d] cannot be empty", index)
+			return validationErrorf("validation.cors.allow_origins.empty", "cors.allow_origins[%d] cannot be empty", index)
 		}
 		if strings.Contains(trimmed, "*") && trimmed != "*" {
 			if !e.CORS.AllowWildcard {
-				return fmt.Errorf("cors.allow_origins[%d] contains wildcard but cors.allow_wildcard is false", index)
+				return validationErrorf("validation.cors.allow_origins.wildcard_disabled", "cors.allow_origins[%d] contains wildcard but cors.allow_wildcard is false", index)
 			}
 			if strings.Count(trimmed, "*") > 1 {
-				return fmt.Errorf("cors.allow_origins[%d] can contain only one '*' wildcard", index)
+				return validationErrorf("validation.cors.allow_origins.wildcard_count", "cors.allow_origins[%d] can contain only one '*' wildcard", index)
 			}
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

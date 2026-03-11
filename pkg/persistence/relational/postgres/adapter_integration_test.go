@@ -358,6 +358,9 @@ func TestAdapter_Integration(t *testing.T) {
 			}
 			values = append(values, value)
 		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			t.Fatalf("Rows iteration failed: %v", rowsErr)
+		}
 
 		expected := []string{"a", "b", "c"}
 		if len(values) != len(expected) {

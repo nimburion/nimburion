@@ -1,3 +1,4 @@
+// Package errorbridge lifts family-level sentinel errors into the canonical core AppError model.
 package errorbridge
 
 import (

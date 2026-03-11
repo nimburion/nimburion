@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -77,21 +77,29 @@ func (e Extension) Validate() error {
 	}
 	validTypes := []string{"s3"}
 	if !contains(validTypes, storageType) {
-		return fmt.Errorf("invalid object_storage.type: %s (must be one of: %v)", e.ObjectStorage.Type, validTypes)
+		return validationErrorf("validation.object_storage.type.invalid", "invalid object_storage.type: %s (must be one of: %v)", e.ObjectStorage.Type, validTypes)
 	}
 	if strings.TrimSpace(e.ObjectStorage.S3.Bucket) == "" {
-		return errors.New("object_storage.s3.bucket is required when object_storage.enabled is true and type=s3")
+		return validationError("validation.object_storage.s3.bucket.required", "object_storage.s3.bucket is required when object_storage.enabled is true and type=s3")
 	}
 	if strings.TrimSpace(e.ObjectStorage.S3.Region) == "" {
-		return errors.New("object_storage.s3.region is required when object_storage.enabled is true and type=s3")
+		return validationError("validation.object_storage.s3.region.required", "object_storage.s3.region is required when object_storage.enabled is true and type=s3")
 	}
 	if e.ObjectStorage.S3.OperationTimeout <= 0 {
-		return errors.New("object_storage.s3.operation_timeout must be greater than zero when object_storage.enabled is true and type=s3")
+		return validationError("validation.object_storage.s3.operation_timeout.invalid", "object_storage.s3.operation_timeout must be greater than zero when object_storage.enabled is true and type=s3")
 	}
 	if e.ObjectStorage.S3.PresignExpiry <= 0 {
-		return errors.New("object_storage.s3.presign_expiry must be greater than zero when object_storage.enabled is true and type=s3")
+		return validationError("validation.object_storage.s3.presign_expiry.invalid", "object_storage.s3.presign_expiry must be greater than zero when object_storage.enabled is true and type=s3")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

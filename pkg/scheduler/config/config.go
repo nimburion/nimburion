@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -103,62 +103,71 @@ func (e Extension) Validate() error {
 	}
 	validProviders := []string{LockProviderRedis, LockProviderPostgres}
 	if !contains(validProviders, lockProvider) {
-		return fmt.Errorf("invalid scheduler.lock_provider: %s (must be one of: %v)", e.Scheduler.LockProvider, validProviders)
+		return validationErrorf("validation.scheduler.lock_provider.invalid", "invalid scheduler.lock_provider: %s (must be one of: %v)", e.Scheduler.LockProvider, validProviders)
 	}
 	if e.Scheduler.LockTTL <= 0 {
-		return errors.New("scheduler.lock_ttl must be greater than zero")
+		return validationError("validation.scheduler.lock_ttl.invalid", "scheduler.lock_ttl must be greater than zero")
 	}
 	if e.Scheduler.DispatchTimeout <= 0 {
-		return errors.New("scheduler.dispatch_timeout must be greater than zero")
+		return validationError("validation.scheduler.dispatch_timeout.invalid", "scheduler.dispatch_timeout must be greater than zero")
 	}
 	timezone := strings.TrimSpace(e.Scheduler.Timezone)
 	if timezone == "" {
 		timezone = "UTC"
 	}
 	if _, err := time.LoadLocation(timezone); err != nil {
-		return fmt.Errorf("invalid scheduler.timezone: %w", err)
+		return coreerrors.NewValidationWithCode("validation.scheduler.timezone.invalid", "invalid scheduler.timezone", nil, map[string]interface{}{"value": timezone}).
+			WithMessage("invalid scheduler.timezone: " + err.Error())
 	}
 	switch lockProvider {
 	case LockProviderRedis:
 		if strings.TrimSpace(e.Scheduler.Redis.Prefix) == "" {
-			return errors.New("scheduler.redis.prefix is required when scheduler.lock_provider is redis")
+			return validationError("validation.scheduler.redis.prefix.required", "scheduler.redis.prefix is required when scheduler.lock_provider is redis")
 		}
 		if e.Scheduler.Redis.OperationTimeout <= 0 {
-			return errors.New("scheduler.redis.operation_timeout must be greater than zero when scheduler.lock_provider is redis")
+			return validationError("validation.scheduler.redis.operation_timeout.invalid", "scheduler.redis.operation_timeout must be greater than zero when scheduler.lock_provider is redis")
 		}
 	case LockProviderPostgres:
 		if strings.TrimSpace(e.Scheduler.Postgres.Table) == "" {
-			return errors.New("scheduler.postgres.table is required when scheduler.lock_provider is postgres")
+			return validationError("validation.scheduler.postgres.table.required", "scheduler.postgres.table is required when scheduler.lock_provider is postgres")
 		}
 		if e.Scheduler.Postgres.OperationTimeout <= 0 {
-			return errors.New("scheduler.postgres.operation_timeout must be greater than zero when scheduler.lock_provider is postgres")
+			return validationError("validation.scheduler.postgres.operation_timeout.invalid", "scheduler.postgres.operation_timeout must be greater than zero when scheduler.lock_provider is postgres")
 		}
 	}
 	taskNames := map[string]struct{}{}
 	for idx, task := range e.Scheduler.Tasks {
 		name := strings.TrimSpace(task.Name)
 		if name == "" {
-			return fmt.Errorf("scheduler.tasks[%d].name is required", idx)
+			return validationErrorf("validation.scheduler.tasks.name.required", "scheduler.tasks[%d].name is required", idx)
 		}
 		if _, exists := taskNames[name]; exists {
-			return fmt.Errorf("scheduler.tasks contains duplicate name %q", name)
+			return validationErrorf("validation.scheduler.tasks.name.duplicate", "scheduler.tasks contains duplicate name %q", name)
 		}
 		taskNames[name] = struct{}{}
 		if strings.TrimSpace(task.Cron) == "" {
-			return fmt.Errorf("scheduler.tasks[%s].cron is required", name)
+			return validationErrorf("validation.scheduler.tasks.cron.required", "scheduler.tasks[%s].cron is required", name)
 		}
 		if strings.TrimSpace(task.Queue) == "" {
-			return fmt.Errorf("scheduler.tasks[%s].queue is required", name)
+			return validationErrorf("validation.scheduler.tasks.queue.required", "scheduler.tasks[%s].queue is required", name)
 		}
 		if strings.TrimSpace(task.JobName) == "" {
-			return fmt.Errorf("scheduler.tasks[%s].job_name is required", name)
+			return validationErrorf("validation.scheduler.tasks.job_name.required", "scheduler.tasks[%s].job_name is required", name)
 		}
 		misfire := strings.ToLower(strings.TrimSpace(task.MisfirePolicy))
 		if misfire != "" && misfire != "skip" && misfire != "fire_once" {
-			return fmt.Errorf("scheduler.tasks[%s].misfire_policy must be one of: skip, fire_once", name)
+			return validationErrorf("validation.scheduler.tasks.misfire_policy.invalid", "scheduler.tasks[%s].misfire_policy must be one of: skip, fire_once", name)
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

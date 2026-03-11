@@ -3,6 +3,7 @@ package relational
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -163,7 +164,7 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 
 			// Verify entity is gone
 			_, err = repo.FindByID(context.Background(), id)
-			return err == sql.ErrNoRows
+			return errors.Is(err, sql.ErrNoRows)
 		},
 		gen.Int64(),
 	))
@@ -192,7 +193,7 @@ func TestProperty_GenericCRUDOperations(t *testing.T) {
 
 			// Try to find non-existent entity
 			_, err = repo.FindByID(context.Background(), id)
-			return err == sql.ErrNoRows
+			return errors.Is(err, sql.ErrNoRows)
 		},
 		gen.Int64(),
 	))

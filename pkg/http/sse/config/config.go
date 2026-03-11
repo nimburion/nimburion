@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -106,35 +106,43 @@ func (e Extension) Validate() error {
 	validStores := []string{"inmemory", "redis"}
 	store := strings.ToLower(strings.TrimSpace(e.SSE.Store))
 	if !contains(validStores, store) {
-		return fmt.Errorf("invalid sse.store: %s (must be one of: %v)", e.SSE.Store, validStores)
+		return validationErrorf("validation.sse.store.invalid", "invalid sse.store: %s (must be one of: %v)", e.SSE.Store, validStores)
 	}
 	validBuses := []string{"none", "inmemory", "redis", "eventbus"}
 	bus := strings.ToLower(strings.TrimSpace(e.SSE.Bus))
 	if !contains(validBuses, bus) {
-		return fmt.Errorf("invalid sse.bus: %s (must be one of: %v)", e.SSE.Bus, validBuses)
+		return validationErrorf("validation.sse.bus.invalid", "invalid sse.bus: %s (must be one of: %v)", e.SSE.Bus, validBuses)
 	}
 	if strings.TrimSpace(e.SSE.Endpoint) == "" || !strings.HasPrefix(strings.TrimSpace(e.SSE.Endpoint), "/") {
-		return errors.New("sse.endpoint must be a non-empty absolute path")
+		return validationError("validation.sse.endpoint.invalid", "sse.endpoint must be a non-empty absolute path")
 	}
 	if e.SSE.ReplayLimit <= 0 {
-		return errors.New("sse.replay_limit must be greater than zero when sse is enabled")
+		return validationError("validation.sse.replay_limit.invalid", "sse.replay_limit must be greater than zero when sse is enabled")
 	}
 	if e.SSE.ClientBuffer <= 0 {
-		return errors.New("sse.client_buffer must be greater than zero when sse is enabled")
+		return validationError("validation.sse.client_buffer.invalid", "sse.client_buffer must be greater than zero when sse is enabled")
 	}
 	if e.SSE.MaxConnections <= 0 {
-		return errors.New("sse.max_connections must be greater than zero when sse is enabled")
+		return validationError("validation.sse.max_connections.invalid", "sse.max_connections must be greater than zero when sse is enabled")
 	}
 	if e.SSE.HeartbeatInterval <= 0 {
-		return errors.New("sse.heartbeat_interval must be greater than zero when sse is enabled")
+		return validationError("validation.sse.heartbeat_interval.invalid", "sse.heartbeat_interval must be greater than zero when sse is enabled")
 	}
 	if e.SSE.DefaultRetryMS <= 0 {
-		return errors.New("sse.default_retry_ms must be greater than zero when sse is enabled")
+		return validationError("validation.sse.default_retry_ms.invalid", "sse.default_retry_ms must be greater than zero when sse is enabled")
 	}
 	if (store == "redis" || bus == "redis") && strings.TrimSpace(e.SSE.Redis.URL) == "" {
-		return errors.New("sse.redis.url is required when sse.store=redis or sse.bus=redis")
+		return validationError("validation.sse.redis.url.required", "sse.redis.url is required when sse.store=redis or sse.bus=redis")
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -237,67 +237,75 @@ func (e Extension) Validate() error {
 		providerMailjet,
 	}
 	if !contains(validProviders, provider) {
-		return fmt.Errorf("invalid email.provider: %s (must be one of: %v)", e.Email.Provider, validProviders)
+		return validationErrorf("validation.email.provider.invalid", "invalid email.provider: %s (must be one of: %v)", e.Email.Provider, validProviders)
 	}
 
 	switch provider {
 	case providerSMTP:
 		if strings.TrimSpace(e.Email.SMTP.Host) == "" {
-			return errors.New("email.smtp.host is required when email.provider=smtp")
+			return validationError("validation.email.smtp.host.required", "email.smtp.host is required when email.provider=smtp")
 		}
 	case providerSES:
 		if strings.TrimSpace(e.Email.SES.Region) == "" {
-			return errors.New("email.ses.region is required when email.provider=ses")
+			return validationError("validation.email.ses.region.required", "email.ses.region is required when email.provider=ses")
 		}
 	case providerSendGrid:
 		if strings.TrimSpace(e.Email.SendGrid.Token) == "" {
-			return errors.New("email.sendgrid.token is required when email.provider=sendgrid")
+			return validationError("validation.email.sendgrid.token.required", "email.sendgrid.token is required when email.provider=sendgrid")
 		}
 	case providerMailgun:
 		if strings.TrimSpace(e.Email.Mailgun.Token) == "" {
-			return errors.New("email.mailgun.token is required when email.provider=mailgun")
+			return validationError("validation.email.mailgun.token.required", "email.mailgun.token is required when email.provider=mailgun")
 		}
 		if strings.TrimSpace(e.Email.Mailgun.Domain) == "" {
-			return errors.New("email.mailgun.domain is required when email.provider=mailgun")
+			return validationError("validation.email.mailgun.domain.required", "email.mailgun.domain is required when email.provider=mailgun")
 		}
 	case providerMailchimp:
 		if strings.TrimSpace(e.Email.Mailchimp.Token) == "" {
-			return errors.New("email.mailchimp.token is required when email.provider=mailchimp")
+			return validationError("validation.email.mailchimp.token.required", "email.mailchimp.token is required when email.provider=mailchimp")
 		}
 	case providerMailerSend:
 		if strings.TrimSpace(e.Email.MailerSend.Token) == "" {
-			return errors.New("email.mailersend.token is required when email.provider=mailersend")
+			return validationError("validation.email.mailersend.token.required", "email.mailersend.token is required when email.provider=mailersend")
 		}
 	case providerPostmark:
 		if strings.TrimSpace(e.Email.Postmark.ServerToken) == "" {
-			return errors.New("email.postmark.server_token is required when email.provider=postmark")
+			return validationError("validation.email.postmark.server_token.required", "email.postmark.server_token is required when email.provider=postmark")
 		}
 	case providerMailtrap:
 		if strings.TrimSpace(e.Email.Mailtrap.Token) == "" {
-			return errors.New("email.mailtrap.token is required when email.provider=mailtrap")
+			return validationError("validation.email.mailtrap.token.required", "email.mailtrap.token is required when email.provider=mailtrap")
 		}
 	case providerSMTP2GO:
 		if strings.TrimSpace(e.Email.SMTP2GO.Token) == "" {
-			return errors.New("email.smtp2go.token is required when email.provider=smtp2go")
+			return validationError("validation.email.smtp2go.token.required", "email.smtp2go.token is required when email.provider=smtp2go")
 		}
 	case providerSendPulse:
 		if strings.TrimSpace(e.Email.SendPulse.Token) == "" {
-			return errors.New("email.sendpulse.token is required when email.provider=sendpulse")
+			return validationError("validation.email.sendpulse.token.required", "email.sendpulse.token is required when email.provider=sendpulse")
 		}
 	case providerBrevo:
 		if strings.TrimSpace(e.Email.Brevo.Token) == "" {
-			return errors.New("email.brevo.token is required when email.provider=brevo")
+			return validationError("validation.email.brevo.token.required", "email.brevo.token is required when email.provider=brevo")
 		}
 	case providerMailjet:
 		if strings.TrimSpace(e.Email.Mailjet.APIKey) == "" {
-			return errors.New("email.mailjet.api_key is required when email.provider=mailjet")
+			return validationError("validation.email.mailjet.api_key.required", "email.mailjet.api_key is required when email.provider=mailjet")
 		}
 		if strings.TrimSpace(e.Email.Mailjet.APISecret) == "" {
-			return errors.New("email.mailjet.api_secret is required when email.provider=mailjet")
+			return validationError("validation.email.mailjet.api_secret.required", "email.mailjet.api_secret is required when email.provider=mailjet")
 		}
 	}
 
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func prefixedEnv(prefix, suffix string) string {

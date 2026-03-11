@@ -274,7 +274,11 @@ func marshalDefault(schema *jsonschema.Schema, value reflect.Value) (json.RawMes
 	}
 
 	if value.Type() == reflect.TypeOf(time.Duration(0)) {
-		return json.RawMessage(`"` + value.Interface().(time.Duration).String() + `"`), true
+		duration, ok := value.Interface().(time.Duration)
+		if !ok {
+			return nil, false
+		}
+		return json.RawMessage(fmt.Sprintf("%q", duration.String())), true
 	}
 
 	if isZeroValue(value) && !schemaAllowsZeroDefault(schema, value.Kind()) {

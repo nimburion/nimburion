@@ -1,11 +1,11 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -107,50 +107,58 @@ func (e Extension) Validate() error {
 	}
 	validBackends := []string{BackendEventBus, BackendRedis}
 	if !contains(validBackends, backend) {
-		return fmt.Errorf("invalid jobs.backend: %s (must be one of: %v)", e.Jobs.Backend, validBackends)
+		return validationErrorf("validation.jobs.backend.invalid", "invalid jobs.backend: %s (must be one of: %v)", e.Jobs.Backend, validBackends)
 	}
 	if e.Jobs.Worker.Concurrency <= 0 {
-		return errors.New("jobs.worker.concurrency must be greater than zero")
+		return validationError("validation.jobs.worker.concurrency.invalid", "jobs.worker.concurrency must be greater than zero")
 	}
 	if e.Jobs.Worker.LeaseTTL <= 0 {
-		return errors.New("jobs.worker.lease_ttl must be greater than zero")
+		return validationError("validation.jobs.worker.lease_ttl.invalid", "jobs.worker.lease_ttl must be greater than zero")
 	}
 	if e.Jobs.Worker.ReserveTimeout <= 0 {
-		return errors.New("jobs.worker.reserve_timeout must be greater than zero")
+		return validationError("validation.jobs.worker.reserve_timeout.invalid", "jobs.worker.reserve_timeout must be greater than zero")
 	}
 	if e.Jobs.Worker.StopTimeout <= 0 {
-		return errors.New("jobs.worker.stop_timeout must be greater than zero")
+		return validationError("validation.jobs.worker.stop_timeout.invalid", "jobs.worker.stop_timeout must be greater than zero")
 	}
 	if e.Jobs.Retry.MaxAttempts <= 0 {
-		return errors.New("jobs.retry.max_attempts must be greater than zero")
+		return validationError("validation.jobs.retry.max_attempts.invalid", "jobs.retry.max_attempts must be greater than zero")
 	}
 	if e.Jobs.Retry.InitialBackoff <= 0 {
-		return errors.New("jobs.retry.initial_backoff must be greater than zero")
+		return validationError("validation.jobs.retry.initial_backoff.invalid", "jobs.retry.initial_backoff must be greater than zero")
 	}
 	if e.Jobs.Retry.MaxBackoff <= 0 {
-		return errors.New("jobs.retry.max_backoff must be greater than zero")
+		return validationError("validation.jobs.retry.max_backoff.invalid", "jobs.retry.max_backoff must be greater than zero")
 	}
 	if e.Jobs.Retry.MaxBackoff < e.Jobs.Retry.InitialBackoff {
-		return errors.New("jobs.retry.max_backoff must be greater than or equal to jobs.retry.initial_backoff")
+		return validationError("validation.jobs.retry.max_backoff.range", "jobs.retry.max_backoff must be greater than or equal to jobs.retry.initial_backoff")
 	}
 	if e.Jobs.Retry.AttemptTimeout <= 0 {
-		return errors.New("jobs.retry.attempt_timeout must be greater than zero")
+		return validationError("validation.jobs.retry.attempt_timeout.invalid", "jobs.retry.attempt_timeout must be greater than zero")
 	}
 	if e.Jobs.DLQ.Enabled && strings.TrimSpace(e.Jobs.DLQ.QueueSuffix) == "" {
-		return errors.New("jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true")
+		return validationError("validation.jobs.dlq.queue_suffix.required", "jobs.dlq.queue_suffix is required when jobs.dlq.enabled is true")
 	}
 	if backend == BackendRedis {
 		if strings.TrimSpace(e.Jobs.Redis.URL) == "" {
-			return errors.New("jobs.redis.url is required when jobs.backend is redis")
+			return validationError("validation.jobs.redis.url.required", "jobs.redis.url is required when jobs.backend is redis")
 		}
 		if strings.TrimSpace(e.Jobs.Redis.Prefix) == "" {
-			return errors.New("jobs.redis.prefix is required when jobs.backend is redis")
+			return validationError("validation.jobs.redis.prefix.required", "jobs.redis.prefix is required when jobs.backend is redis")
 		}
 		if e.Jobs.Redis.OperationTimeout <= 0 {
-			return errors.New("jobs.redis.operation_timeout must be greater than zero when jobs.backend is redis")
+			return validationError("validation.jobs.redis.operation_timeout.invalid", "jobs.redis.operation_timeout must be greater than zero when jobs.backend is redis")
 		}
 	}
 	return nil
+}
+
+func validationError(code, message string) error {
+	return coreerrors.NewValidationWithCode(code, message, nil, nil)
+}
+
+func validationErrorf(code, format string, args ...any) error {
+	return validationError(code, fmt.Sprintf(format, args...))
 }
 
 func bindEnvPairs(v *viper.Viper, prefix string, values ...string) error {

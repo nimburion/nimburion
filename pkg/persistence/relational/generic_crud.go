@@ -102,12 +102,18 @@ func (r *GenericCrudRepository[T, ID]) FindByID(ctx context.Context, id ID) (*T,
 	defer rows.Close()
 
 	if !rows.Next() {
+		if rowsErr := rows.Err(); rowsErr != nil {
+			return nil, fmt.Errorf("iterate entity rows: %w", rowsErr)
+		}
 		return nil, sql.ErrNoRows
 	}
 
 	entity, err := r.mapper.FromRow(rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan entity: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate entity rows: %w", err)
 	}
 
 	return entity, nil

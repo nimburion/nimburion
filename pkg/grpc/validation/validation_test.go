@@ -36,7 +36,7 @@ func TestPipelinePreservesExplicitLayerErrors(t *testing.T) {
 	}
 
 	err := pipeline.Validate(context.Background(), "req")
-	if err != want {
+	if !errors.Is(err, want) {
 		t.Fatalf("expected original error to be preserved")
 	}
 }

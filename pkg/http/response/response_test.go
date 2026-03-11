@@ -75,7 +75,7 @@ func TestSuccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tt.requestID != "" {
-				req = req.WithContext(context.WithValue(req.Context(), "request_id", tt.requestID))
+				req = req.WithContext(context.WithValue(req.Context(), ContextKeyRequestID, tt.requestID))
 			}
 			mockCtx := &mockContext{request: req, response: newMockResponseWriter()}
 
@@ -102,7 +102,7 @@ func TestSuccess(t *testing.T) {
 }
 
 func TestCreated(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(context.WithValue(context.Background(), "request_id", "req-789"))
+	req := httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(context.WithValue(context.Background(), ContextKeyRequestID, "req-789"))
 	mockCtx := &mockContext{request: req, response: newMockResponseWriter()}
 	data := map[string]interface{}{"id": "123", "name": "new resource"}
 
@@ -132,19 +132,19 @@ func TestMapError(t *testing.T) {
 		{
 			name: "core app error",
 			err:  coreerrors.New("validation.email_required", coreerrors.Params{"field": "email"}, nil).WithHTTPStatus(http.StatusBadRequest),
-			ctx:  context.WithValue(context.Background(), "request_id", "req-i18n"), wantStatus: http.StatusBadRequest, wantErrorCode: "validation_error", wantMessage: "validation.email_required", wantRequestID: "req-i18n",
+			ctx:  context.WithValue(context.Background(), ContextKeyRequestID, "req-i18n"), wantStatus: http.StatusBadRequest, wantErrorCode: "validation_error", wantMessage: "validation.email_required", wantRequestID: "req-i18n",
 		},
 		{
 			name: "validation error", err: NewValidationError("invalid input", map[string]interface{}{"field": "email"}),
-			ctx: context.WithValue(context.Background(), "request_id", "req-123"), wantStatus: http.StatusBadRequest, wantErrorCode: "validation_error", wantMessage: "invalid input", wantRequestID: "req-123", wantHasDetails: true,
+			ctx: context.WithValue(context.Background(), ContextKeyRequestID, "req-123"), wantStatus: http.StatusBadRequest, wantErrorCode: "validation_error", wantMessage: "invalid input", wantRequestID: "req-123", wantHasDetails: true,
 		},
 		{
 			name: "unknown error type", err: errors.New("some random error"),
-			ctx: context.WithValue(context.Background(), "request_id", "req-jkl"), wantStatus: http.StatusInternalServerError, wantErrorCode: "internal_server_error", wantMessage: "an unexpected error occurred", wantRequestID: "req-jkl",
+			ctx: context.WithValue(context.Background(), ContextKeyRequestID, "req-jkl"), wantStatus: http.StatusInternalServerError, wantErrorCode: "internal_server_error", wantMessage: "an unexpected error occurred", wantRequestID: "req-jkl",
 		},
 		{
 			name: "jobs family error", err: jobs.ErrConflict,
-			ctx: context.WithValue(context.Background(), "request_id", "req-jobs"), wantStatus: http.StatusConflict, wantErrorCode: "conflict", wantMessage: jobs.ErrConflict.Error(), wantRequestID: "req-jobs",
+			ctx: context.WithValue(context.Background(), ContextKeyRequestID, "req-jobs"), wantStatus: http.StatusConflict, wantErrorCode: "conflict", wantMessage: jobs.ErrConflict.Error(), wantRequestID: "req-jobs",
 		},
 	}
 	for _, tt := range tests {

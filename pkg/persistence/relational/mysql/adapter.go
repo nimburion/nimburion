@@ -132,7 +132,7 @@ func (a *Adapter) WithTransaction(ctx context.Context, fn func(context.Context) 
 	txCtx := context.WithValue(ctx, txContextKey, tx)
 	if err := fn(txCtx); err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			return fmt.Errorf("failed to rollback transaction: %w (original error: %v)", rbErr, err)
+			return errors.Join(err, fmt.Errorf("failed to rollback transaction: %w", rbErr))
 		}
 		return err
 	}

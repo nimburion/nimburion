@@ -388,7 +388,7 @@ func (a *Adapter) consumeMessages(ctx context.Context, topic string, reader *kaf
 			// Fetch message with timeout
 			msg, err := reader.FetchMessage(ctx)
 			if err != nil {
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					return
 				}
 				a.logger.Error("failed to fetch message",

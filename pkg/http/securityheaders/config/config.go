@@ -1,7 +1,7 @@
 package config
 
 import (
-	"errors"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/spf13/viper"
 )
 
@@ -76,7 +76,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 
 func (e Extension) Validate() error {
 	if e.SecurityHeaders.STSSeconds < 0 {
-		return errors.New("security_headers.sts_seconds cannot be negative")
+		return coreerrors.NewValidationWithCode("validation.security_headers.sts_seconds.invalid", "security_headers.sts_seconds cannot be negative", nil, nil)
 	}
 	return nil
 }

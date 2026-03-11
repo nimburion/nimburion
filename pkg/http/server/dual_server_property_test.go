@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -92,14 +93,14 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 			managementErrChan := make(chan error, 1)
 
 			go func() {
-				if err := publicServer.Start(publicCtx); err != nil && err != http.ErrServerClosed {
-					publicErrChan <- err
+				if startErr := publicServer.Start(publicCtx); startErr != nil && !errors.Is(startErr, http.ErrServerClosed) {
+					publicErrChan <- startErr
 				}
 			}()
 
 			go func() {
-				if err := managementServer.Start(managementCtx); err != nil && err != http.ErrServerClosed {
-					managementErrChan <- err
+				if startErr := managementServer.Start(managementCtx); startErr != nil && !errors.Is(startErr, http.ErrServerClosed) {
+					managementErrChan <- startErr
 				}
 			}()
 
@@ -317,7 +318,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 
 			startPublic := func() {
 				go func() {
-					if err := publicServer.Start(publicCtx); err != nil && err != http.ErrServerClosed {
+					if err := publicServer.Start(publicCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 						select {
 						case publicErrChan <- err:
 						default:
@@ -328,7 +329,7 @@ func TestProperty34_DualServerPortBinding(t *testing.T) {
 
 			startManagement := func() {
 				go func() {
-					if err := managementServer.Start(managementCtx); err != nil && err != http.ErrServerClosed {
+					if err := managementServer.Start(managementCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 						select {
 						case managementErrChan <- err:
 						default:

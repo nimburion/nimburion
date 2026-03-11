@@ -11,6 +11,11 @@ import (
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
 )
 
+type requestIDContextKey struct{}
+
+// ContextKeyRequestID is the typed context key used by this package for request IDs.
+var ContextKeyRequestID requestIDContextKey
+
 // SuccessBody represents a successful response with data.
 type SuccessBody struct {
 	Data      interface{} `json:"data"`
@@ -96,7 +101,7 @@ func MapError(ctx context.Context, err error) (int, ErrorBody) {
 }
 
 func getRequestID(ctx context.Context) string {
-	if id, ok := ctx.Value("request_id").(string); ok {
+	if id, ok := ctx.Value(ContextKeyRequestID).(string); ok {
 		return id
 	}
 	return ""
