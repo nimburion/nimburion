@@ -1,6 +1,10 @@
 package schema
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/jsonschema-go/jsonschema"
+)
 
 type nestedAppExtension struct {
 	App struct {
@@ -12,6 +16,33 @@ type disableCoreSectionsExtension struct{}
 
 func (disableCoreSectionsExtension) DisabledCoreConfigSections() []string {
 	return []string{"email", "eventbus"}
+}
+
+type schemaCustomizerExtension struct {
+	Portal struct {
+		Mode string `mapstructure:"mode"`
+	} `mapstructure:"portal"`
+}
+
+func (schemaCustomizerExtension) CustomizeSchema(schema *jsonschema.Schema) error {
+	if schema.Properties == nil {
+		schema.Properties = map[string]*jsonschema.Schema{}
+	}
+	portalSchema := schema.Properties["portal"]
+	if portalSchema == nil {
+		portalSchema = &jsonschema.Schema{}
+		schema.Properties["portal"] = portalSchema
+	}
+	if portalSchema.Properties == nil {
+		portalSchema.Properties = map[string]*jsonschema.Schema{}
+	}
+	modeSchema := portalSchema.Properties["mode"]
+	if modeSchema == nil {
+		modeSchema = &jsonschema.Schema{}
+		portalSchema.Properties["mode"] = modeSchema
+	}
+	modeSchema.Enum = []any{"read-only", "managed"}
+	return nil
 }
 
 func TestBuildSchema_UsesEventBusRootKey(t *testing.T) {
@@ -57,6 +88,25 @@ func TestBuildSchema_DisablesCoreSectionsViaExtension(t *testing.T) {
 	}
 	if _, ok := schema.Properties["eventbus"]; ok {
 		t.Fatal("expected eventbus section to be disabled")
+	}
+}
+
+func TestBuildSchema_AppliesSchemaCustomizer(t *testing.T) {
+	schema, err := BuildSchema(schemaCustomizerExtension{})
+	if err != nil {
+		t.Fatalf("build schema: %v", err)
+	}
+
+	portalSchema := schema.Properties["portal"]
+	if portalSchema == nil {
+		t.Fatal("expected portal section in schema")
+	}
+	modeSchema := portalSchema.Properties["mode"]
+	if modeSchema == nil {
+		t.Fatal("expected portal.mode property in schema")
+	}
+	if len(modeSchema.Enum) != 2 {
+		t.Fatalf("expected enum injected by customizer, got %d values", len(modeSchema.Enum))
 	}
 }
 
