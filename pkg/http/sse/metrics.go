@@ -5,12 +5,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	sseRedisOpsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "nimburion_http_sse_redis_operations_total",
-		Help: "Total number of SSE redis bus/store operations.",
-	}, []string{"component", "operation", "status"})
-)
+var sseRedisOpsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "nimburion_http_sse_redis_operations_total",
+	Help: "Total number of SSE redis bus/store operations.",
+}, []string{"component", "operation", "status"})
 
 func recordSSERedisOp(component, operation string, err error) {
 	status := "ok"

@@ -10,10 +10,8 @@ import (
 	"strings"
 )
 
-var (
-	// ErrColumnNotAllowed is returned when a filter/sort column is not part of the configured allowlist.
-	ErrColumnNotAllowed = errors.New("relational column not allowed")
-)
+// ErrColumnNotAllowed is returned when a filter/sort column is not part of the configured allowlist.
+var ErrColumnNotAllowed = errors.New("relational column not allowed")
 
 // ColumnAllowlist restricts which SQL columns may be interpolated in dynamic query clauses.
 type ColumnAllowlist map[string]struct{}
