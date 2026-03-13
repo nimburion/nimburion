@@ -36,9 +36,11 @@ const (
 type EventType string
 
 const (
-	// Feature-flag runtime event types emitted by the registry.
+	// EventTypeProviderChanged reports that the registry provider changed.
 	EventTypeProviderChanged EventType = "feature_flag.provider_changed"
+	// EventTypeDefinitionAdded reports that one flag definition was added to the registry.
 	EventTypeDefinitionAdded EventType = "feature_flag.definition_added"
+	// EventTypeEvaluated reports that one flag evaluation was performed.
 	EventTypeEvaluated       EventType = "feature_flag.evaluated"
 )
 
