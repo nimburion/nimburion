@@ -4,6 +4,7 @@ package featureflag
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 )
 
@@ -30,6 +31,39 @@ const (
 	// SourceSafeDefault indicates the provider failed and the safe default was used.
 	SourceSafeDefault Source = "safe_default"
 )
+
+// EventType identifies one emitted feature-flag runtime event.
+type EventType string
+
+const (
+	EventTypeProviderChanged EventType = "feature_flag.provider_changed"
+	EventTypeDefinitionAdded EventType = "feature_flag.definition_added"
+	EventTypeEvaluated       EventType = "feature_flag.evaluated"
+)
+
+// Event describes one runtime event emitted by the registry.
+type Event struct {
+	Type    EventType
+	Key     string
+	Kind    Kind
+	Source  Source
+	Outcome string
+	Error   string
+	Target  TargetContext
+}
+
+// Observer receives emitted events.
+type Observer interface {
+	OnFeatureFlagEvent(ctx context.Context, event Event)
+}
+
+// ObserverFunc adapts a function to the Observer interface.
+type ObserverFunc func(context.Context, Event)
+
+// OnFeatureFlagEvent forwards one event.
+func (f ObserverFunc) OnFeatureFlagEvent(ctx context.Context, event Event) {
+	f(ctx, event)
+}
 
 // TargetContext carries runtime attributes used by providers for targeting.
 type TargetContext struct {
@@ -117,6 +151,7 @@ type Registry struct {
 	boolDefinitions   map[string]BoolDefinition
 	stringDefinitions map[string]StringDefinition
 	intDefinitions    map[string]IntDefinition
+	observers         []Observer
 }
 
 // NewRegistry creates an empty feature flag registry.
@@ -128,36 +163,84 @@ func NewRegistry() *Registry {
 	}
 }
 
+// AddObserver registers one observer for runtime events.
+func (r *Registry) AddObserver(observer Observer) {
+	if observer == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.observers = append(r.observers, observer)
+}
+
 // SetProvider replaces the registry provider used for evaluations.
 func (r *Registry) SetProvider(provider Provider) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	r.provider = provider
+	r.mu.Unlock()
+
+	r.emit(context.Background(), Event{Type: EventTypeProviderChanged, Outcome: "provider_set"})
 }
 
 // RegisterBool registers one boolean flag definition.
-func (r *Registry) RegisterBool(def BoolDefinition) {
+func (r *Registry) RegisterBool(def BoolDefinition) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if err := r.validateRegistration(def.Key, KindBool); err != nil {
+		return err
+	}
 	r.boolDefinitions[def.Key] = def
+	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindBool, Outcome: "registered"})
+	return nil
 }
 
 // RegisterString registers one string flag definition.
-func (r *Registry) RegisterString(def StringDefinition) {
+func (r *Registry) RegisterString(def StringDefinition) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if err := r.validateRegistration(def.Key, KindString); err != nil {
+		return err
+	}
 	r.stringDefinitions[def.Key] = def
+	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindString, Outcome: "registered"})
+	return nil
 }
 
 // RegisterInt registers one integer flag definition.
-func (r *Registry) RegisterInt(def IntDefinition) {
+func (r *Registry) RegisterInt(def IntDefinition) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if err := r.validateRegistration(def.Key, KindInt); err != nil {
+		return err
+	}
 	r.intDefinitions[def.Key] = def
+	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindInt, Outcome: "registered"})
+	return nil
+}
+
+func (r *Registry) validateRegistration(key string, kind Kind) error {
+	if key == "" {
+		return fmt.Errorf("feature flag key is required")
+	}
+	if kind != KindBool {
+		if _, ok := r.boolDefinitions[key]; ok {
+			return fmt.Errorf("feature flag %q already registered as %s", key, KindBool)
+		}
+	}
+	if kind != KindString {
+		if _, ok := r.stringDefinitions[key]; ok {
+			return fmt.Errorf("feature flag %q already registered as %s", key, KindString)
+		}
+	}
+	if kind != KindInt {
+		if _, ok := r.intDefinitions[key]; ok {
+			return fmt.Errorf("feature flag %q already registered as %s", key, KindInt)
+		}
+	}
+	return nil
 }
 
 // EvalBool evaluates one boolean flag for the target context with safe-default semantics.
@@ -178,9 +261,11 @@ func (r *Registry) EvalBool(ctx context.Context, key string, target TargetContex
 	}
 	if !ok {
 		result.Error = fmt.Sprintf("feature flag %q is not registered", key)
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: SourceSafeDefault, Outcome: "unregistered", Error: result.Error, Target: target})
 		return result
 	}
 	if provider == nil {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: result.Source, Outcome: "default_used", Target: target})
 		return result
 	}
 
@@ -188,9 +273,11 @@ func (r *Registry) EvalBool(ctx context.Context, key string, target TargetContex
 	if err != nil {
 		result.Source = SourceSafeDefault
 		result.Error = err.Error()
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: result.Source, Outcome: "provider_error", Error: result.Error, Target: target})
 		return result
 	}
 	if !found {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: result.Source, Outcome: "not_found", Target: target})
 		return result
 	}
 
@@ -198,10 +285,12 @@ func (r *Registry) EvalBool(ctx context.Context, key string, target TargetContex
 	if !castOK {
 		result.Source = SourceSafeDefault
 		result.Error = fmt.Sprintf("feature flag %q expected bool value, got %T", key, raw)
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: result.Source, Outcome: "type_mismatch", Error: result.Error, Target: target})
 		return result
 	}
 	result.Value = value
 	result.Source = SourceProvider
+	r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindBool, Source: result.Source, Outcome: "provider_value", Target: target})
 	return result
 }
 
@@ -223,9 +312,11 @@ func (r *Registry) EvalString(ctx context.Context, key string, target TargetCont
 	}
 	if !ok {
 		result.Error = fmt.Sprintf("feature flag %q is not registered", key)
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: SourceSafeDefault, Outcome: "unregistered", Error: result.Error, Target: target})
 		return result
 	}
 	if provider == nil {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: result.Source, Outcome: "default_used", Target: target})
 		return result
 	}
 
@@ -233,9 +324,11 @@ func (r *Registry) EvalString(ctx context.Context, key string, target TargetCont
 	if err != nil {
 		result.Source = SourceSafeDefault
 		result.Error = err.Error()
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: result.Source, Outcome: "provider_error", Error: result.Error, Target: target})
 		return result
 	}
 	if !found {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: result.Source, Outcome: "not_found", Target: target})
 		return result
 	}
 
@@ -243,10 +336,12 @@ func (r *Registry) EvalString(ctx context.Context, key string, target TargetCont
 	if !castOK {
 		result.Source = SourceSafeDefault
 		result.Error = fmt.Sprintf("feature flag %q expected string value, got %T", key, raw)
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: result.Source, Outcome: "type_mismatch", Error: result.Error, Target: target})
 		return result
 	}
 	result.Value = value
 	result.Source = SourceProvider
+	r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindString, Source: result.Source, Outcome: "provider_value", Target: target})
 	return result
 }
 
@@ -268,9 +363,11 @@ func (r *Registry) EvalInt(ctx context.Context, key string, target TargetContext
 	}
 	if !ok {
 		result.Error = fmt.Sprintf("feature flag %q is not registered", key)
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: SourceSafeDefault, Outcome: "unregistered", Error: result.Error, Target: target})
 		return result
 	}
 	if provider == nil {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: result.Source, Outcome: "default_used", Target: target})
 		return result
 	}
 
@@ -278,21 +375,64 @@ func (r *Registry) EvalInt(ctx context.Context, key string, target TargetContext
 	if err != nil {
 		result.Source = SourceSafeDefault
 		result.Error = err.Error()
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: result.Source, Outcome: "provider_error", Error: result.Error, Target: target})
 		return result
 	}
 	if !found {
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: result.Source, Outcome: "not_found", Target: target})
 		return result
 	}
 
-	value, castOK := raw.(int)
-	if !castOK {
+	value, castErr := castInt(raw)
+	if castErr != nil {
 		result.Source = SourceSafeDefault
-		result.Error = fmt.Sprintf("feature flag %q expected int value, got %T", key, raw)
+		result.Error = fmt.Sprintf("feature flag %q %s", key, castErr.Error())
+		r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: result.Source, Outcome: "type_mismatch", Error: result.Error, Target: target})
 		return result
 	}
 	result.Value = value
 	result.Source = SourceProvider
+	r.emit(ctx, Event{Type: EventTypeEvaluated, Key: key, Kind: KindInt, Source: result.Source, Outcome: "provider_value", Target: target})
 	return result
+}
+
+func castInt(raw any) (int, error) {
+	switch value := raw.(type) {
+	case int:
+		return value, nil
+	case int32:
+		return int(value), nil
+	case int64:
+		if int64(int(value)) != value {
+			return 0, fmt.Errorf("expected int value, got out-of-range int64")
+		}
+		return int(value), nil
+	case float64:
+		if math.Trunc(value) != value {
+			return 0, fmt.Errorf("expected int value, got non-integer float64")
+		}
+		if value > float64(math.MaxInt) || value < float64(math.MinInt) {
+			return 0, fmt.Errorf("expected int value, got out-of-range float64")
+		}
+		return int(value), nil
+	default:
+		return 0, fmt.Errorf("expected int value, got %T", raw)
+	}
+}
+
+func (r *Registry) emit(ctx context.Context, event Event) {
+	r.mu.RLock()
+	observers := append([]Observer(nil), r.observers...)
+	r.mu.RUnlock()
+	for _, observer := range observers {
+		observer.OnFeatureFlagEvent(ctx, event)
+	}
+}
+
+func (r *Registry) emitLocked(ctx context.Context, event Event) {
+	for _, observer := range r.observers {
+		observer.OnFeatureFlagEvent(ctx, event)
+	}
 }
 
 // Snapshot returns the typed flag definitions currently registered.
