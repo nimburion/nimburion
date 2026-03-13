@@ -41,7 +41,7 @@ const (
 	// EventTypeDefinitionAdded reports that one flag definition was added to the registry.
 	EventTypeDefinitionAdded EventType = "feature_flag.definition_added"
 	// EventTypeEvaluated reports that one flag evaluation was performed.
-	EventTypeEvaluated       EventType = "feature_flag.evaluated"
+	EventTypeEvaluated EventType = "feature_flag.evaluated"
 )
 
 // Event describes one runtime event emitted by the registry.
