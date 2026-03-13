@@ -130,7 +130,9 @@ func (b *InMemoryBus) Close() error {
 
 	for _, topicSubs := range subscribers {
 		for sub := range topicSubs {
-			_ = sub.close()
+			if err := sub.close(); err != nil {
+				return err
+			}
 		}
 	}
 	if b.store != nil {

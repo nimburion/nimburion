@@ -82,8 +82,8 @@ func TestPostgresTxExecutor_WithTransactionUsesSameTxForBusinessAndOutbox(t *tes
 			return errors.New("missing tx for business logic")
 		}
 		businessTx = tx
-		if _, err := tx.ExecContext(ctx, "INSERT INTO business_events (id) VALUES ($1)", "biz-1"); err != nil {
-			return err
+		if _, execErr := tx.ExecContext(ctx, "INSERT INTO business_events (id) VALUES ($1)", "biz-1"); execErr != nil {
+			return execErr
 		}
 
 		w, ok := writer.(*postgresTxWriter)
