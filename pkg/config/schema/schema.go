@@ -19,6 +19,12 @@ type CoreSchemaDisabler interface {
 	DisabledCoreConfigSections() []string
 }
 
+// SchemaCustomizer can be implemented by extension structs to add extension-specific
+// JSON Schema constraints after the base and extension shapes have been merged.
+type SchemaCustomizer interface {
+	CustomizeSchema(*jsonschema.Schema) error
+}
+
 // BuildSchema returns a JSON Schema for nimburion Config merged with the provided extensions.
 func BuildSchema(extensions ...any) (*jsonschema.Schema, error) {
 	return BuildSchemaWithDefaults(nil, extensions...)
@@ -43,7 +49,7 @@ func BuildSchemaWithDefaults(baseDefaults any, extensions ...any) (*jsonschema.S
 	schema := baseSchema
 	disabledSections := map[string]struct{}{}
 	for _, ext := range extensions {
-		if ext == nil {
+		if isNilExtension(ext) {
 			continue
 		}
 		collectDisabledCoreSections(ext, disabledSections)
@@ -62,13 +68,25 @@ func BuildSchemaWithDefaults(baseDefaults any, extensions ...any) (*jsonschema.S
 		schema = mergeSchemas(schema, extSchema)
 	}
 	disableCoreSections(schema, disabledSections)
+	for _, ext := range extensions {
+		if isNilExtension(ext) {
+			continue
+		}
+		customizer, ok := ext.(SchemaCustomizer)
+		if !ok {
+			continue
+		}
+		if err := customizer.CustomizeSchema(schema); err != nil {
+			return nil, fmt.Errorf("customize schema: %w", err)
+		}
+	}
 
 	if baseDefaults == nil {
 		baseDefaults = nimburioncfg.DefaultConfig()
 	}
 	injectDefaults(schema, reflect.ValueOf(baseDefaults))
 	for _, ext := range extensions {
-		if ext == nil {
+		if isNilExtension(ext) {
 			continue
 		}
 		injectDefaults(schema, reflect.ValueOf(ext))
@@ -86,6 +104,19 @@ func BuildSchemaWithDefaults(baseDefaults any, extensions ...any) (*jsonschema.S
 	schema.Description = "Schema for " + serviceName + " configuration."
 	schema.Schema = "https://json-schema.org/draft/2020-12/schema"
 	return schema, nil
+}
+
+func isNilExtension(ext any) bool {
+	if ext == nil {
+		return true
+	}
+	value := reflect.ValueOf(ext)
+	switch value.Kind() {
+	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func applyFieldNames(schema *jsonschema.Schema, t reflect.Type) {

@@ -6,8 +6,34 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 )
+
+// ErrColumnNotAllowed is returned when a filter/sort column is not part of the configured allowlist.
+var ErrColumnNotAllowed = errors.New("relational column not allowed")
+
+// ColumnAllowlist restricts which SQL columns may be interpolated in dynamic query clauses.
+type ColumnAllowlist map[string]struct{}
+
+// NewColumnAllowlist builds a normalized allowlist from the provided column names.
+func NewColumnAllowlist(columns ...string) ColumnAllowlist {
+	allowlist := make(ColumnAllowlist, len(columns))
+	for _, column := range columns {
+		if normalized := strings.TrimSpace(column); normalized != "" {
+			allowlist[normalized] = struct{}{}
+		}
+	}
+	return allowlist
+}
+
+func (a ColumnAllowlist) allows(column string) bool {
+	if len(a) == 0 {
+		return false
+	}
+	_, ok := a[column]
+	return ok
+}
 
 // SQLExecutor defines the interface for executing SQL queries
 // This can be a *sql.DB, *sql.Tx, or any adapter that provides these methods
@@ -27,6 +53,7 @@ type GenericCrudRepository[T any, ID comparable] struct {
 	tableName string
 	idColumn  string
 	mapper    EntityMapper[T, ID]
+	allowlist ColumnAllowlist
 }
 
 // EntityMapper defines how to map between entities and database rows
@@ -44,18 +71,28 @@ type EntityMapper[T any, ID comparable] interface {
 	SetID(entity *T, id ID)
 }
 
-// NewGenericCrudRepository creates a new generic CRUD repository
+// NewGenericCrudRepository creates a new generic CRUD repository.
+//
+// When no column allowlist is provided, dynamic filter and sort column interpolation
+// is not restricted and should be used only with trusted callers.
 func NewGenericCrudRepository[T any, ID comparable](
 	executor SQLExecutor,
 	tableName string,
 	idColumn string,
 	mapper EntityMapper[T, ID],
+	allowlist ...ColumnAllowlist,
 ) *GenericCrudRepository[T, ID] {
+	var configuredAllowlist ColumnAllowlist
+	if len(allowlist) > 0 {
+		configuredAllowlist = allowlist[0]
+	}
+
 	return &GenericCrudRepository[T, ID]{
 		executor:  executor,
 		tableName: tableName,
 		idColumn:  idColumn,
 		mapper:    mapper,
+		allowlist: configuredAllowlist,
 	}
 }
 
@@ -128,8 +165,13 @@ func (r *GenericCrudRepository[T, ID]) FindAll(ctx context.Context, opts QueryOp
 
 	// Apply filters
 	if len(opts.Filter) > 0 {
+		fields := sortedFilterFields(opts.Filter)
 		whereClauses := []string{}
-		for field, value := range opts.Filter {
+		for _, field := range fields {
+			if err := r.validateColumnAllowed(field); err != nil {
+				return nil, err
+			}
+			value := opts.Filter[field]
 			whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", field, r.placeholder(argIndex)))
 			args = append(args, value)
 			argIndex++
@@ -139,6 +181,9 @@ func (r *GenericCrudRepository[T, ID]) FindAll(ctx context.Context, opts QueryOp
 
 	// Apply sorting
 	if opts.Sort.Field != "" {
+		if err := r.validateColumnAllowed(opts.Sort.Field); err != nil {
+			return nil, err
+		}
 		order := "ASC"
 		if opts.Sort.Order == SortDesc {
 			order = "DESC"
@@ -182,8 +227,13 @@ func (r *GenericCrudRepository[T, ID]) Count(ctx context.Context, filter Filter)
 
 	// Apply filters
 	if len(filter) > 0 {
+		fields := sortedFilterFields(filter)
 		whereClauses := []string{}
-		for field, value := range filter {
+		for _, field := range fields {
+			if err := r.validateColumnAllowed(field); err != nil {
+				return 0, err
+			}
+			value := filter[field]
 			whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", field, r.placeholder(argIndex)))
 			args = append(args, value)
 			argIndex++
@@ -344,6 +394,25 @@ func (r *GenericCrudRepository[T, ID]) placeholder(index int) string {
 		return formatter.Placeholder(index)
 	}
 	return fmt.Sprintf("$%d", index)
+}
+
+func (r *GenericCrudRepository[T, ID]) validateColumnAllowed(column string) error {
+	if len(r.allowlist) == 0 {
+		return nil
+	}
+	if r.allowlist.allows(column) {
+		return nil
+	}
+	return fmt.Errorf("%w: %q", ErrColumnNotAllowed, column)
+}
+
+func sortedFilterFields(filter Filter) []string {
+	fields := make([]string, 0, len(filter))
+	for field := range filter {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields
 }
 
 // ReflectionMapper provides a basic entity mapper using reflection

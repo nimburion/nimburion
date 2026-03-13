@@ -52,7 +52,9 @@ func (a *Adapter) Client() *redis.Client {
 func (a *Adapter) Ping(ctx context.Context) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
-	return a.client.Ping(opCtx)
+	err := a.client.Ping(opCtx)
+	recordSessionRedisOp("ping", err)
+	return err
 }
 
 // Get retrieves a value from Redis by key
@@ -61,8 +63,11 @@ func (a *Adapter) Get(ctx context.Context, key string) (string, error) {
 	defer cancel()
 	val, err := a.client.Raw().Get(opCtx, key).Result()
 	if err != nil {
-		return "", a.mapGetError(key, err)
+		mappedErr := a.mapGetError(key, err)
+		recordSessionRedisOp("get", mappedErr)
+		return "", mappedErr
 	}
+	recordSessionRedisOp("get", nil)
 	return val, nil
 }
 
@@ -70,34 +75,41 @@ func (a *Adapter) Get(ctx context.Context, key string) (string, error) {
 func (a *Adapter) Set(ctx context.Context, key string, value interface{}) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
-	if err := a.client.Raw().Set(opCtx, key, value, 0).Err(); err != nil {
-		return fmt.Errorf("failed to set key %s: %w", key, err)
+	err := a.client.Raw().Set(opCtx, key, value, 0).Err()
+	if err != nil {
+		err = fmt.Errorf("failed to set key %s: %w", key, err)
 	}
-	return nil
+	recordSessionRedisOp("set", err)
+	return err
 }
 
 // SetWithTTL stores a key-value pair in Redis with expiration
 func (a *Adapter) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
-	if err := a.client.Raw().Set(opCtx, key, value, ttl).Err(); err != nil {
-		return fmt.Errorf("failed to set key %s with TTL: %w", key, err)
+	err := a.client.Raw().Set(opCtx, key, value, ttl).Err()
+	if err != nil {
+		err = fmt.Errorf("failed to set key %s with TTL: %w", key, err)
 	}
-	return nil
+	recordSessionRedisOp("set_with_ttl", err)
+	return err
 }
 
 // Delete removes a key from Redis
 func (a *Adapter) Delete(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
+		recordSessionRedisOp("delete", nil)
 		return nil
 	}
 
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
-	if err := a.client.Raw().Del(opCtx, keys...).Err(); err != nil {
-		return fmt.Errorf("failed to delete keys: %w", err)
+	err := a.client.Raw().Del(opCtx, keys...).Err()
+	if err != nil {
+		err = fmt.Errorf("failed to delete keys: %w", err)
 	}
-	return nil
+	recordSessionRedisOp("delete", err)
+	return err
 }
 
 // Incr atomically increments the value of a key by 1
@@ -106,7 +118,11 @@ func (a *Adapter) Incr(ctx context.Context, key string) (int64, error) {
 	defer cancel()
 	val, err := a.client.Raw().Incr(opCtx, key).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to increment key %s: %w", key, err)
+		err = fmt.Errorf("failed to increment key %s: %w", key, err)
+	}
+	recordSessionRedisOp("incr", err)
+	if err != nil {
+		return 0, err
 	}
 	return val, nil
 }
@@ -117,7 +133,11 @@ func (a *Adapter) IncrBy(ctx context.Context, key string, value int64) (int64, e
 	defer cancel()
 	val, err := a.client.Raw().IncrBy(opCtx, key, value).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to increment key %s by %d: %w", key, value, err)
+		err = fmt.Errorf("failed to increment key %s by %d: %w", key, value, err)
+	}
+	recordSessionRedisOp("incr_by", err)
+	if err != nil {
+		return 0, err
 	}
 	return val, nil
 }
@@ -128,7 +148,11 @@ func (a *Adapter) Decr(ctx context.Context, key string) (int64, error) {
 	defer cancel()
 	val, err := a.client.Raw().Decr(opCtx, key).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to decrement key %s: %w", key, err)
+		err = fmt.Errorf("failed to decrement key %s: %w", key, err)
+	}
+	recordSessionRedisOp("decr", err)
+	if err != nil {
+		return 0, err
 	}
 	return val, nil
 }
@@ -139,7 +163,11 @@ func (a *Adapter) DecrBy(ctx context.Context, key string, value int64) (int64, e
 	defer cancel()
 	val, err := a.client.Raw().DecrBy(opCtx, key, value).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to decrement key %s by %d: %w", key, value, err)
+		err = fmt.Errorf("failed to decrement key %s by %d: %w", key, value, err)
+	}
+	recordSessionRedisOp("decr_by", err)
+	if err != nil {
+		return 0, err
 	}
 	return val, nil
 }
@@ -148,7 +176,9 @@ func (a *Adapter) DecrBy(ctx context.Context, key string, value int64) (int64, e
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
-	return a.client.HealthCheck(opCtx)
+	err := a.client.HealthCheck(opCtx)
+	recordSessionRedisOp("healthcheck", err)
+	return err
 }
 
 // Close gracefully closes the Redis connection

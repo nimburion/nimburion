@@ -2,19 +2,39 @@
 
 ## Purpose
 
-`pkg/pubsub` is the target-state family root for ephemeral fan-out that does not promise durable event bus semantics and does not model lease-aware jobs.
+`pkg/pubsub` owns ephemeral in-process fan-out contracts and a default in-memory implementation.
 
 ## Owned Contracts
 
-No stable root-level contracts exist yet on this branch.
-The family root is reserved so future pub/sub adapters do not leak back into `pkg/eventbus`, `pkg/jobs`, or transport packages.
+This package exposes the base contracts:
+
+- `Topic`
+- `Message`
+- `Subscriber`
+- `Bus`
+
+And includes:
+
+- `InMemoryBus`, a goroutine-safe non-durable implementation
+- `RedisStore`, a best-effort replay store backed by `internal/rediskit`
+
+## Delivery Semantics
+
+`InMemoryBus` provides:
+
+- in-process fan-out only (no broker persistence, no retry)
+- optional publish history persistence via pluggable `Store` (for example `RedisStore`)
+- per-subscriber buffered channels
+- non-blocking publish for slow subscribers (message drop on full buffer)
+- explicit unsubscribe and bus shutdown support
+
+Messages are delivered in publish order for each individual subscriber/channel.
 
 ## Composition And Wiring
 
-Applications should use this family for ephemeral cross-instance fan-out only.
-Durable messaging stays in `pkg/eventbus`.
-Lease-aware work stays in `pkg/jobs`.
-HTTP-specific realtime integrations such as SSE and WebSocket remain under `pkg/http/*` until a shared pub/sub contract is actually extracted.
+Use this package when application components need lightweight ephemeral broadcasts.
+Durable messaging remains in `pkg/eventbus`.
+Outbox/retry semantics remain in `pkg/reliability/*`.
 
 ## Non-goals
 
@@ -23,17 +43,11 @@ HTTP-specific realtime integrations such as SSE and WebSocket remain under `pkg/
 - jobs leasing semantics
 - HTTP connection management
 
-## Validation, Lifecycle, And Runtime Semantics
-
-- ephemeral delivery semantics only
-- no durability promise is implied by this family root
-- concrete contracts should be introduced only when at least one non-HTTP consumer exists
-
 ## Testing Expectations
 
-- build gate must pass for the family root
-- adapter-specific fast and integration suites will be required once concrete pub/sub adapters land here
+- build gate must pass for the package
+- fast tests include property-based checks for order, subscriber independence, and clean shutdown
 
 ## Status
 
-Target-state family root, currently reserved and intentionally minimal.
+Implemented: base contracts and `InMemoryBus` are available on this branch.

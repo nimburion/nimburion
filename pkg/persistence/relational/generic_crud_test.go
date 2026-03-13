@@ -668,3 +668,105 @@ func TestGenericCrudRepository_UpdateWithOptimisticLock(t *testing.T) {
 		})
 	}
 }
+
+func TestGenericCrudRepository_ColumnAllowlist(t *testing.T) {
+	t.Run("allows configured filter column", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create mock: %v", err)
+		}
+		defer db.Close()
+
+		rows := sqlmock.NewRows([]string{"count"}).AddRow(int64(1))
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM test_entities WHERE status = \\$1").
+			WithArgs("active").
+			WillReturnRows(rows)
+
+		repo := NewGenericCrudRepository[TestEntity, int64](
+			db,
+			"test_entities",
+			"id",
+			&TestEntityMapper{},
+			NewColumnAllowlist("status", "name"),
+		)
+
+		count, err := repo.Count(context.Background(), Filter{"status": "active"})
+		if err != nil {
+			t.Fatalf("Count() error = %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("expected count 1, got %d", count)
+		}
+	})
+
+	t.Run("rejects filter column outside allowlist", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create mock: %v", err)
+		}
+		defer db.Close()
+
+		repo := NewGenericCrudRepository[TestEntity, int64](
+			db,
+			"test_entities",
+			"id",
+			&TestEntityMapper{},
+			NewColumnAllowlist("status"),
+		)
+
+		_, err = repo.Count(context.Background(), Filter{"name": "blocked"})
+		if !errors.Is(err, ErrColumnNotAllowed) {
+			t.Fatalf("expected ErrColumnNotAllowed, got %v", err)
+		}
+	})
+
+	t.Run("rejects sort column outside allowlist", func(t *testing.T) {
+		db, _, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create mock: %v", err)
+		}
+		defer db.Close()
+
+		repo := NewGenericCrudRepository[TestEntity, int64](
+			db,
+			"test_entities",
+			"id",
+			&TestEntityMapper{},
+			NewColumnAllowlist("status"),
+		)
+
+		_, err = repo.FindAll(context.Background(), QueryOptions{Sort: Sort{Field: "name", Order: SortAsc}})
+		if !errors.Is(err, ErrColumnNotAllowed) {
+			t.Fatalf("expected ErrColumnNotAllowed, got %v", err)
+		}
+	})
+
+	t.Run("allowlist is optional for trusted callers", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("failed to create mock: %v", err)
+		}
+		defer db.Close()
+
+		rows := sqlmock.NewRows([]string{"id", "name", "status", "version"}).
+			AddRow(int64(1), "Test1", "active", int64(0))
+		mock.ExpectQuery("SELECT \\* FROM test_entities WHERE custom = \\$1 ORDER BY untrusted ASC").
+			WithArgs("value").
+			WillReturnRows(rows)
+
+		repo := NewGenericCrudRepository[TestEntity, int64](
+			db,
+			"test_entities",
+			"id",
+			&TestEntityMapper{},
+		)
+
+		_, err = repo.FindAll(context.Background(), QueryOptions{
+			Filter: Filter{"custom": "value"},
+			Sort:   Sort{Field: "untrusted", Order: SortAsc},
+		})
+		if err != nil {
+			t.Fatalf("FindAll() error = %v", err)
+		}
+	})
+}
