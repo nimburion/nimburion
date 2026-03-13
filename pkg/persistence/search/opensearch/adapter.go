@@ -440,6 +440,8 @@ func parseBaseURLs(cfg Config) ([]url.URL, error) {
 		if u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 			return nil, fmt.Errorf("invalid search URL: %s", item)
 		}
+		// NOTE: Private-address filtering is intentionally not applied here because OpenSearch
+		// deployments are commonly private/internal services within cluster networks.
 		key := u.String()
 		if _, ok := seen[key]; ok {
 			continue

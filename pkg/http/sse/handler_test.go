@@ -2,6 +2,8 @@ package sse
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,6 +72,79 @@ func TestHandler_StreamWritesEventAndHeartbeat(t *testing.T) {
 	}
 }
 
+func TestHandler_StreamDoesNotLeakUnderlyingErrors(t *testing.T) {
+	manager := NewManager(ManagerConfig{
+		MaxConnections:    1,
+		ClientBuffer:      1,
+		ReplayLimit:       1,
+		HeartbeatInterval: time.Second,
+		DefaultRetryMS:    1000,
+	}, NewInMemoryStore(1), nil)
+	defer manager.Close()
+
+	t.Run("authorize callback error is hidden", func(t *testing.T) {
+		h, err := NewHandler(HandlerConfig{
+			Manager: manager,
+			AuthorizeSubscribe: func(_ router.Context, _ SubscriptionRequest) error {
+				return errors.New("sensitive authorization callback error")
+			},
+		})
+		if err != nil {
+			t.Fatalf("new handler: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/events?channel=orders", nil)
+		resp := newFakeSSEWriter()
+		c := newFakeContext(req, resp)
+		if err := h.Stream()(c); err != nil {
+			t.Fatalf("stream failed: %v", err)
+		}
+		if resp.Status() != http.StatusForbidden {
+			t.Fatalf("expected 403, got %d", resp.Status())
+		}
+		body := resp.BodyString()
+		if strings.Contains(body, "sensitive authorization callback error") {
+			t.Fatalf("response leaked internal error: %s", body)
+		}
+		if !strings.Contains(body, "subscription not authorized") {
+			t.Fatalf("expected fixed message, got: %s", body)
+		}
+	})
+
+	t.Run("subscription typed errors are canonicalized", func(t *testing.T) {
+		h, err := NewHandler(HandlerConfig{Manager: manager})
+		if err != nil {
+			t.Fatalf("new handler: %v", err)
+		}
+
+		streamCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		firstReq := httptest.NewRequest(http.MethodGet, "/events?channel=orders", nil).WithContext(streamCtx)
+		firstResp := newFakeSSEWriter()
+		firstCtx := newFakeContext(firstReq, firstResp)
+		done := make(chan struct{})
+		go func() {
+			_ = h.Stream()(firstCtx)
+			close(done)
+		}()
+		time.Sleep(20 * time.Millisecond)
+
+		secondReq := httptest.NewRequest(http.MethodGet, "/events?channel=orders", nil)
+		secondResp := newFakeSSEWriter()
+		secondCtx := newFakeContext(secondReq, secondResp)
+		if err := h.Stream()(secondCtx); err != nil {
+			t.Fatalf("stream failed: %v", err)
+		}
+		body := secondResp.BodyString()
+		if !strings.Contains(body, "service.unavailable") {
+			t.Fatalf("expected canonicalized app error, got: %s", body)
+		}
+
+		cancel()
+		<-done
+	})
+}
+
 type fakeContext struct {
 	req  *http.Request
 	resp router.ResponseWriter
@@ -86,7 +161,10 @@ func (c *fakeContext) SetResponse(w router.ResponseWriter) { c.resp = w }
 func (c *fakeContext) Param(_ string) string               { return "" }
 func (c *fakeContext) Query(key string) string             { return c.req.URL.Query().Get(key) }
 func (c *fakeContext) Bind(_ interface{}) error            { return nil }
-func (c *fakeContext) JSON(code int, _ interface{}) error  { c.resp.WriteHeader(code); return nil }
+func (c *fakeContext) JSON(code int, v interface{}) error {
+	c.resp.WriteHeader(code)
+	return json.NewEncoder(c.resp).Encode(v)
+}
 func (c *fakeContext) String(code int, s string) error {
 	c.resp.WriteHeader(code)
 	_, err := c.resp.Write([]byte(s))

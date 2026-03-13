@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestJWKSClient_GetKey_Success(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	// Get key
 	ctx := context.Background()
@@ -100,7 +101,7 @@ func TestJWKSClient_GetKey_NotFound(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	// Try to get non-existent key
 	ctx := context.Background()
@@ -131,7 +132,7 @@ func TestJWKSClient_Caching(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client with short TTL
-	client := NewJWKSClient(server.URL, 100*time.Millisecond, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 100*time.Millisecond, &mockLogger{})
 
 	ctx := context.Background()
 
@@ -177,7 +178,7 @@ func TestJWKSClient_ServerError(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	// Try to get key
 	ctx := context.Background()
@@ -196,7 +197,7 @@ func TestJWKSClient_InvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	// Try to get key
 	ctx := context.Background()
@@ -216,7 +217,7 @@ func TestJWKSClient_ContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	// Create context with short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -260,7 +261,7 @@ func TestJWKSClient_MultipleKeys(_ *testing.T) {
 	defer server.Close()
 
 	// Create JWKS client
-	client := NewJWKSClient(server.URL, 1*time.Hour, &mockLogger{})
+	client := NewJWKSClient(strings.Replace(server.URL, "127.0.0.1", "localhost", 1), 1*time.Hour, &mockLogger{})
 
 	ctx := context.Background()
 
@@ -287,5 +288,26 @@ func TestParseJWK_UnsupportedKeyType(t *testing.T) {
 	expectedMsg := "unsupported key type: EC"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestJWKSClient_PrivateHostRejectedByDefault(t *testing.T) {
+	client := NewJWKSClient("http://127.0.0.1:8080/jwks", time.Hour, &mockLogger{})
+	_, err := client.GetKey(context.Background(), "kid")
+	if err == nil {
+		t.Fatal("expected error for private host")
+	}
+	if !strings.Contains(err.Error(), "private or loopback") {
+		t.Fatalf("expected private host error, got %v", err)
+	}
+}
+
+func TestJWKSClient_AllowPrivateHostsOverride(t *testing.T) {
+	if err := validateHTTPURLWithOptions("http://10.0.0.1/jwks", true); err != nil {
+		t.Fatalf("expected private host to be allowed with override, got %v", err)
+	}
+	client := NewJWKSClient("http://10.0.0.1/jwks", time.Hour, &mockLogger{}, WithAllowPrivateHosts(true))
+	if !client.allowPrivateHosts {
+		t.Fatal("expected allowPrivateHosts to be enabled")
 	}
 }

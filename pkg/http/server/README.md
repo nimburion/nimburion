@@ -48,3 +48,12 @@ The package owns:
 ## Status
 
 Target-state HTTP family package finalized by Wave 3 Task `T3.2`.
+
+## Production Security Recommendation
+
+In production, strongly enable at least one management access control:
+
+- `AuthEnabled: true` for JWT-based access control, or
+- `AllowlistCIDRs` configured to your internal cluster/network CIDRs.
+
+Running management endpoints (`/metrics`, `/swagger`, `/ready`) without authentication and without an IP allowlist is discouraged.

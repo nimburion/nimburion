@@ -17,10 +17,21 @@ import (
 // JWKSClient fetches and caches JSON Web Key Sets for JWT signature verification.
 // It implements thread-safe caching with configurable TTL to reduce external calls.
 type JWKSClient struct {
-	jwksURL    string
-	cache      *jwksCache
-	httpClient *http.Client
-	logger     logger.Logger
+	jwksURL           string
+	cache             *jwksCache
+	httpClient        *http.Client
+	logger            logger.Logger
+	allowPrivateHosts bool
+}
+
+// JWKSClientOption configures optional JWKSClient behavior.
+type JWKSClientOption func(*JWKSClient)
+
+// WithAllowPrivateHosts allows private and loopback hosts for JWKS URLs.
+func WithAllowPrivateHosts(allow bool) JWKSClientOption {
+	return func(c *JWKSClient) {
+		c.allowPrivateHosts = allow
+	}
 }
 
 // jwksCache provides thread-safe caching of JWKS keys with TTL support.
@@ -48,8 +59,8 @@ type JWKSResponse struct {
 
 // NewJWKSClient creates a new JWKS client with the specified configuration.
 // The client will fetch keys from jwksURL and cache them for cacheTTL duration.
-func NewJWKSClient(jwksURL string, cacheTTL time.Duration, logger logger.Logger) *JWKSClient {
-	return &JWKSClient{
+func NewJWKSClient(jwksURL string, cacheTTL time.Duration, logger logger.Logger, opts ...JWKSClientOption) *JWKSClient {
+	client := &JWKSClient{
 		jwksURL: jwksURL,
 		cache: &jwksCache{
 			keys: make(map[string]interface{}),
@@ -60,6 +71,12 @@ func NewJWKSClient(jwksURL string, cacheTTL time.Duration, logger logger.Logger)
 		},
 		logger: logger,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(client)
+		}
+	}
+	return client
 }
 
 // GetKey retrieves a public key by its key ID (kid).
@@ -89,7 +106,7 @@ func (c *JWKSClient) GetKey(ctx context.Context, kid string) (interface{}, error
 
 // refreshJWKS fetches the JWKS from the configured URL and updates the cache.
 func (c *JWKSClient) refreshJWKS(ctx context.Context) error {
-	if err := validateHTTPURL(c.jwksURL); err != nil {
+	if err := validateHTTPURLWithOptions(c.jwksURL, c.allowPrivateHosts); err != nil {
 		return fmt.Errorf("invalid jwks url: %w", err)
 	}
 

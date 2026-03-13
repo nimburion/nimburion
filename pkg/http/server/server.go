@@ -28,6 +28,7 @@ type Config struct {
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
 	TLSConfig    *tls.Config
+	RequireTLS   bool
 }
 
 // NewServer creates a new Server instance with the provided configuration.
@@ -51,6 +52,9 @@ func (s *Server) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if s.config.RequireTLS && s.config.TLSConfig == nil {
+		return fmt.Errorf("server RequireTLS is set but TLSConfig is nil: refusing to start in plain HTTP")
+	}
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.config.Port),
 		Handler:      s.router,
@@ -60,7 +64,11 @@ func (s *Server) Start(ctx context.Context) error {
 		TLSConfig:    s.config.TLSConfig,
 	}
 
-	s.logger.Info("starting server", "port", s.config.Port, "tls_enabled", s.config.TLSConfig != nil)
+	if s.config.TLSConfig == nil {
+		s.logger.Warn("starting server without TLS", "port", s.config.Port)
+	} else {
+		s.logger.Info("starting server", "port", s.config.Port, "tls_enabled", true)
+	}
 
 	// Channel to capture server startup errors
 	errChan := make(chan error, 1)

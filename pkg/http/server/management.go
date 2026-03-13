@@ -4,7 +4,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/auth"
@@ -70,12 +72,17 @@ func NewManagementServer(
 		return nil, fmt.Errorf("management auth is enabled but JWT validator is nil")
 	}
 
+	if !cfg.AuthEnabled {
+		log.Warn("management server is running without authentication: /metrics, /swagger, and /ready are publicly accessible")
+	}
+
 	// Create server config from management config
 	serverCfg := Config{
 		Port:         cfg.Port,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  60 * time.Second, // Default idle timeout for management server
+		RequireTLS:   cfg.RequireTLS,
 	}
 	if cfg.MTLSEnabled {
 		tlsConfig, err := LoadTLSConfig(cfg.TLSCertFile, cfg.TLSKeyFile, cfg.TLSCAFile)
@@ -96,29 +103,69 @@ func NewManagementServer(
 	}
 
 	// Register management endpoints
-	mgmtServer.registerEndpoints(r, cfg.AuthEnabled, validator)
+	mgmtServer.registerEndpoints(r, cfg.AuthEnabled, cfg.AllowlistCIDRs, validator)
 
 	return mgmtServer, nil
 }
 
 // registerEndpoints registers the standard management endpoints.
 // Requirements: 30.1, 30.2, 30.3, 13.1, 13.7
-func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, validator auth.JWTValidator) {
+func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, allowlistCIDRs []string, validator auth.JWTValidator) {
 	// Health endpoint - liveness check (always returns 200)
 	// Requirements: 30.1, 30.3
 	r.GET("/health", s.handleHealth)
 
 	// Ready endpoint - readiness check (checks dependencies)
 	// Requirements: 30.2, 30.4, 30.5, 30.6
-	r.GET("/ready", s.handleReady, managementSecurityMiddleware(authEnabled, validator, "management:read")...)
+	readyMiddleware := append(managementIPAllowlist(allowlistCIDRs), managementSecurityMiddleware(authEnabled, validator, "management:read")...)
+	r.GET("/ready", s.handleReady, readyMiddleware...)
 
 	// Metrics endpoint - Prometheus metrics
 	// Requirements: 13.1, 13.7
-	r.GET("/metrics", s.handleMetrics, managementSecurityMiddleware(authEnabled, validator, "management:metrics")...)
+	metricsMiddleware := append(managementIPAllowlist(allowlistCIDRs), managementSecurityMiddleware(authEnabled, validator, "management:metrics")...)
+	r.GET("/metrics", s.handleMetrics, metricsMiddleware...)
 
 	// Swagger endpoint - secured when management auth is enabled.
-	r.GET("/swagger", s.handleSwagger, managementSecurityMiddleware(authEnabled, validator, "management:swagger")...)
-	r.GET("/swagger/", s.handleSwagger, managementSecurityMiddleware(authEnabled, validator, "management:swagger")...)
+	swaggerMiddleware := append(managementIPAllowlist(allowlistCIDRs), managementSecurityMiddleware(authEnabled, validator, "management:swagger")...)
+	r.GET("/swagger", s.handleSwagger, swaggerMiddleware...)
+	r.GET("/swagger/", s.handleSwagger, swaggerMiddleware...)
+}
+
+func managementIPAllowlist(cidrs []string) []router.MiddlewareFunc {
+	if len(cidrs) == 0 {
+		return nil
+	}
+
+	allowed := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		allowed = append(allowed, network)
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+
+	return []router.MiddlewareFunc{func(next router.HandlerFunc) router.HandlerFunc {
+		return func(c router.Context) error {
+			host, _, err := net.SplitHostPort(c.Request().RemoteAddr)
+			if err != nil {
+				host = c.Request().RemoteAddr
+			}
+			ip := net.ParseIP(strings.TrimSpace(host))
+			if ip == nil {
+				return c.JSON(http.StatusForbidden, map[string]interface{}{"error": "access denied"})
+			}
+			for _, network := range allowed {
+				if network.Contains(ip) {
+					return next(c)
+				}
+			}
+			return c.JSON(http.StatusForbidden, map[string]interface{}{"error": "access denied"})
+		}
+	}}
 }
 
 func managementSecurityMiddleware(authEnabled bool, validator auth.JWTValidator, scopes ...string) []router.MiddlewareFunc {

@@ -642,3 +642,82 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestNewManagementServer_WarnsWhenAuthDisabled(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{Port: 9091, ReadTimeout: time.Second, WriteTimeout: time.Second, AuthEnabled: false}
+	r := nethttp.NewRouter()
+	log := &captureLogger{}
+
+	if _, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(log.warns) == 0 {
+		t.Fatal("expected warn log when auth is disabled")
+	}
+}
+
+func TestManagementServer_AllowlistCIDRs(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:           9092,
+		ReadTimeout:    time.Second,
+		WriteTimeout:   time.Second,
+		AllowlistCIDRs: []string{"10.0.0.0/8"},
+	}
+	r := nethttp.NewRouter()
+	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	mgmtServer, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	t.Run("allowed ip", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		req.RemoteAddr = "10.0.0.1:1234"
+		rec := httptest.NewRecorder()
+		mgmtServer.router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 for allowlisted ip, got %d", rec.Code)
+		}
+	})
+
+	t.Run("denied ip", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		req.RemoteAddr = "8.8.8.8:1234"
+		rec := httptest.NewRecorder()
+		mgmtServer.router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for non-allowlisted ip, got %d", rec.Code)
+		}
+	})
+}
+
+func TestManagementServer_EmptyAllowlistDoesNotFilter(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{Port: 9093, ReadTimeout: time.Second, WriteTimeout: time.Second}
+	r := nethttp.NewRouter()
+	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	mgmtServer, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	req.RemoteAddr = "8.8.8.8:1234"
+	rec := httptest.NewRecorder()
+	mgmtServer.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 without allowlist, got %d", rec.Code)
+	}
+}
+
+func TestManagementServer_StartFailsWhenRequireTLSWithoutTLSConfig(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{Port: 9094, ReadTimeout: time.Second, WriteTimeout: time.Second, RequireTLS: true}
+	r := nethttp.NewRouter()
+	log := &captureLogger{}
+	mgmtServer, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil)
+	if err != nil {
+		t.Fatalf("unexpected creation error: %v", err)
+	}
+	if err := mgmtServer.Start(context.Background()); err == nil {
+		t.Fatal("expected start error when RequireTLS is true and TLS config is missing")
+	}
+}

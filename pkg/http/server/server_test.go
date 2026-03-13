@@ -495,3 +495,47 @@ func TestServerStartError(t *testing.T) {
 	cancel1()
 	time.Sleep(100 * time.Millisecond)
 }
+
+type captureLogger struct {
+	warns []string
+}
+
+func (l *captureLogger) Debug(string, ...any) {}
+func (l *captureLogger) Info(string, ...any)  {}
+func (l *captureLogger) Warn(msg string, _ ...any) {
+	l.warns = append(l.warns, msg)
+}
+func (l *captureLogger) Error(string, ...any)                      {}
+func (l *captureLogger) With(...any) logger.Logger                 { return l }
+func (l *captureLogger) WithContext(context.Context) logger.Logger { return l }
+
+func TestServerStart_RequireTLSWithoutConfigFails(t *testing.T) {
+	r := nethttp.NewRouter()
+	log := &captureLogger{}
+	srv := NewServer(Config{Port: 0, RequireTLS: true}, r, log)
+
+	err := srv.Start(context.Background())
+	if err == nil {
+		t.Fatal("expected error when RequireTLS is true and TLSConfig is nil")
+	}
+}
+
+func TestServerStart_WithoutRequireTLSStarts(t *testing.T) {
+	r := nethttp.NewRouter()
+	r.GET("/health", func(c router.Context) error { return c.JSON(http.StatusOK, map[string]string{"ok": "1"}) })
+	log := &captureLogger{}
+	srv := NewServer(Config{Port: 8087, RequireTLS: false}, r, log)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Start(ctx) }()
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("expected start/shutdown without error, got %v", err)
+	}
+	if len(log.warns) == 0 {
+		t.Fatal("expected warning log when starting without TLS")
+	}
+}

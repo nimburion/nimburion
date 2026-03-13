@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -118,7 +119,7 @@ func exchangeToken(ctx context.Context, httpClient *http.Client, tokenURL string
 	if client == nil {
 		client = http.DefaultClient
 	}
-	if err := validateHTTPURL(tokenURL); err != nil {
+	if err := validateHTTPURLWithOptions(tokenURL, true); err != nil {
 		return nil, err
 	}
 
@@ -164,6 +165,10 @@ func isValidAbsoluteURL(raw string) bool {
 func ignoreCloseError(_ error) {}
 
 func validateHTTPURL(raw string) error {
+	return validateHTTPURLWithOptions(raw, false)
+}
+
+func validateHTTPURLWithOptions(raw string, allowPrivateHosts bool) error {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return err
@@ -174,5 +179,40 @@ func validateHTTPURL(raw string) error {
 	if parsed.Host == "" {
 		return errors.New("url host is required")
 	}
+
+	hostname := parsed.Hostname()
+	if !allowPrivateHosts && isPrivateHost(hostname) {
+		return fmt.Errorf("url host %q is not allowed: private or loopback addresses are forbidden", hostname)
+	}
+
 	return nil
+}
+
+func isPrivateHost(host string) bool {
+	ip := net.ParseIP(strings.TrimSpace(host))
+	if ip == nil {
+		return false
+	}
+
+	privateCIDRs := []string{
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"::1/128",
+		"::/128",
+		"0.0.0.0/32",
+	}
+	for _, cidr := range privateCIDRs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if block.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }

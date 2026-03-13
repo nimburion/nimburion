@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
+	"github.com/nimburion/nimburion/pkg/http/response"
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
@@ -65,7 +67,7 @@ func (h *Handler) Stream() router.HandlerFunc {
 
 		if h.cfg.AuthorizeSubscribe != nil {
 			if err := h.cfg.AuthorizeSubscribe(c, req); err != nil {
-				return c.JSON(http.StatusForbidden, map[string]string{"error": err.Error()})
+				return c.JSON(http.StatusForbidden, map[string]string{"error": "subscription not authorized"})
 			}
 		}
 
@@ -77,10 +79,10 @@ func (h *Handler) Stream() router.HandlerFunc {
 		client, replay, err := h.cfg.Manager.Subscribe(c.Request().Context(), req)
 		if err != nil {
 			if errors.Is(err, ErrTooManyConnections) {
-				return c.JSON(http.StatusTooManyRequests, map[string]string{"error": err.Error()})
+				return response.Error(c, coreerrors.NewUnavailable("too many sse connections", err))
 			}
 			if errors.Is(err, ErrInvalidChannel) {
-				return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return response.Error(c, coreerrors.NewInvalidArgument("invalid channel", err))
 			}
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "subscribe failed"})
 		}

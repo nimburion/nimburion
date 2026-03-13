@@ -3,6 +3,7 @@ package authorization
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/nimburion/nimburion/pkg/auth"
@@ -44,6 +45,33 @@ func TestHasAnyScope(t *testing.T) {
 	if !HasAnyScope([]string{"read"}, []string{"read", "write"}) {
 		t.Fatal("expected HasAnyScope to return true")
 	}
+}
+
+func TestClaimsGuard_EvaluationErrorIsSanitized(t *testing.T) {
+	r := mustRouter(t)
+	r.Use(withClaims(&auth.Claims{Subject: "user123"}))
+	r.GET("/test", okHandler, ClaimsGuard(ClaimRule{
+		Claim:    "tenant_id",
+		Operator: ClaimOperatorEquals,
+		Source:   ClaimValueSourceRoute,
+	}))
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !contains(body, "claim evaluation failed") {
+		t.Fatalf("expected sanitized error message, got %s", body)
+	}
+	if contains(body, "rule key is required") {
+		t.Fatalf("response leaked internal policy error: %s", body)
+	}
+}
+
+func contains(s, sub string) bool {
+	return strings.Contains(s, sub)
 }
 
 func mustRouter(t *testing.T) router.Router {
