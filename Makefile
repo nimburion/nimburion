@@ -13,8 +13,7 @@ lint: ## Run linter
 	golangci-lint run
 
 lint-fix: ## Run linter and apply automated fixes
-	@echo "Applying automated fixes..."
-	@bash scripts/apply-all-fixes.sh
+	golangci-lint run --fix
 
 lint-critical: ## Show only critical security issues
 	golangci-lint run --disable-all -E gosec,errcheck --max-issues-per-linter=50
