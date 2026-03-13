@@ -29,6 +29,20 @@ The package owns:
 - Transport families such as future `pkg/http/*` and `pkg/grpc/*` should plug in through lifecycle hooks and runners instead of owning the top-level runtime.
 - Feature-owned services may be stored in `Runtime.Services` until `pkg/core/feature` defines the more explicit contribution contracts.
 
+
+## Typed Service Lookup Helper
+
+Use `GetService[T]` to retrieve a runtime service with a typed assertion in one call:
+
+```go
+cacheClient, ok := app.GetService[*redis.Client](runtime, "cache")
+if !ok {
+    // service missing or wrong type
+}
+```
+
+`GetService` returns the zero value and `false` when the service is absent or has a different type.
+
 ## Non-Goals
 
 - HTTP or gRPC bootstrap

@@ -138,15 +138,18 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 	defer cancel()
 	status, err := p.client.Raw().SetArgs(opCtx, fullKey, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
 	if err != nil {
+		recordCoordRedisOp("acquire", err)
 		if errors.Is(err, redis.Nil) {
 			return nil, false, nil
 		}
 		return nil, false, errors.Join(coordinationError(coordination.ErrRetryable, "acquire lock failed"), err)
 	}
 	if status == "" {
+		recordCoordRedisOp("acquire", nil)
 		return nil, false, nil
 	}
 
+	recordCoordRedisOp("acquire", nil)
 	return &coordination.LockLease{
 		Key:      key,
 		Token:    token,
@@ -175,13 +178,17 @@ func (p *RedisLockProvider) Renew(ctx context.Context, lease *coordination.LockL
 	defer cancel()
 	result, err := renewScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
+		recordCoordRedisOp("renew", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "renew lock failed"), err)
 	}
 	if result == 0 {
-		return coordinationError(coordination.ErrConflict, "lock renew rejected")
+		err = coordinationError(coordination.ErrConflict, "lock renew rejected")
+		recordCoordRedisOp("renew", err)
+		return err
 	}
 
 	lease.ExpireAt = time.Now().UTC().Add(ttl)
+	recordCoordRedisOp("renew", nil)
 	return nil
 }
 
@@ -204,11 +211,15 @@ func (p *RedisLockProvider) Release(ctx context.Context, lease *coordination.Loc
 	defer cancel()
 	result, err := releaseScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token).Int64()
 	if err != nil {
+		recordCoordRedisOp("release", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "release lock failed"), err)
 	}
 	if result == 0 {
-		return coordinationError(coordination.ErrConflict, "lock release rejected")
+		err = coordinationError(coordination.ErrConflict, "lock release rejected")
+		recordCoordRedisOp("release", err)
+		return err
 	}
+	recordCoordRedisOp("release", nil)
 	return nil
 }
 
@@ -220,8 +231,10 @@ func (p *RedisLockProvider) HealthCheck(ctx context.Context) error {
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
 	if err := p.client.HealthCheck(opCtx); err != nil {
+		recordCoordRedisOp("healthcheck", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "redis healthcheck failed"), err)
 	}
+	recordCoordRedisOp("healthcheck", nil)
 	return nil
 }
 

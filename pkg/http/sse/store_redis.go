@@ -45,6 +45,7 @@ func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
 		OperationTimeout: cfg.OperationTimeout,
 	}, noopLogger{})
 	if err != nil {
+		recordSSERedisOp("store", "get_since", err)
 		return nil, err
 	}
 
@@ -70,6 +71,7 @@ func (s *RedisStore) Append(ctx context.Context, event Event) error {
 	pipe.RPush(cctx, key, raw)
 	pipe.LTrim(cctx, key, -s.maxSize, -1)
 	_, err = pipe.Exec(cctx)
+	recordSSERedisOp("store", "append", err)
 	return err
 }
 
@@ -80,6 +82,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 
 	values, err := s.client.Raw().LRange(cctx, s.key(channel), 0, -1).Result()
 	if err != nil {
+		recordSSERedisOp("store", "get_since", err)
 		return nil, err
 	}
 	if limit <= 0 {
@@ -99,6 +102,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 	if len(out) > limit {
 		out = out[len(out)-limit:]
 	}
+	recordSSERedisOp("store", "get_since", nil)
 	return out, nil
 }
 

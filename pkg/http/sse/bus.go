@@ -143,13 +143,16 @@ func (b *RedisBus) Publish(ctx context.Context, event Event) error {
 	}
 	cctx, cancel := context.WithTimeout(ctx, b.opTimeout)
 	defer cancel()
-	return b.client.Raw().Publish(cctx, b.key(event.Channel), raw).Err()
+	err = b.client.Raw().Publish(cctx, b.key(event.Channel), raw).Err()
+	recordSSERedisOp("bus", "publish", err)
+	return err
 }
 
 // Subscribe consumes redis pub/sub channel and forwards decoded events.
 func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(Event)) (Subscription, error) {
 	pubsub := b.client.Raw().Subscribe(ctx, b.key(channel))
 	if _, err := pubsub.Receive(ctx); err != nil {
+		recordSSERedisOp("bus", "subscribe", err)
 		if closeErr := pubsub.Close(); closeErr != nil {
 			return nil, errors.Join(err, closeErr)
 		}
@@ -180,6 +183,7 @@ func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(E
 		}
 	}()
 
+	recordSSERedisOp("bus", "subscribe", nil)
 	return &redisBusSubscription{
 		cancel: cancel,
 		pubsub: pubsub,

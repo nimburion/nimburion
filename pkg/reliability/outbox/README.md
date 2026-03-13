@@ -10,6 +10,7 @@
 - `Record`
 - `Store`
 - transactional `Writer` and `TxExecutor`
+- `PostgresTxExecutor` bridge for `pkg/persistence/relational/postgres` transaction managers
 - `Publisher` and relay lifecycle
 
 ## Composition And Wiring

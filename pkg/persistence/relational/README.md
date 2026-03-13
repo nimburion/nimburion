@@ -242,8 +242,23 @@ func NewGenericCrudRepository[T any, ID comparable](
     tableName string,
     idColumn string,
     mapper EntityMapper[T, ID],
+    allowlist ...ColumnAllowlist,
 ) *GenericCrudRepository[T, ID]
 ```
+
+When `allowlist` is configured, `Filter` keys and `Sort.Field` are validated before query interpolation; unknown columns return `ErrColumnNotAllowed`.
+
+When `allowlist` is omitted, dynamic column interpolation remains unchanged and should be used only with trusted callers.
+
+
+### Error Canonicalization
+
+Call `RegisterCanonicalizers()` during application wiring to map relational errors into `pkg/core/errors`:
+
+- `sql.ErrNoRows` -> `resource.not_found`
+- `*OptimisticLockError` -> `resource.conflict` with version details
+
+This registration is explicit (not automatic) to keep test setup deterministic.
 
 ## Composition And Wiring
 
