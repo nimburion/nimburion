@@ -16,6 +16,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/coordination"
 	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 func coordinationError(kind error, message string) error {
@@ -70,6 +71,7 @@ return 0
 // RedisLockProviderConfig configures distributed locks backed by Redis.
 type RedisLockProviderConfig struct {
 	URL              string
+	MetricsRegistry  *frameworkmetrics.Registry
 	Prefix           string
 	OperationTimeout time.Duration
 }
@@ -85,20 +87,25 @@ func (c *RedisLockProviderConfig) normalize() {
 
 // RedisLockProvider is a distributed lock provider using Redis SET NX PX semantics.
 type RedisLockProvider struct {
-	client *rediskit.Client
-	log    logger.Logger
-	config RedisLockProviderConfig
+	client  *rediskit.Client
+	log     logger.Logger
+	metrics *Metrics
+	config  RedisLockProviderConfig
 }
 
 // NewRedisLockProvider creates a Redis-based lock provider.
 func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*RedisLockProvider, error) {
 	if log == nil {
-		return nil, coordinationError(coordination.ErrInvalidArgument, "logger is required")
+		return nil, wrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "logger is required"))
 	}
 	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, coordinationError(coordination.ErrInvalidArgument, "redis url is required")
+		return nil, wrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "redis url is required"))
 	}
 	cfg.normalize()
+	metrics, err := NewMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, wrapConstructorError("NewRedisLockProvider", err)
+	}
 
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
@@ -106,15 +113,16 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 	}, log)
 	if err != nil {
 		if strings.Contains(err.Error(), "parse redis URL") {
-			return nil, errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err)
+			return nil, wrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err))
 		}
-		return nil, errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err)
+		return nil, wrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err))
 	}
 
 	return &RedisLockProvider{
-		client: client,
-		log:    log,
-		config: cfg,
+		client:  client,
+		log:     log,
+		metrics: metrics,
+		config:  cfg,
 	}, nil
 }
 
@@ -138,18 +146,18 @@ func (p *RedisLockProvider) Acquire(ctx context.Context, key string, ttl time.Du
 	defer cancel()
 	status, err := p.client.Raw().SetArgs(opCtx, fullKey, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
 	if err != nil {
-		recordCoordRedisOp("acquire", err)
+		p.metrics.record("acquire", err)
 		if errors.Is(err, redis.Nil) {
 			return nil, false, nil
 		}
 		return nil, false, errors.Join(coordinationError(coordination.ErrRetryable, "acquire lock failed"), err)
 	}
 	if status == "" {
-		recordCoordRedisOp("acquire", nil)
+		p.metrics.record("acquire", nil)
 		return nil, false, nil
 	}
 
-	recordCoordRedisOp("acquire", nil)
+	p.metrics.record("acquire", nil)
 	return &coordination.LockLease{
 		Key:      key,
 		Token:    token,
@@ -178,17 +186,17 @@ func (p *RedisLockProvider) Renew(ctx context.Context, lease *coordination.LockL
 	defer cancel()
 	result, err := renewScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
-		recordCoordRedisOp("renew", err)
+		p.metrics.record("renew", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "renew lock failed"), err)
 	}
 	if result == 0 {
 		err = coordinationError(coordination.ErrConflict, "lock renew rejected")
-		recordCoordRedisOp("renew", err)
+		p.metrics.record("renew", err)
 		return err
 	}
 
 	lease.ExpireAt = time.Now().UTC().Add(ttl)
-	recordCoordRedisOp("renew", nil)
+	p.metrics.record("renew", nil)
 	return nil
 }
 
@@ -211,15 +219,15 @@ func (p *RedisLockProvider) Release(ctx context.Context, lease *coordination.Loc
 	defer cancel()
 	result, err := releaseScript.Run(opCtx, p.client.Raw(), []string{p.fullKey(key)}, token).Int64()
 	if err != nil {
-		recordCoordRedisOp("release", err)
+		p.metrics.record("release", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "release lock failed"), err)
 	}
 	if result == 0 {
 		err = coordinationError(coordination.ErrConflict, "lock release rejected")
-		recordCoordRedisOp("release", err)
+		p.metrics.record("release", err)
 		return err
 	}
-	recordCoordRedisOp("release", nil)
+	p.metrics.record("release", nil)
 	return nil
 }
 
@@ -231,10 +239,10 @@ func (p *RedisLockProvider) HealthCheck(ctx context.Context) error {
 	opCtx, cancel := context.WithTimeout(ctx, p.config.OperationTimeout)
 	defer cancel()
 	if err := p.client.HealthCheck(opCtx); err != nil {
-		recordCoordRedisOp("healthcheck", err)
+		p.metrics.record("healthcheck", err)
 		return errors.Join(coordinationError(coordination.ErrRetryable, "redis healthcheck failed"), err)
 	}
-	recordCoordRedisOp("healthcheck", nil)
+	p.metrics.record("healthcheck", nil)
 	return nil
 }
 

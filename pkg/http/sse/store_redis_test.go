@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -8,6 +9,11 @@ import (
 func TestNewRedisStore_ValidationAndConnectivity(t *testing.T) {
 	if _, err := NewRedisStore(RedisStoreConfig{}); err == nil {
 		t.Fatal("expected error for empty redis url")
+	} else {
+		var constructorErr *ConstructorError
+		if !errors.As(err, &constructorErr) {
+			t.Fatalf("expected ConstructorError, got %T", err)
+		}
 	}
 
 	_, err := NewRedisStore(RedisStoreConfig{URL: "redis://127.0.0.1:1/0"})

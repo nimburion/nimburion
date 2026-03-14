@@ -38,6 +38,7 @@ import (
 	sseconfig "github.com/nimburion/nimburion/pkg/http/sse/config"
 	observabilityconfig "github.com/nimburion/nimburion/pkg/observability/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 	rolesession "github.com/nimburion/nimburion/pkg/session"
 	sessionconfig "github.com/nimburion/nimburion/pkg/session/config"
 )
@@ -65,7 +66,7 @@ type PublicAPIServer struct {
 // Additional middleware (auth, rate limiting) can be added per-route.
 func NewPublicAPIServer(cfg serverconfig.HTTPConfig, r router.Router, log logger.Logger) *PublicAPIServer {
 	defaults := config.DefaultConfig()
-	return NewPublicAPIServerWithConfig(
+	return newPublicAPIServerWithDependencies(
 		cfg,
 		defaults.CORS,
 		defaults.SecurityHeaders,
@@ -77,6 +78,7 @@ func NewPublicAPIServer(cfg serverconfig.HTTPConfig, r router.Router, log logger
 		defaults.EventBus,
 		defaults.Validation,
 		defaults.Observability,
+		nil,
 		r,
 		log,
 	)
@@ -90,7 +92,7 @@ func NewPublicAPIServerWithObservability(
 	log logger.Logger,
 ) *PublicAPIServer {
 	defaults := config.DefaultConfig()
-	return NewPublicAPIServerWithConfig(
+	return newPublicAPIServerWithDependencies(
 		cfg,
 		defaults.CORS,
 		defaults.SecurityHeaders,
@@ -102,6 +104,7 @@ func NewPublicAPIServerWithObservability(
 		defaults.EventBus,
 		defaults.Validation,
 		obsCfg,
+		nil,
 		r,
 		log,
 	)
@@ -120,6 +123,40 @@ func NewPublicAPIServerWithConfig(
 	eventBusCfg eventbusconfig.Config,
 	validationCfg schemavalidationconfig.ValidationConfig,
 	obsCfg observabilityconfig.Config,
+	r router.Router,
+	log logger.Logger,
+) *PublicAPIServer {
+	return newPublicAPIServerWithDependencies(
+		cfg,
+		corsCfg,
+		securityHeadersCfg,
+		securityCfg,
+		i18nCfg,
+		sessionCfg,
+		csrfCfg,
+		sseCfg,
+		eventBusCfg,
+		validationCfg,
+		obsCfg,
+		nil,
+		r,
+		log,
+	)
+}
+
+func newPublicAPIServerWithDependencies(
+	cfg serverconfig.HTTPConfig,
+	corsCfg corsconfig.Config,
+	securityHeadersCfg securityheadersconfig.Config,
+	securityCfg httpsignatureconfig.SecurityConfig,
+	i18nCfg i18nconfig.Config,
+	sessionCfg sessionconfig.Config,
+	csrfCfg csrfconfig.Config,
+	sseCfg sseconfig.Config,
+	eventBusCfg eventbusconfig.Config,
+	validationCfg schemavalidationconfig.ValidationConfig,
+	obsCfg observabilityconfig.Config,
+	metricsRegistry *frameworkmetrics.Registry,
 	r router.Router,
 	log logger.Logger,
 ) *PublicAPIServer {
@@ -305,7 +342,7 @@ func NewPublicAPIServerWithConfig(
 	}
 	r.Use(middlewareFuncs...)
 
-	sseManager := createSSEManager(sseCfg, eventBusCfg, validationCfg.Kafka, effectiveLogger)
+	sseManager := createSSEManager(sseCfg, eventBusCfg, validationCfg.Kafka, metricsRegistry, effectiveLogger)
 	if sseManager != nil {
 		handler, err := sse.NewHandler(sse.HandlerConfig{
 			Manager:               sseManager,
@@ -425,6 +462,7 @@ func createSSEManager(
 	sseCfg sseconfig.Config,
 	eventBusCfg eventbusconfig.Config,
 	kafkaValidationCfg schemavalidationconfig.KafkaValidationConfig,
+	metricsRegistry *frameworkmetrics.Registry,
 	log logger.Logger,
 ) *sse.Manager {
 	if !sseCfg.Enabled {
@@ -440,6 +478,7 @@ func createSSEManager(
 			URL:              sseCfg.Redis.URL,
 			Prefix:           sseCfg.Redis.HistoryPrefix,
 			MaxSize:          int64(sseCfg.ReplayLimit),
+			MetricsRegistry:  metricsRegistry,
 			OperationTimeout: sseCfg.Redis.OperationTimeout,
 			MaxConns:         sseCfg.Redis.MaxConns,
 		})
@@ -463,6 +502,7 @@ func createSSEManager(
 		redisBus, err := sse.NewRedisBus(sse.RedisBusConfig{
 			URL:              sseCfg.Redis.URL,
 			Prefix:           sseCfg.Redis.PubSubPrefix,
+			MetricsRegistry:  metricsRegistry,
 			OperationTimeout: sseCfg.Redis.OperationTimeout,
 			MaxConns:         sseCfg.Redis.MaxConns,
 		})

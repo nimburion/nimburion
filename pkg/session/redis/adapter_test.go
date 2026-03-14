@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,8 +49,12 @@ func TestNewAdapter_EmptyURL(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for empty URL, got nil")
 	}
-	if err.Error() != "redis URL is required" {
-		t.Errorf("Expected 'redis URL is required' error, got: %v", err)
+	var constructorErr *ConstructorError
+	if !errors.As(err, &constructorErr) {
+		t.Fatalf("expected ConstructorError, got %T", err)
+	}
+	if !strings.Contains(err.Error(), "redis URL is required") {
+		t.Errorf("expected redis URL validation message, got: %v", err)
 	}
 }
 

@@ -28,7 +28,7 @@ type EventBusAdapter struct {
 // NewEventBusAdapter wraps a framework eventbus into SSE distributed bus.
 func NewEventBusAdapter(bus eventbus.EventBus, cfg EventBusConfig) (*EventBusAdapter, error) {
 	if bus == nil {
-		return nil, fmt.Errorf("eventbus adapter is required")
+		return nil, wrapConstructorError("NewEventBusAdapter", fmt.Errorf("eventbus adapter is required"))
 	}
 	prefix := strings.TrimSpace(cfg.TopicPrefix)
 	if prefix == "" {

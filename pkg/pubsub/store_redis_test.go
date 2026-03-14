@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -8,6 +9,10 @@ func TestNewRedisStore_RequiresURL(t *testing.T) {
 	_, err := NewRedisStore(RedisStoreConfig{}, nil)
 	if err == nil {
 		t.Fatal("expected error when redis URL is missing")
+	}
+	var constructorErr *ConstructorError
+	if !errors.As(err, &constructorErr) {
+		t.Fatalf("expected ConstructorError, got %T", err)
 	}
 }
 

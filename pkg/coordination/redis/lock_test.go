@@ -44,6 +44,10 @@ func TestNewRedisLockProvider_TypedValidationError(t *testing.T) {
 	if !errors.Is(err, coordination.ErrInvalidArgument) {
 		t.Fatalf("expected ErrInvalidArgument, got %v", err)
 	}
+	var constructorErr *ConstructorError
+	if !errors.As(err, &constructorErr) {
+		t.Fatalf("expected ConstructorError, got %T", err)
+	}
 	var appErr *coreerrors.AppError
 	if !errors.As(err, &appErr) {
 		t.Fatalf("expected AppError, got %T", err)

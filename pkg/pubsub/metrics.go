@@ -1,19 +1,49 @@
 package pubsub
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
-var pubsubRedisStoreOpsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-	Name: "nimburion_pubsub_redis_store_operations_total",
-	Help: "Total number of pubsub redis store operations.",
-}, []string{"operation", "status"})
+// Metrics captures Redis-backed pubsub replay store Prometheus collectors.
+type Metrics struct {
+	opsTotal *prometheus.CounterVec
+}
 
-func recordPubsubRedisStoreOp(operation string, err error) {
+// NewMetrics registers Redis pubsub store metrics in the provided framework registry.
+func NewMetrics(registry *frameworkmetrics.Registry) (*Metrics, error) {
+	if registry == nil {
+		return &Metrics{}, nil
+	}
+	opsTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "nimburion_pubsub_redis_store_operations_total",
+		Help: "Total number of pubsub redis store operations.",
+	}, []string{"operation", "status"})
+	if err := registry.Register(opsTotal); err != nil {
+		var alreadyRegistered prometheus.AlreadyRegisteredError
+		if !errors.As(err, &alreadyRegistered) {
+			return nil, wrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: %w", err))
+		}
+		existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.CounterVec)
+		if !ok {
+			return nil, wrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: existing collector has type %T", alreadyRegistered.ExistingCollector))
+		}
+		opsTotal = existing
+	}
+	return &Metrics{opsTotal: opsTotal}, nil
+}
+
+func (m *Metrics) record(operation string, err error) {
+	if m == nil || m.opsTotal == nil {
+		return
+	}
 	status := "ok"
 	if err != nil {
 		status = "error"
 	}
-	pubsubRedisStoreOpsTotal.WithLabelValues(operation, status).Inc()
+	m.opsTotal.WithLabelValues(operation, status).Inc()
 }

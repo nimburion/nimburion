@@ -13,6 +13,7 @@ import (
 
 	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 // Bus transports events across instances (distributed fan-out).
@@ -98,6 +99,7 @@ func (s *inMemoryBusSubscription) Close() error {
 // RedisBusConfig configures Redis pub/sub distributed bus.
 type RedisBusConfig struct {
 	URL              string
+	MetricsRegistry  *frameworkmetrics.Registry
 	Prefix           string
 	OperationTimeout time.Duration
 	MaxConns         int
@@ -106,6 +108,7 @@ type RedisBusConfig struct {
 // RedisBus uses Redis pub/sub for distributed fan-out.
 type RedisBus struct {
 	client    *rediskit.Client
+	metrics   *Metrics
 	prefix    string
 	opTimeout time.Duration
 }
@@ -119,17 +122,22 @@ func NewRedisBus(cfg RedisBusConfig) (*RedisBus, error) {
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 3 * time.Second
 	}
+	metrics, err := NewMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, wrapConstructorError("NewRedisBus", err)
+	}
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
 		MaxConns:         cfg.MaxConns,
 		OperationTimeout: cfg.OperationTimeout,
 	}, noopLogger{})
 	if err != nil {
-		return nil, err
+		return nil, wrapConstructorError("NewRedisBus", err)
 	}
 
 	return &RedisBus{
 		client:    client,
+		metrics:   metrics,
 		prefix:    prefix,
 		opTimeout: cfg.OperationTimeout,
 	}, nil
@@ -144,7 +152,7 @@ func (b *RedisBus) Publish(ctx context.Context, event Event) error {
 	cctx, cancel := context.WithTimeout(ctx, b.opTimeout)
 	defer cancel()
 	err = b.client.Raw().Publish(cctx, b.key(event.Channel), raw).Err()
-	recordSSERedisOp("bus", "publish", err)
+	b.metrics.record("bus", "publish", err)
 	return err
 }
 
@@ -152,7 +160,7 @@ func (b *RedisBus) Publish(ctx context.Context, event Event) error {
 func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(Event)) (Subscription, error) {
 	pubsub := b.client.Raw().Subscribe(ctx, b.key(channel))
 	if _, err := pubsub.Receive(ctx); err != nil {
-		recordSSERedisOp("bus", "subscribe", err)
+		b.metrics.record("bus", "subscribe", err)
 		if closeErr := pubsub.Close(); closeErr != nil {
 			return nil, errors.Join(err, closeErr)
 		}
@@ -183,7 +191,7 @@ func (b *RedisBus) Subscribe(ctx context.Context, channel string, handler func(E
 		}
 	}()
 
-	recordSSERedisOp("bus", "subscribe", nil)
+	b.metrics.record("bus", "subscribe", nil)
 	return &redisBusSubscription{
 		cancel: cancel,
 		pubsub: pubsub,

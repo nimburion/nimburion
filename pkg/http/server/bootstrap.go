@@ -87,8 +87,16 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	if opts.PublicRouter == nil {
 		return nil, errors.New("public router is required")
 	}
+	healthRegistry := opts.HealthRegistry
+	if healthRegistry == nil {
+		healthRegistry = health.NewRegistry()
+	}
+	metricsRegistry := opts.MetricsRegistry
+	if metricsRegistry == nil {
+		metricsRegistry = metrics.NewRegistry()
+	}
 
-	publicServer := NewPublicAPIServerWithConfig(
+	publicServer := newPublicAPIServerWithDependencies(
 		opts.Config.HTTP,
 		opts.Config.CORS,
 		opts.Config.SecurityHeaders,
@@ -100,6 +108,7 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 		opts.Config.EventBus,
 		opts.Config.Validation,
 		opts.Config.Observability,
+		metricsRegistry,
 		opts.PublicRouter,
 		opts.Logger,
 	)
@@ -117,15 +126,6 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	}
 	versionInfo := version.Current(resolveServiceName(opts))
 	registerVersionEndpoint(opts.ManagementRouter, versionInfo)
-
-	healthRegistry := opts.HealthRegistry
-	if healthRegistry == nil {
-		healthRegistry = health.NewRegistry()
-	}
-	metricsRegistry := opts.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = metrics.NewRegistry()
-	}
 
 	managementServer, err := NewManagementServer(
 		opts.Config.Management,

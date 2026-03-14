@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 // RedisStoreConfig configures Redis replay storage.
@@ -15,6 +16,7 @@ type RedisStoreConfig struct {
 	URL              string
 	Prefix           string
 	MaxSize          int64
+	MetricsRegistry  *frameworkmetrics.Registry
 	OperationTimeout time.Duration
 	MaxConns         int
 }
@@ -22,6 +24,7 @@ type RedisStoreConfig struct {
 // RedisStore persists replay history in Redis lists.
 type RedisStore struct {
 	client    *rediskit.Client
+	metrics   *Metrics
 	prefix    string
 	maxSize   int64
 	opTimeout time.Duration
@@ -39,18 +42,23 @@ func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
 	if cfg.OperationTimeout <= 0 {
 		cfg.OperationTimeout = 3 * time.Second
 	}
+	metrics, err := NewMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, wrapConstructorError("NewRedisStore", err)
+	}
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
 		MaxConns:         cfg.MaxConns,
 		OperationTimeout: cfg.OperationTimeout,
 	}, noopLogger{})
 	if err != nil {
-		recordSSERedisOp("store", "get_since", err)
-		return nil, err
+		metrics.record("store", "get_since", err)
+		return nil, wrapConstructorError("NewRedisStore", err)
 	}
 
 	return &RedisStore{
 		client:    client,
+		metrics:   metrics,
 		prefix:    prefix,
 		maxSize:   cfg.MaxSize,
 		opTimeout: cfg.OperationTimeout,
@@ -71,7 +79,7 @@ func (s *RedisStore) Append(ctx context.Context, event Event) error {
 	pipe.RPush(cctx, key, raw)
 	pipe.LTrim(cctx, key, -s.maxSize, -1)
 	_, err = pipe.Exec(cctx)
-	recordSSERedisOp("store", "append", err)
+	s.metrics.record("store", "append", err)
 	return err
 }
 
@@ -82,7 +90,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 
 	values, err := s.client.Raw().LRange(cctx, s.key(channel), 0, -1).Result()
 	if err != nil {
-		recordSSERedisOp("store", "get_since", err)
+		s.metrics.record("store", "get_since", err)
 		return nil, err
 	}
 	if limit <= 0 {
@@ -102,7 +110,7 @@ func (s *RedisStore) GetSince(ctx context.Context, channel, lastEventID string, 
 	if len(out) > limit {
 		out = out[len(out)-limit:]
 	}
-	recordSSERedisOp("store", "get_since", nil)
+	s.metrics.record("store", "get_since", nil)
 	return out, nil
 }
 

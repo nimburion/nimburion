@@ -9,6 +9,7 @@ import (
 
 	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 const defaultRedisStorePrefix = "pubsub:history"
@@ -18,6 +19,7 @@ type RedisStoreConfig struct {
 	URL              string
 	Prefix           string
 	MaxSize          int64
+	MetricsRegistry  *frameworkmetrics.Registry
 	OperationTimeout time.Duration
 	MaxConns         int
 }
@@ -25,6 +27,7 @@ type RedisStoreConfig struct {
 // RedisStore persists recent published messages in Redis lists by topic.
 type RedisStore struct {
 	client    *rediskit.Client
+	metrics   *Metrics
 	prefix    string
 	maxSize   int64
 	opTimeout time.Duration
@@ -45,6 +48,10 @@ func NewRedisStore(cfg RedisStoreConfig, log logger.Logger) (*RedisStore, error)
 	if log == nil {
 		log = noopLogger{}
 	}
+	metrics, err := NewMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, wrapConstructorError("NewRedisStore", err)
+	}
 
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
@@ -52,11 +59,12 @@ func NewRedisStore(cfg RedisStoreConfig, log logger.Logger) (*RedisStore, error)
 		OperationTimeout: cfg.OperationTimeout,
 	}, log)
 	if err != nil {
-		return nil, err
+		return nil, wrapConstructorError("NewRedisStore", err)
 	}
 
 	return &RedisStore{
 		client:    client,
+		metrics:   metrics,
 		prefix:    prefix,
 		maxSize:   cfg.MaxSize,
 		opTimeout: cfg.OperationTimeout,
@@ -80,10 +88,10 @@ func (s *RedisStore) Append(ctx context.Context, msg Message) error {
 	_, err = pipe.Exec(cctx)
 	if err != nil {
 		err = fmt.Errorf("append message to redis history: %w", err)
-		recordPubsubRedisStoreOp("append", err)
+		s.metrics.record("append", err)
 		return err
 	}
-	recordPubsubRedisStoreOp("append", nil)
+	s.metrics.record("append", nil)
 	return nil
 }
 
@@ -95,7 +103,7 @@ func (s *RedisStore) Recent(ctx context.Context, topic Topic, limit int) ([]Mess
 	values, err := s.client.Raw().LRange(cctx, s.key(topic), 0, -1).Result()
 	if err != nil {
 		err = fmt.Errorf("read redis history: %w", err)
-		recordPubsubRedisStoreOp("recent", err)
+		s.metrics.record("recent", err)
 		return nil, err
 	}
 	if limit <= 0 {
@@ -113,7 +121,7 @@ func (s *RedisStore) Recent(ctx context.Context, topic Topic, limit int) ([]Mess
 	if len(messages) > limit {
 		messages = messages[len(messages)-limit:]
 	}
-	recordPubsubRedisStoreOp("recent", nil)
+	s.metrics.record("recent", nil)
 	return messages, nil
 }
 

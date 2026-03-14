@@ -11,11 +11,13 @@ import (
 	"github.com/nimburion/nimburion/internal/rediskit"
 	"github.com/nimburion/nimburion/pkg/cache"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 // Adapter provides Redis cache connectivity with connection pooling
 type Adapter struct {
 	client  *rediskit.Client
+	metrics *Metrics
 	timeout time.Duration
 }
 
@@ -23,6 +25,7 @@ type Adapter struct {
 type Config struct {
 	URL              string
 	MaxConns         int
+	MetricsRegistry  *frameworkmetrics.Registry
 	OperationTimeout time.Duration
 }
 
@@ -33,11 +36,19 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 		timeout = 5 * time.Second
 		cfg.OperationTimeout = timeout
 	}
-	client, err := rediskit.NewClient(rediskit.Config(cfg), log)
+	metrics, err := NewMetrics(cfg.MetricsRegistry)
 	if err != nil {
-		return nil, err
+		return nil, wrapConstructorError("NewAdapter", err)
 	}
-	return &Adapter{client: client, timeout: timeout}, nil
+	client, err := rediskit.NewClient(rediskit.Config{
+		URL:              cfg.URL,
+		MaxConns:         cfg.MaxConns,
+		OperationTimeout: cfg.OperationTimeout,
+	}, log)
+	if err != nil {
+		return nil, wrapConstructorError("NewAdapter", err)
+	}
+	return &Adapter{client: client, metrics: metrics, timeout: timeout}, nil
 }
 
 // Client returns the underlying *redis.Client for direct access when needed
@@ -53,7 +64,7 @@ func (a *Adapter) Ping(ctx context.Context) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	err := a.client.Ping(opCtx)
-	recordCacheRedisOp("ping", err)
+	a.metrics.record("ping", err)
 	return err
 }
 
@@ -64,10 +75,10 @@ func (a *Adapter) Get(ctx context.Context, key string) (string, error) {
 	val, err := a.client.Raw().Get(opCtx, key).Result()
 	if err != nil {
 		mappedErr := a.mapGetError(key, err)
-		recordCacheRedisOp("get", mappedErr)
+		a.metrics.record("get", mappedErr)
 		return "", mappedErr
 	}
-	recordCacheRedisOp("get", nil)
+	a.metrics.record("get", nil)
 	return val, nil
 }
 
@@ -79,7 +90,7 @@ func (a *Adapter) Set(ctx context.Context, key string, value interface{}) error 
 	if err != nil {
 		err = fmt.Errorf("failed to set key %s: %w", key, err)
 	}
-	recordCacheRedisOp("set", err)
+	a.metrics.record("set", err)
 	return err
 }
 
@@ -91,14 +102,14 @@ func (a *Adapter) SetWithTTL(ctx context.Context, key string, value interface{},
 	if err != nil {
 		err = fmt.Errorf("failed to set key %s with TTL: %w", key, err)
 	}
-	recordCacheRedisOp("set_with_ttl", err)
+	a.metrics.record("set_with_ttl", err)
 	return err
 }
 
 // Delete removes a key from Redis
 func (a *Adapter) Delete(ctx context.Context, keys ...string) error {
 	if len(keys) == 0 {
-		recordCacheRedisOp("delete", nil)
+		a.metrics.record("delete", nil)
 		return nil
 	}
 
@@ -108,7 +119,7 @@ func (a *Adapter) Delete(ctx context.Context, keys ...string) error {
 	if err != nil {
 		err = fmt.Errorf("failed to delete keys: %w", err)
 	}
-	recordCacheRedisOp("delete", err)
+	a.metrics.record("delete", err)
 	return err
 }
 
@@ -120,7 +131,7 @@ func (a *Adapter) Incr(ctx context.Context, key string) (int64, error) {
 	if err != nil {
 		err = fmt.Errorf("failed to increment key %s: %w", key, err)
 	}
-	recordCacheRedisOp("incr", err)
+	a.metrics.record("incr", err)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +146,7 @@ func (a *Adapter) IncrBy(ctx context.Context, key string, value int64) (int64, e
 	if err != nil {
 		err = fmt.Errorf("failed to increment key %s by %d: %w", key, value, err)
 	}
-	recordCacheRedisOp("incr_by", err)
+	a.metrics.record("incr_by", err)
 	if err != nil {
 		return 0, err
 	}
@@ -150,7 +161,7 @@ func (a *Adapter) Decr(ctx context.Context, key string) (int64, error) {
 	if err != nil {
 		err = fmt.Errorf("failed to decrement key %s: %w", key, err)
 	}
-	recordCacheRedisOp("decr", err)
+	a.metrics.record("decr", err)
 	if err != nil {
 		return 0, err
 	}
@@ -165,7 +176,7 @@ func (a *Adapter) DecrBy(ctx context.Context, key string, value int64) (int64, e
 	if err != nil {
 		err = fmt.Errorf("failed to decrement key %s by %d: %w", key, value, err)
 	}
-	recordCacheRedisOp("decr_by", err)
+	a.metrics.record("decr_by", err)
 	if err != nil {
 		return 0, err
 	}
@@ -177,7 +188,7 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	opCtx, cancel := a.withOperationTimeout(ctx)
 	defer cancel()
 	err := a.client.HealthCheck(opCtx)
-	recordCacheRedisOp("healthcheck", err)
+	a.metrics.record("healthcheck", err)
 	return err
 }
 

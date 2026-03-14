@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -42,6 +43,11 @@ func TestInMemoryBus_PublishAndUnsubscribe(t *testing.T) {
 func TestNewRedisBus_ValidationAndConnectivity(t *testing.T) {
 	if _, err := NewRedisBus(RedisBusConfig{}); err == nil {
 		t.Fatal("expected error for empty redis url")
+	} else {
+		var constructorErr *ConstructorError
+		if !errors.As(err, &constructorErr) {
+			t.Fatalf("expected ConstructorError, got %T", err)
+		}
 	}
 
 	_, err := NewRedisBus(RedisBusConfig{URL: "redis://127.0.0.1:1/0"})
