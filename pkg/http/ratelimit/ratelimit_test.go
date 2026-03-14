@@ -554,7 +554,7 @@ func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		ctx := newMockContext(req)
-		ctx.Set(authentication.ClaimsKey, &auth.Claims{Subject: "user-1"})
+		authentication.SetClaims(ctx, &auth.Claims{Subject: "user-1"})
 		err := handler(ctx)
 		if err != nil {
 			t.Errorf("User1 request %d: expected no error, got %v", i, err)
@@ -564,7 +564,7 @@ func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	// User1 should be rate limited
 	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	ctx1 := newMockContext(req1)
-	ctx1.Set(authentication.ClaimsKey, &auth.Claims{Subject: "user-1"})
+	authentication.SetClaims(ctx1, &auth.Claims{Subject: "user-1"})
 	err := handler(ctx1)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -577,7 +577,7 @@ func TestRateLimit_PerUserRateLimiting(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		ctx := newMockContext(req)
-		ctx.Set(authentication.ClaimsKey, &auth.Claims{Subject: "user-2"})
+		authentication.SetClaims(ctx, &auth.Claims{Subject: "user-2"})
 		err := handler(ctx)
 		if err != nil {
 			t.Errorf("User2 request %d: expected no error, got %v", i, err)
@@ -682,8 +682,8 @@ func TestExtractUserIDFromContext(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			ctx := newMockContext(req)
 
-			if tt.claims != nil {
-				ctx.Set(authentication.ClaimsKey, tt.claims)
+			if claims, ok := tt.claims.(*auth.Claims); ok {
+				authentication.SetClaims(ctx, claims)
 			}
 
 			userID := ExtractUserIDFromContext(ctx)

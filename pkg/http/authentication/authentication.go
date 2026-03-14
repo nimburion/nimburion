@@ -10,9 +10,6 @@ import (
 	"github.com/nimburion/nimburion/pkg/tenant"
 )
 
-// ClaimsKey is the context key for storing JWT claims.
-const ClaimsKey = "claims"
-
 // Default header name constants for identity propagation.
 const (
 	DefaultTenantHeader  = "X-Tenant-ID"
@@ -46,18 +43,37 @@ func Authenticate(validator auth.JWTValidator) router.MiddlewareFunc {
 				})
 			}
 
-			c.Set(ClaimsKey, claims)
-			ctx := auth.WithClaims(c.Request().Context(), claims)
-			if strings.TrimSpace(claims.TenantID) != "" {
-				ctx = tenant.WithContext(ctx, tenant.Context{
-					Tenant:  tenant.Identity{ID: claims.TenantID},
-					Subject: claims.Subject,
-				})
-			}
-			c.SetRequest(c.Request().WithContext(ctx))
+			SetClaims(c, claims)
 			return next(c)
 		}
 	}
+}
+
+// SetClaims stores authenticated claims in request.Context.
+func SetClaims(c router.Context, claims *auth.Claims) {
+	if c == nil || claims == nil {
+		return
+	}
+
+	ctx := auth.WithClaims(c.Request().Context(), claims)
+	if strings.TrimSpace(claims.TenantID) != "" {
+		ctx = tenant.WithContext(ctx, tenant.Context{
+			Tenant:  tenant.Identity{ID: claims.TenantID},
+			Subject: claims.Subject,
+		})
+	}
+	c.SetRequest(c.Request().WithContext(ctx))
+}
+
+// ClaimsFromContext retrieves authenticated claims from request.Context.
+func ClaimsFromContext(c router.Context) (*auth.Claims, bool) {
+	if c == nil {
+		return nil, false
+	}
+	if claims := auth.GetClaims(c.Request().Context()); claims != nil {
+		return claims, true
+	}
+	return nil, false
 }
 
 // IdentityHeaderConfig defines header names used when propagating identity upstream.
@@ -89,17 +105,10 @@ func ForwardIdentityHeaders(cfg IdentityHeaderConfig) router.MiddlewareFunc {
 
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			claimsValue := c.Get(ClaimsKey)
-			if claimsValue == nil {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-					"error": "missing authentication",
-				})
-			}
-
-			claims, ok := claimsValue.(*auth.Claims)
+			claims, ok := ClaimsFromContext(c)
 			if !ok {
 				return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-					"error": "invalid authentication",
+					"error": "missing authentication",
 				})
 			}
 

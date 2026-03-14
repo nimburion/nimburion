@@ -535,12 +535,7 @@ func claimValue(claims *auth.Claims, key string) string {
 }
 
 func claimsFromContext(c router.Context) (*auth.Claims, bool) {
-	raw := c.Get(authentication.ClaimsKey)
-	if raw == nil {
-		return nil, false
-	}
-	claims, ok := raw.(*auth.Claims)
-	return claims, ok && claims != nil
+	return authentication.ClaimsFromContext(c)
 }
 
 func scopeHash(scopes []string) string {

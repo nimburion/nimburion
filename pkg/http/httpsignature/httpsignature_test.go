@@ -23,8 +23,8 @@ func TestMiddleware_ValidRequest(t *testing.T) {
 	r := nethttp.NewRouter()
 	r.Use(Middleware(cfg))
 	r.POST("/hook", func(c router.Context) error {
-		if got := c.Get(AuthKeyIDContextKey); got != "device-1" {
-			t.Fatalf("expected key id in context, got %v", got)
+		if got, ok := AuthenticatedKeyID(c.Request().Context()); !ok || got != "device-1" {
+			t.Fatalf("expected key id in request context, got %q ok=%v", got, ok)
 		}
 		return c.String(http.StatusOK, "ok")
 	})

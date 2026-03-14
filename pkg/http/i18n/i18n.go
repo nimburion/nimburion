@@ -11,14 +11,6 @@ import (
 	frameworki18n "github.com/nimburion/nimburion/pkg/i18n"
 )
 
-// Context key constants for i18n
-const (
-	// LocaleContextKey is the context key for storing locale
-	LocaleContextKey = "locale"
-	// TranslatorContextKey is the context key for storing translator
-	TranslatorContextKey = "translator"
-)
-
 // Config controls locale resolution and translation catalogs.
 type Config struct {
 	Enabled              bool
@@ -75,9 +67,6 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 			ctx = frameworki18n.WithLocale(ctx, locale)
 			ctx = frameworki18n.WithTranslator(ctx, translator)
 			c.SetRequest(c.Request().WithContext(ctx))
-
-			c.Set(LocaleContextKey, locale)
-			c.Set(TranslatorContextKey, translator)
 
 			c.Response().Header().Set("Content-Language", locale)
 			appendVary(c.Response().Header(), "Accept-Language")

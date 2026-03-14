@@ -141,7 +141,7 @@ func TestMiddleware_KeyRulesClaims(t *testing.T) {
 
 	r.Use(func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			c.Set(authentication.ClaimsKey, &auth.Claims{
+			authentication.SetClaims(c, &auth.Claims{
 				Subject:  c.Request().Header.Get("X-Sub"),
 				TenantID: c.Request().Header.Get("X-Tenant-ID"),
 				Scopes:   []string{c.Request().Header.Get("X-Scope")},

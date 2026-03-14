@@ -163,9 +163,6 @@ func getRequestIDFromContext(ctx context.Context) string {
 	if requestID, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
 		return requestID
 	}
-	if requestID, ok := ctx.Value("request_id").(string); ok {
-		return requestID
-	}
 
 	return ""
 }

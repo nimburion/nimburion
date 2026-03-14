@@ -65,13 +65,9 @@ func RequireAnyScope(requiredScopes ...string) router.MiddlewareFunc {
 func RequireScopesWithLogic(logic ScopeLogic, requiredScopes ...string) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			claimsValue := c.Get(authentication.ClaimsKey)
-			if claimsValue == nil {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "missing authentication"})
-			}
-			claims, ok := claimsValue.(*auth.Claims)
+			claims, ok := authentication.ClaimsFromContext(c)
 			if !ok {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "invalid authentication"})
+				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "missing authentication"})
 			}
 
 			hasPermission := policy.EvaluateScopes(subjectFromClaims(claims), policy.ScopeRequirement{
@@ -99,17 +95,29 @@ func ClaimsGuard(rules ...ClaimRule) router.MiddlewareFunc {
 	return ClaimsGuardWithMappings(nil, rules...)
 }
 
+// ClaimsGuardWithLogger enforces declarative claim rules against authenticated claims
+// and logs claim-evaluation failures through the provided logger when available.
+func ClaimsGuardWithLogger(log logger.Logger, rules ...ClaimRule) router.MiddlewareFunc {
+	return claimsGuard(log, nil, rules...)
+}
+
 // ClaimsGuardWithMappings enforces claim rules using canonical claim mappings.
 func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) router.MiddlewareFunc {
+	return claimsGuard(nil, mappings, rules...)
+}
+
+// ClaimsGuardWithMappingsAndLogger enforces claim rules using canonical claim mappings
+// and logs claim-evaluation failures through the provided logger when available.
+func ClaimsGuardWithMappingsAndLogger(log logger.Logger, mappings map[string][]string, rules ...ClaimRule) router.MiddlewareFunc {
+	return claimsGuard(log, mappings, rules...)
+}
+
+func claimsGuard(log logger.Logger, mappings map[string][]string, rules ...ClaimRule) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			claimsValue := c.Get(authentication.ClaimsKey)
-			if claimsValue == nil {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "missing authentication"})
-			}
-			claims, ok := claimsValue.(*auth.Claims)
+			claims, ok := authentication.ClaimsFromContext(c)
 			if !ok {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "invalid authentication"})
+				return c.JSON(http.StatusUnauthorized, map[string]interface{}{"error": "missing authentication"})
 			}
 			for _, rule := range rules {
 				if strings.TrimSpace(rule.Claim) == "" {
@@ -117,8 +125,8 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 				}
 				ok, err := policy.EvaluateClaimRule(c.Request().Context(), subjectFromClaimsWithMappings(claims, mappings), httpValueResolver{ctx: c}, rule)
 				if err != nil {
-					if requestLogger, loggerOK := c.Get("logger").(logger.Logger); loggerOK && requestLogger != nil {
-						requestLogger.WithContext(c.Request().Context()).Warn("claim evaluation failed", "error", err)
+					if log != nil {
+						log.WithContext(c.Request().Context()).Warn("claim evaluation failed", "error", err)
 					}
 					return c.JSON(http.StatusForbidden, map[string]interface{}{"error": "claim evaluation failed"})
 				}
@@ -136,11 +144,17 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 
 // ClaimsGuardFromConfig builds a claim guard from auth configuration.
 func ClaimsGuardFromConfig(authCfg authconfig.Config) router.MiddlewareFunc {
+	return ClaimsGuardFromConfigWithLogger(nil, authCfg)
+}
+
+// ClaimsGuardFromConfigWithLogger builds a claim guard from auth configuration
+// and logs claim-evaluation failures through the provided logger when available.
+func ClaimsGuardFromConfigWithLogger(log logger.Logger, authCfg authconfig.Config) router.MiddlewareFunc {
 	rules := ClaimRulesFromConfig(authCfg)
 	if len(rules) == 0 {
-		return ClaimsGuardWithMappings(authCfg.Claims.Mappings)
+		return ClaimsGuardWithMappingsAndLogger(log, authCfg.Claims.Mappings)
 	}
-	return ClaimsGuardWithMappings(authCfg.Claims.Mappings, rules...)
+	return ClaimsGuardWithMappingsAndLogger(log, authCfg.Claims.Mappings, rules...)
 }
 
 // ClaimRulesFromConfig converts auth config claim rules into policy claim rules.

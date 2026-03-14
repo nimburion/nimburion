@@ -66,7 +66,7 @@ func TestProperty6_ScopeBasedAuthorization(t *testing.T) {
 						Subject: "user123",
 						Scopes:  uniqueScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -125,7 +125,7 @@ func TestProperty6_ScopeBasedAuthorization(t *testing.T) {
 						Subject: "user123",
 						Scopes:  userScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -160,7 +160,7 @@ func TestProperty6_ScopeBasedAuthorization(t *testing.T) {
 						Subject: "user123",
 						Scopes:  []string{}, // Empty scopes
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -235,7 +235,7 @@ func TestProperty7_ScopeLogicANDOR(t *testing.T) {
 						Subject: "user123",
 						Scopes:  uniqueScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -293,7 +293,7 @@ func TestProperty7_ScopeLogicANDOR(t *testing.T) {
 						Subject: "user123",
 						Scopes:  userScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -331,7 +331,7 @@ func TestProperty7_ScopeLogicANDOR(t *testing.T) {
 						Subject: "user123",
 						Scopes:  userScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}
@@ -380,7 +380,7 @@ func TestProperty7_ScopeLogicANDOR(t *testing.T) {
 						Subject: "user123",
 						Scopes:  filteredUserScopes,
 					}
-					c.Set(authentication.ClaimsKey, claims)
+					authentication.SetClaims(c, claims)
 					return next(c)
 				}
 			}

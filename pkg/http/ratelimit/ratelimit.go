@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
@@ -214,13 +213,8 @@ func ExtractIPFromRequest(r *http.Request) string {
 //
 // Requirements: 34.4
 func ExtractUserIDFromContext(c router.Context) string {
-	claimsValue := c.Get(authentication.ClaimsKey)
-	if claimsValue == nil {
-		return ""
-	}
-
-	claims, ok := claimsValue.(*auth.Claims)
-	if !ok || claims == nil {
+	claims, ok := authentication.ClaimsFromContext(c)
+	if !ok {
 		return ""
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
+	middlewaretestutil "github.com/nimburion/nimburion/pkg/http/middleware/testutil"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 )
@@ -70,6 +71,36 @@ func TestClaimsGuard_EvaluationErrorIsSanitized(t *testing.T) {
 	}
 }
 
+func TestClaimsGuardWithLogger_LogsEvaluationError(t *testing.T) {
+	r := mustRouter(t)
+	log := &middlewaretestutil.MockLogger{}
+	r.Use(withClaims(&auth.Claims{Subject: "user123"}))
+	r.GET("/test", okHandler, ClaimsGuardWithLogger(log, ClaimRule{
+		Claim:    "tenant_id",
+		Operator: ClaimOperatorEquals,
+		Source:   ClaimValueSourceRoute,
+	}))
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+	if len(log.Logs) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(log.Logs))
+	}
+	entry := log.Logs[0]
+	if entry.Level != "warn" {
+		t.Fatalf("expected warn log level, got %q", entry.Level)
+	}
+	if entry.Msg != "claim evaluation failed" {
+		t.Fatalf("expected claim evaluation failure log message, got %q", entry.Msg)
+	}
+	if _, ok := entry.Fields["error"]; !ok {
+		t.Fatalf("expected error field in log entry, got %+v", entry.Fields)
+	}
+}
+
 func contains(s, sub string) bool {
 	return strings.Contains(s, sub)
 }
@@ -82,7 +113,7 @@ func mustRouter(t *testing.T) router.Router {
 func withClaims(claims *auth.Claims) router.MiddlewareFunc {
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			c.Set(authentication.ClaimsKey, claims)
+			authentication.SetClaims(c, claims)
 			return next(c)
 		}
 	}

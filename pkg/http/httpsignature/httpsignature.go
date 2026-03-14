@@ -20,10 +20,24 @@ import (
 	"github.com/nimburion/nimburion/pkg/http/router"
 )
 
-const (
-	// AuthKeyIDContextKey is the context key where authenticated key ID is stored.
-	AuthKeyIDContextKey = "http_signature_key_id"
-)
+type authenticatedKeyIDContextKey struct{}
+
+// WithAuthenticatedKeyID stores the authenticated key ID in request context.
+func WithAuthenticatedKeyID(ctx context.Context, keyID string) context.Context {
+	return context.WithValue(ctx, authenticatedKeyIDContextKey{}, strings.TrimSpace(keyID))
+}
+
+// AuthenticatedKeyID retrieves the authenticated key ID from request context.
+func AuthenticatedKeyID(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	keyID, ok := ctx.Value(authenticatedKeyIDContextKey{}).(string)
+	if !ok || strings.TrimSpace(keyID) == "" {
+		return "", false
+	}
+	return keyID, true
+}
 
 // KeyProvider resolves shared secrets by key ID.
 type KeyProvider interface {
@@ -184,7 +198,7 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 				}
 			}
 
-			c.Set(AuthKeyIDContextKey, keyID)
+			c.SetRequest(req.WithContext(WithAuthenticatedKeyID(req.Context(), keyID)))
 			return next(c)
 		}
 	}

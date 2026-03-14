@@ -51,9 +51,6 @@ func TestAuthenticate(t *testing.T) {
 			r.Use(Authenticate(validator))
 			r.GET("/test", func(c router.Context) error {
 				if tt.expectClaims {
-					if c.Get(ClaimsKey) == nil {
-						t.Fatal("expected claims in context")
-					}
 					if auth.GetClaims(c.Request().Context()) == nil {
 						t.Fatal("expected claims in request context")
 					}

@@ -12,10 +12,7 @@ import (
 	rolesession "github.com/nimburion/nimburion/pkg/session"
 )
 
-const (
-	// ContextKey stores the active request session.
-	ContextKey = "session"
-)
+const sessionContextKey = "session"
 
 // Config controls session middleware behavior.
 type Config struct {
@@ -100,7 +97,7 @@ func Middleware(cfg Config) router.MiddlewareFunc {
 				s.dirty = true
 			}
 
-			c.Set(ContextKey, s)
+			setRequestSession(c, s)
 
 			if s.id != "" && cfg.IdleTimeout > 0 {
 				if err := cfg.Store.Touch(c.Request().Context(), s.id, cfg.IdleTimeout); err != nil {
@@ -126,12 +123,19 @@ func FromContext(c router.Context) (*Session, bool) {
 	if c == nil {
 		return nil, false
 	}
-	v := c.Get(ContextKey)
+	v := c.Get(sessionContextKey)
 	if v == nil {
 		return nil, false
 	}
 	s, ok := v.(*Session)
 	return s, ok
+}
+
+func setRequestSession(c router.Context, s *Session) {
+	if c == nil || s == nil {
+		return
+	}
+	c.Set(sessionContextKey, s)
 }
 
 // ID returns the current session identifier.

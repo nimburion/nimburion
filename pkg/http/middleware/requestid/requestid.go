@@ -29,9 +29,6 @@ func RequestID() router.MiddlewareFunc {
 				requestID = generateRequestID()
 			}
 
-			// Store request ID in context for use by other middleware and handlers
-			c.Set(string(middleware.RequestIDKey), requestID)
-
 			// Add request ID to response headers
 			c.Response().Header().Set(RequestIDHeader, requestID)
 
