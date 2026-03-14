@@ -79,11 +79,7 @@ func (b *InMemoryBus) Publish(ctx context.Context, msg Message) error {
 
 	for _, sub := range snapshot {
 		msgCopy := cloneMessage(msg)
-		select {
-		case sub.ch <- msgCopy:
-		default:
-			// non-blocking drop for slow subscribers
-		}
+		sub.trySend(msgCopy)
 	}
 
 	if b.store != nil {
@@ -164,6 +160,22 @@ func (s *inMemorySubscriber) close() error {
 	s.closed = true
 	close(s.ch)
 	return nil
+}
+
+func (s *inMemorySubscriber) trySend(msg Message) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+
+	select {
+	case s.ch <- msg:
+		return true
+	default:
+		// non-blocking drop for slow subscribers
+		return false
+	}
 }
 
 func cloneMessage(msg Message) Message {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type storeStub struct {
@@ -61,5 +62,35 @@ func TestInMemoryBus_CloseClosesStore(t *testing.T) {
 	}
 	if !store.closed {
 		t.Fatal("expected store to be closed")
+	}
+}
+
+func TestInMemoryBus_CloseWhilePublishingDoesNotPanic(t *testing.T) {
+	bus := NewInMemoryBus(InMemoryConfig{SubscriberBuffer: 1})
+	sub, err := bus.Subscribe("orders")
+	if err != nil {
+		t.Fatalf("Subscribe() error = %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 1000; i++ {
+			_ = bus.Publish(context.Background(), Message{Topic: "orders", Payload: []byte("ok")})
+		}
+	}()
+
+	time.Sleep(5 * time.Millisecond)
+	if err := bus.Unsubscribe("orders", sub); err != nil && !errors.Is(err, ErrBusClosed) {
+		t.Fatalf("Unsubscribe() error = %v", err)
+	}
+	if err := bus.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected publish goroutine to complete")
 	}
 }
