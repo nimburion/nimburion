@@ -124,6 +124,24 @@ func TestCreated(t *testing.T) {
 	}
 }
 
+func TestNoContent(t *testing.T) {
+	req := httptest.NewRequest(http.MethodDelete, "/test", nil)
+	mockCtx := &mockContext{request: req, response: newMockResponseWriter()}
+
+	if err := NoContent(mockCtx); err != nil {
+		t.Fatalf("NoContent() error = %v", err)
+	}
+	if mockCtx.response.Status() != http.StatusNoContent {
+		t.Fatalf("NoContent() status code = %d, want %d", mockCtx.response.Status(), http.StatusNoContent)
+	}
+	if !mockCtx.response.Written() {
+		t.Fatal("NoContent() should mark response as written")
+	}
+	if mockCtx.responseBody != nil {
+		t.Fatalf("NoContent() should not write a response body, got %#v", mockCtx.responseBody)
+	}
+}
+
 func TestMapError(t *testing.T) {
 	tests := []struct {
 		name, wantErrorCode, wantMessage, wantRequestID string

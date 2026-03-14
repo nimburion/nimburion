@@ -47,7 +47,8 @@ func Created(c router.Context, data interface{}) error {
 
 // NoContent sends a successful response with HTTP 204 No Content.
 func NoContent(c router.Context) error {
-	return c.JSON(http.StatusNoContent, nil)
+	c.Response().WriteHeader(http.StatusNoContent)
+	return nil
 }
 
 // Error sends an error response using the shared application error mapping.
