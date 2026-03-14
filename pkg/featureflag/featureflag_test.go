@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestRegistryEvalBoolUsesSafeDefaultOnProviderError(t *testing.T) {
@@ -138,5 +139,37 @@ func TestRegistryEmitsEvaluationEvents(t *testing.T) {
 	}
 	if last.Outcome != "type_mismatch" {
 		t.Fatalf("event outcome = %s, want type_mismatch", last.Outcome)
+	}
+}
+
+func TestRegistryObserverCanReenterDuringRegistration(t *testing.T) {
+	registry := NewRegistry()
+	done := make(chan struct{})
+	registry.AddObserver(ObserverFunc(func(_ context.Context, event Event) {
+		if event.Type != EventTypeDefinitionAdded {
+			return
+		}
+		_ = registry.Snapshot()
+		close(done)
+	}))
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- registry.RegisterBool(BoolDefinition{Key: "new-ui", Default: true})
+	}()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("register bool: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected registration to complete without deadlock")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected observer to run during registration")
 	}
 }

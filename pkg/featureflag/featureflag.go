@@ -188,39 +188,45 @@ func (r *Registry) SetProvider(provider Provider) {
 // RegisterBool registers one boolean flag definition.
 func (r *Registry) RegisterBool(def BoolDefinition) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if err := r.validateRegistration(def.Key, KindBool); err != nil {
+		r.mu.Unlock()
 		return err
 	}
 	r.boolDefinitions[def.Key] = def
-	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindBool, Outcome: "registered"})
+	observers := append([]Observer(nil), r.observers...)
+	r.mu.Unlock()
+
+	emitObservers(context.Background(), observers, Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindBool, Outcome: "registered"})
 	return nil
 }
 
 // RegisterString registers one string flag definition.
 func (r *Registry) RegisterString(def StringDefinition) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if err := r.validateRegistration(def.Key, KindString); err != nil {
+		r.mu.Unlock()
 		return err
 	}
 	r.stringDefinitions[def.Key] = def
-	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindString, Outcome: "registered"})
+	observers := append([]Observer(nil), r.observers...)
+	r.mu.Unlock()
+
+	emitObservers(context.Background(), observers, Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindString, Outcome: "registered"})
 	return nil
 }
 
 // RegisterInt registers one integer flag definition.
 func (r *Registry) RegisterInt(def IntDefinition) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if err := r.validateRegistration(def.Key, KindInt); err != nil {
+		r.mu.Unlock()
 		return err
 	}
 	r.intDefinitions[def.Key] = def
-	r.emitLocked(context.Background(), Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindInt, Outcome: "registered"})
+	observers := append([]Observer(nil), r.observers...)
+	r.mu.Unlock()
+
+	emitObservers(context.Background(), observers, Event{Type: EventTypeDefinitionAdded, Key: def.Key, Kind: KindInt, Outcome: "registered"})
 	return nil
 }
 
@@ -427,13 +433,11 @@ func (r *Registry) emit(ctx context.Context, event Event) {
 	r.mu.RLock()
 	observers := append([]Observer(nil), r.observers...)
 	r.mu.RUnlock()
-	for _, observer := range observers {
-		observer.OnFeatureFlagEvent(ctx, event)
-	}
+	emitObservers(ctx, observers, event)
 }
 
-func (r *Registry) emitLocked(ctx context.Context, event Event) {
-	for _, observer := range r.observers {
+func emitObservers(ctx context.Context, observers []Observer, event Event) {
+	for _, observer := range observers {
 		observer.OnFeatureFlagEvent(ctx, event)
 	}
 }
