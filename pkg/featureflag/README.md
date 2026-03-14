@@ -27,3 +27,17 @@
 ## Status
 
 Target-state package introduced by Wave 5 Task `T5.6`.
+
+
+## Breaking Change Note
+
+`RegisterBool`, `RegisterString`, and `RegisterInt` return `error`.
+Because Go allows ignored return values, existing call sites that do not check
+these errors may silently skip failed registrations.
+
+### Migration
+
+- Prefer explicit error handling when registering flags.
+- Use `MustRegisterBool`, `MustRegisterString`, and `MustRegisterInt` only
+  during bootstrap/startup paths where registration failures are programmer
+  errors and should panic fast.
