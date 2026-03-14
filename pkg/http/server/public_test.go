@@ -176,6 +176,38 @@ func TestPublicAPIServer_RequestSizeMiddleware(t *testing.T) {
 	}
 }
 
+func TestNewPublicAPIServer_LoadsTLSConfigFromFiles(t *testing.T) {
+	dir := t.TempDir()
+	_, serverCert, serverKey, _, _ := writeTestCertificates(t, dir)
+
+	cfg := serverconfig.HTTPConfig{
+		Port:         8083,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+		RequireTLS:   true,
+		TLSCertFile:  serverCert,
+		TLSKeyFile:   serverKey,
+	}
+
+	r := nethttp.NewRouter()
+	log, err := logger.NewZapLogger(logger.Config{
+		Level:  logger.InfoLevel,
+		Format: logger.JSONFormat,
+	})
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	server := NewPublicAPIServer(cfg, r, log)
+	if server.startErr != nil {
+		t.Fatalf("expected TLS config to load, got %v", server.startErr)
+	}
+	if server.config.TLSConfig == nil {
+		t.Fatal("expected server TLS config to be initialized")
+	}
+}
+
 func TestPublicAPIServer_StartAndShutdown(t *testing.T) {
 	// Given: HTTP configuration with a unique port
 	cfg := serverconfig.HTTPConfig{

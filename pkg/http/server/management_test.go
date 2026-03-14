@@ -691,6 +691,21 @@ func TestManagementServer_AllowlistCIDRs(t *testing.T) {
 	})
 }
 
+func TestNewManagementServer_InvalidAllowlistCIDRReturnsError(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:           9092,
+		ReadTimeout:    time.Second,
+		WriteTimeout:   time.Second,
+		AllowlistCIDRs: []string{"not-a-cidr"},
+	}
+	r := nethttp.NewRouter()
+	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+
+	if _, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil); err == nil {
+		t.Fatal("expected invalid allowlist CIDR to return an error")
+	}
+}
+
 func TestManagementServer_EmptyAllowlistDoesNotFilter(t *testing.T) {
 	cfg := serverconfig.ManagementConfig{Port: 9093, ReadTimeout: time.Second, WriteTimeout: time.Second}
 	r := nethttp.NewRouter()

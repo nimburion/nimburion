@@ -8,6 +8,25 @@ import (
 )
 
 func TestLoadTLSConfig(t *testing.T) {
+	t.Run("server tls only", func(t *testing.T) {
+		dir := t.TempDir()
+		_, serverCert, serverKey, _, _ := writeTestCertificates(t, dir)
+
+		cfg, err := LoadServerTLSConfig(serverCert, serverKey)
+		if err != nil {
+			t.Fatalf("expected valid server TLS config, got error: %v", err)
+		}
+		if cfg == nil {
+			t.Fatal("expected non-nil TLS config")
+		}
+		if cfg.ClientAuth != tls.NoClientCert {
+			t.Fatalf("expected no client cert requirement, got %v", cfg.ClientAuth)
+		}
+		if len(cfg.Certificates) != 1 {
+			t.Fatalf("expected one server certificate, got %d", len(cfg.Certificates))
+		}
+	})
+
 	t.Run("missing files", func(t *testing.T) {
 		_, err := LoadTLSConfig("/missing/server.crt", "/missing/server.key", "/missing/ca.crt")
 		if err == nil {

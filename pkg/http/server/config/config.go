@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ type HTTPConfig struct {
 	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
 	MaxRequestSize int64         `mapstructure:"max_request_size"`
 	RequireTLS     bool          `mapstructure:"require_tls"`
+	TLSCertFile    string        `mapstructure:"tls_cert_file"`
+	TLSKeyFile     string        `mapstructure:"tls_key_file"`
 }
 
 // ManagementConfig configures the management server.
@@ -71,6 +74,8 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 		"http.idle_timeout", "HTTP_IDLE_TIMEOUT",
 		"http.max_request_size", "HTTP_MAX_REQUEST_SIZE",
 		"http.require_tls", "HTTP_REQUIRE_TLS",
+		"http.tls_cert_file", "HTTP_TLS_CERT_FILE",
+		"http.tls_key_file", "HTTP_TLS_KEY_FILE",
 		"management.enabled", "MGMT_ENABLED",
 		"management.port", "MGMT_PORT",
 		"management.read_timeout", "MGMT_READ_TIMEOUT",
@@ -89,6 +94,25 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 func (e Extension) Validate() error {
 	if e.HTTP.Port <= 0 || e.HTTP.Port > 65535 {
 		return validationErrorf("validation.http.port.invalid", "invalid http.port: %d (must be between 1 and 65535)", e.HTTP.Port)
+	}
+	if _, err := ParseAllowlistCIDRs(e.Management.AllowlistCIDRs); err != nil {
+		return validationErrorf("validation.management.allowlist_cidrs.invalid", "invalid management.allowlist_cidrs: %v", err)
+	}
+	if strings.TrimSpace(e.HTTP.TLSCertFile) != "" || strings.TrimSpace(e.HTTP.TLSKeyFile) != "" {
+		if strings.TrimSpace(e.HTTP.TLSCertFile) == "" {
+			return validationError("validation.http.tls_cert_file.required", "http.tls_cert_file is required when http.tls_key_file is set")
+		}
+		if strings.TrimSpace(e.HTTP.TLSKeyFile) == "" {
+			return validationError("validation.http.tls_key_file.required", "http.tls_key_file is required when http.tls_cert_file is set")
+		}
+	}
+	if e.HTTP.RequireTLS {
+		if strings.TrimSpace(e.HTTP.TLSCertFile) == "" {
+			return validationError("validation.http.tls_cert_file.required", "http.tls_cert_file is required when http.require_tls is true")
+		}
+		if strings.TrimSpace(e.HTTP.TLSKeyFile) == "" {
+			return validationError("validation.http.tls_key_file.required", "http.tls_key_file is required when http.require_tls is true")
+		}
 	}
 	if e.Management.MTLSEnabled {
 		if strings.TrimSpace(e.Management.TLSCertFile) == "" {
@@ -137,4 +161,26 @@ func prefixedEnv(prefix, suffix string) string {
 		return suffix
 	}
 	return strings.TrimSpace(prefix) + "_" + suffix
+}
+
+// ParseAllowlistCIDRs validates and parses management allowlist CIDRs.
+func ParseAllowlistCIDRs(cidrs []string) ([]*net.IPNet, error) {
+	if len(cidrs) == 0 {
+		return nil, nil
+	}
+
+	parsed := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		trimmed := strings.TrimSpace(cidr)
+		if trimmed == "" {
+			return nil, fmt.Errorf("empty CIDR is not allowed")
+		}
+		_, network, err := net.ParseCIDR(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("parse %q: %w", trimmed, err)
+		}
+		parsed = append(parsed, network)
+	}
+
+	return parsed, nil
 }

@@ -75,6 +75,10 @@ func NewManagementServer(
 	if !cfg.AuthEnabled {
 		log.Warn("management server is running without authentication: /metrics, /swagger, and /ready are publicly accessible")
 	}
+	allowlistCIDRs, err := serverconfig.ParseAllowlistCIDRs(cfg.AllowlistCIDRs)
+	if err != nil {
+		return nil, fmt.Errorf("invalid management allowlist: %w", err)
+	}
 
 	// Create server config from management config
 	serverCfg := Config{
@@ -103,14 +107,14 @@ func NewManagementServer(
 	}
 
 	// Register management endpoints
-	mgmtServer.registerEndpoints(r, cfg.AuthEnabled, cfg.AllowlistCIDRs, validator)
+	mgmtServer.registerEndpoints(r, cfg.AuthEnabled, allowlistCIDRs, validator)
 
 	return mgmtServer, nil
 }
 
 // registerEndpoints registers the standard management endpoints.
 // Requirements: 30.1, 30.2, 30.3, 13.1, 13.7
-func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, allowlistCIDRs []string, validator auth.JWTValidator) {
+func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, allowlistCIDRs []*net.IPNet, validator auth.JWTValidator) {
 	// Health endpoint - liveness check (always returns 200)
 	// Requirements: 30.1, 30.3
 	r.GET("/health", s.handleHealth)
@@ -131,19 +135,7 @@ func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, 
 	r.GET("/swagger/", s.handleSwagger, swaggerMiddleware...)
 }
 
-func managementIPAllowlist(cidrs []string) []router.MiddlewareFunc {
-	if len(cidrs) == 0 {
-		return nil
-	}
-
-	allowed := make([]*net.IPNet, 0, len(cidrs))
-	for _, cidr := range cidrs {
-		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
-		if err != nil {
-			continue
-		}
-		allowed = append(allowed, network)
-	}
+func managementIPAllowlist(allowed []*net.IPNet) []router.MiddlewareFunc {
 	if len(allowed) == 0 {
 		return nil
 	}

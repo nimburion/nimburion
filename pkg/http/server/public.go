@@ -49,6 +49,7 @@ type PublicAPIServer struct {
 	*Server
 	sessionStore rolesession.Store
 	sseManager   *sse.Manager
+	startErr     error
 }
 
 // NewPublicAPIServer creates a new PublicAPIServer instance.
@@ -332,6 +333,13 @@ func NewPublicAPIServerWithConfig(
 		IdleTimeout:  cfg.IdleTimeout,
 		RequireTLS:   cfg.RequireTLS,
 	}
+	var startErr error
+	if strings.TrimSpace(cfg.TLSCertFile) != "" || strings.TrimSpace(cfg.TLSKeyFile) != "" {
+		serverCfg.TLSConfig, startErr = LoadServerTLSConfig(cfg.TLSCertFile, cfg.TLSKeyFile)
+		if startErr != nil {
+			effectiveLogger.Error("failed to initialize public TLS config", "error", startErr)
+		}
+	}
 
 	// Create base server
 	baseServer := NewServer(serverCfg, r, effectiveLogger)
@@ -340,12 +348,16 @@ func NewPublicAPIServerWithConfig(
 		Server:       baseServer,
 		sessionStore: sessionStore,
 		sseManager:   sseManager,
+		startErr:     startErr,
 	}
 }
 
 // Start starts the public API server.
 // It delegates to the underlying Server's Start method.
 func (s *PublicAPIServer) Start(ctx context.Context) error {
+	if s.startErr != nil {
+		return s.startErr
+	}
 	return s.Server.Start(ctx)
 }
 

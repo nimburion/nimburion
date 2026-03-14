@@ -103,6 +103,9 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 		opts.PublicRouter,
 		opts.Logger,
 	)
+	if publicServer.startErr != nil {
+		return nil, fmt.Errorf("create public server: %w", publicServer.startErr)
+	}
 
 	servers := &HTTPServers{Public: publicServer}
 	if !opts.Config.Management.Enabled {
