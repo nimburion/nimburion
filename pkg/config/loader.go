@@ -27,6 +27,7 @@ type ViperLoader struct {
 	configFile             string
 	envPrefix              string
 	appNameDefault         string
+	extensions             []interface{}
 	validationRequirements ValidationRequirements
 }
 
@@ -49,6 +50,16 @@ func (l *ViperLoader) WithAppNameDefault(appName string) *ViperLoader {
 	return l
 }
 
+// WithExtensions registers application config extensions for defaults, env binding,
+// strict runtime validation, and unmarshaling.
+func (l *ViperLoader) WithExtensions(extensions ...interface{}) *ViperLoader {
+	if l == nil {
+		return l
+	}
+	l.extensions = append(l.extensions, extensions...)
+	return l
+}
+
 // WithValidationRequirements enables feature-aware validation rules.
 func (l *ViperLoader) WithValidationRequirements(req ValidationRequirements) *ViperLoader {
 	if l == nil {
@@ -68,7 +79,7 @@ func (l *ViperLoader) Load() (*Config, error) {
 
 	// Read config file if provided
 	if l.configFile != "" {
-		if err := validateRuntimeConfigFile(l.configFile); err != nil {
+		if err := validateRuntimeConfigFile(l.configFile, l.extensions...); err != nil {
 			return nil, fmt.Errorf("failed to validate config file %s: %w", l.configFile, err)
 		}
 		v.SetConfigFile(l.configFile)
@@ -88,7 +99,7 @@ func (l *ViperLoader) Load() (*Config, error) {
 
 	// Unmarshal into a new config struct
 	var cfg Config
-	if err := validateRuntimeSettings(v.AllSettings()); err != nil {
+	if err := validateRuntimeSettings(v.AllSettings(), l.extensions...); err != nil {
 		return nil, fmt.Errorf("invalid config input: %w", err)
 	}
 	if err := v.Unmarshal(&cfg); err != nil {
@@ -99,6 +110,16 @@ func (l *ViperLoader) Load() (*Config, error) {
 	if err := l.Validate(&cfg); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
+	for _, extension := range l.extensions {
+		if err := v.Unmarshal(extension); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal extension config: %w", err)
+		}
+		if validator, ok := extension.(extensionValidator); ok {
+			if err := validator.Validate(); err != nil {
+				return nil, fmt.Errorf("extension config validation failed: %w", err)
+			}
+		}
+	}
 
 	return &cfg, nil
 }
@@ -106,6 +127,11 @@ func (l *ViperLoader) Load() (*Config, error) {
 // bindEnvVars explicitly binds environment variables for nested structs.
 func (l *ViperLoader) bindEnvVars(v *viper.Viper) error {
 	for _, extension := range builtInConfigExtensions() {
+		if err := bindConfigEnv(v, l.envPrefix, extension); err != nil {
+			return err
+		}
+	}
+	for _, extension := range l.extensions {
 		if err := bindConfigEnv(v, l.envPrefix, extension); err != nil {
 			return err
 		}
@@ -133,6 +159,11 @@ func (l *ViperLoader) defaultAppName(fallback string) string {
 // setDefaults sets default values in Viper from the default config
 func (l *ViperLoader) setDefaults(v *viper.Viper, cfg *Config) {
 	for _, extension := range builtInConfigExtensions() {
+		if err := applyConfigDefaults(v, extension); err != nil {
+			panic(err)
+		}
+	}
+	for _, extension := range l.extensions {
 		if err := applyConfigDefaults(v, extension); err != nil {
 			panic(err)
 		}

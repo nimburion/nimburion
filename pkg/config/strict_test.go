@@ -12,6 +12,12 @@ type strictSecretsExtension struct {
 	} `mapstructure:"portal"`
 }
 
+type strictAppExtension struct {
+	MyApp struct {
+		FeatureX bool `mapstructure:"feature_x"`
+	} `mapstructure:"myapp"`
+}
+
 func TestViperLoader_LoadRejectsUnknownTopLevelKey(t *testing.T) {
 	clearAppEnv()
 	defer clearAppEnv()
@@ -157,6 +163,57 @@ func TestConfigProvider_LoadWithSecretsAllowsExtensionSections(t *testing.T) {
 		ext strictSecretsExtension
 	)
 	_, err := NewConfigProvider(configFile, "APP").LoadWithSecrets(&cfg, &ext)
+	if err != nil {
+		t.Fatalf("expected extension secrets to load, got %v", err)
+	}
+	if ext.Portal.Token != "top-secret" {
+		t.Fatalf("expected extension secret to be unmarshaled, got %q", ext.Portal.Token)
+	}
+}
+
+func TestViperLoader_LoadAllowsExtensionSections(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	configFile := createTempYAMLFile(t, map[string]interface{}{
+		"myapp": map[string]interface{}{
+			"feature_x": true,
+		},
+	})
+	defer os.Remove(configFile)
+
+	var ext strictAppExtension
+	_, err := NewViperLoader(configFile, "APP").WithExtensions(&ext).Load()
+	if err != nil {
+		t.Fatalf("expected extension config to load, got %v", err)
+	}
+	if !ext.MyApp.FeatureX {
+		t.Fatal("expected extension config to be unmarshaled")
+	}
+}
+
+func TestViperLoader_LoadWithSecretsAllowsExtensionSections(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	configFile := createTempYAMLFile(t, map[string]interface{}{
+		"http": map[string]interface{}{
+			"port": 8081,
+		},
+	})
+	defer os.Remove(configFile)
+
+	secretsFile := createTempYAMLFile(t, map[string]interface{}{
+		"portal": map[string]interface{}{
+			"token": "top-secret",
+		},
+	})
+	defer os.Remove(secretsFile)
+
+	t.Setenv("APP_SECRETS_FILE", secretsFile)
+
+	var ext strictSecretsExtension
+	_, _, err := NewViperLoader(configFile, "APP").WithExtensions(&ext).LoadWithSecrets()
 	if err != nil {
 		t.Fatalf("expected extension secrets to load, got %v", err)
 	}

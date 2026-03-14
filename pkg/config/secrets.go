@@ -35,7 +35,7 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 
 	// Read main config file if provided
 	if l.configFile != "" {
-		if err := validateRuntimeConfigFile(l.configFile); err != nil {
+		if err := validateRuntimeConfigFile(l.configFile, l.extensions...); err != nil {
 			return nil, nil, fmt.Errorf("failed to validate config file %s: %w", l.configFile, err)
 		}
 		v.SetConfigFile(l.configFile)
@@ -51,7 +51,7 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 	}
 	var secrets *Config
 	if secretsFile != "" {
-		if err := validateRuntimeConfigFile(secretsFile); err != nil {
+		if err := validateRuntimeConfigFile(secretsFile, l.extensions...); err != nil {
 			return nil, nil, fmt.Errorf("failed to validate secrets file %s: %w", secretsFile, err)
 		}
 		secretsViper := viper.New()
@@ -59,7 +59,7 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 		if err := secretsViper.ReadInConfig(); err != nil {
 			return nil, nil, fmt.Errorf("failed to read secrets file %s: %w", secretsFile, err)
 		}
-		if err := validateRuntimeSettings(secretsViper.AllSettings()); err != nil {
+		if err := validateRuntimeSettings(secretsViper.AllSettings(), l.extensions...); err != nil {
 			return nil, nil, fmt.Errorf("invalid secrets input: %w", err)
 		}
 		var secretsCfg Config
@@ -81,7 +81,7 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 
 	// Unmarshal final config
 	var cfg Config
-	if err := validateRuntimeSettings(v.AllSettings()); err != nil {
+	if err := validateRuntimeSettings(v.AllSettings(), l.extensions...); err != nil {
 		return nil, nil, fmt.Errorf("invalid config input: %w", err)
 	}
 	if err := v.Unmarshal(&cfg); err != nil {
@@ -91,6 +91,16 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 	// Validate configuration
 	if err := l.Validate(&cfg); err != nil {
 		return nil, nil, fmt.Errorf("config validation failed: %w", err)
+	}
+	for _, extension := range l.extensions {
+		if err := v.Unmarshal(extension); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal extension config: %w", err)
+		}
+		if validator, ok := extension.(extensionValidator); ok {
+			if err := validator.Validate(); err != nil {
+				return nil, nil, fmt.Errorf("extension config validation failed: %w", err)
+			}
+		}
 	}
 
 	return &cfg, secrets, nil
