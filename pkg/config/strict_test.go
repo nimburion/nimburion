@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+type strictSecretsExtension struct {
+	Portal struct {
+		Token string `mapstructure:"token"`
+	} `mapstructure:"portal"`
+}
+
 func TestViperLoader_LoadRejectsUnknownTopLevelKey(t *testing.T) {
 	clearAppEnv()
 	defer clearAppEnv()
@@ -101,5 +107,38 @@ func TestConfigProvider_LoadWithSecretsRejectsUnknownSecretKey(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `unknown config key "not_a_secret_section"`) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigProvider_LoadWithSecretsAllowsExtensionSections(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	configFile := createTempYAMLFile(t, map[string]interface{}{
+		"http": map[string]interface{}{
+			"port": 8081,
+		},
+	})
+	defer os.Remove(configFile)
+
+	secretsFile := createTempYAMLFile(t, map[string]interface{}{
+		"portal": map[string]interface{}{
+			"token": "top-secret",
+		},
+	})
+	defer os.Remove(secretsFile)
+
+	t.Setenv("APP_SECRETS_FILE", secretsFile)
+
+	var (
+		cfg Config
+		ext strictSecretsExtension
+	)
+	_, err := NewConfigProvider(configFile, "APP").LoadWithSecrets(&cfg, &ext)
+	if err != nil {
+		t.Fatalf("expected extension secrets to load, got %v", err)
+	}
+	if ext.Portal.Token != "top-secret" {
+		t.Fatalf("expected extension secret to be unmarshaled, got %q", ext.Portal.Token)
 	}
 }

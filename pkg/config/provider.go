@@ -112,7 +112,7 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 			return nil, err
 		}
 		if secretsFile != "" {
-			if err := validateRuntimeConfigFile(secretsFile); err != nil {
+			if err := validateRuntimeConfigFile(secretsFile, extensions...); err != nil {
 				return nil, fmt.Errorf("failed to validate secrets file %s: %w", secretsFile, err)
 			}
 			secretsViper := viper.New()
