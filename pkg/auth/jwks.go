@@ -240,12 +240,14 @@ func (c *JWKSClient) resolveAllowedIPs(ctx context.Context, host string) ([]net.
 
 func withLookupTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), 5*time.Second)
+		lookupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		return lookupCtx, cancel
 	}
 	if _, hasDeadline := ctx.Deadline(); hasDeadline {
 		return ctx, func() {}
 	}
-	return context.WithTimeout(ctx, 5*time.Second)
+	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	return lookupCtx, cancel
 }
 
 // parseJWK converts a JWK to a public key.
