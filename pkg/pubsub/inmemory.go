@@ -70,6 +70,15 @@ func (b *InMemoryBus) Publish(ctx context.Context, msg Message) error {
 		b.mu.RUnlock()
 		return ErrBusClosed
 	}
+	b.mu.RUnlock()
+
+	if b.store != nil {
+		if err := b.store.Append(ctx, msg); err != nil {
+			return err
+		}
+	}
+
+	b.mu.RLock()
 	topicSubs := b.subscribers[msg.Topic]
 	snapshot := make([]*inMemorySubscriber, 0, len(topicSubs))
 	for sub := range topicSubs {
@@ -82,11 +91,6 @@ func (b *InMemoryBus) Publish(ctx context.Context, msg Message) error {
 		sub.trySend(msgCopy)
 	}
 
-	if b.store != nil {
-		if err := b.store.Append(ctx, msg); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -124,19 +128,21 @@ func (b *InMemoryBus) Close() error {
 	b.subscribers = map[Topic]map[*inMemorySubscriber]struct{}{}
 	b.mu.Unlock()
 
+	var closeErrs []error
 	for _, topicSubs := range subscribers {
 		for sub := range topicSubs {
 			if err := sub.close(); err != nil {
-				return err
+				closeErrs = append(closeErrs, err)
 			}
 		}
 	}
 	if b.store != nil {
 		if err := b.store.Close(); err != nil {
-			return err
+			closeErrs = append(closeErrs, err)
 		}
 	}
-	return nil
+
+	return errors.Join(closeErrs...)
 }
 
 type inMemorySubscriber struct {

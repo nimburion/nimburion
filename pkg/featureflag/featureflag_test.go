@@ -89,6 +89,18 @@ func TestRegistryRejectsCrossTypeDuplicateKey(t *testing.T) {
 	}
 }
 
+func TestRegistryMustRegisterBoolPanicsOnError(t *testing.T) {
+	registry := NewRegistry()
+
+	defer func() {
+		if recovered := recover(); recovered == nil {
+			t.Fatal("expected panic for empty key, got none")
+		}
+	}()
+
+	registry.MustRegisterBool(BoolDefinition{Key: ""})
+}
+
 func TestRegistryEvalIntAcceptsInt64AndFloat64(t *testing.T) {
 	registry := NewRegistry()
 	if err := registry.RegisterInt(IntDefinition{Key: "batch-size", Default: 10}); err != nil {

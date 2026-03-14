@@ -144,7 +144,9 @@ func managementIPAllowlist(allowed []*net.IPNet) []router.MiddlewareFunc {
 		return func(c router.Context) error {
 			host, _, err := net.SplitHostPort(c.Request().RemoteAddr)
 			if err != nil {
-				host = c.Request().RemoteAddr
+				host = strings.TrimSpace(c.Request().RemoteAddr)
+				host = strings.TrimPrefix(host, "[")
+				host = strings.TrimSuffix(host, "]")
 			}
 			ip := net.ParseIP(strings.TrimSpace(host))
 			if ip == nil {

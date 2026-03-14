@@ -661,7 +661,7 @@ func TestManagementServer_AllowlistCIDRs(t *testing.T) {
 		Port:           9092,
 		ReadTimeout:    time.Second,
 		WriteTimeout:   time.Second,
-		AllowlistCIDRs: []string{"10.0.0.0/8"},
+		AllowlistCIDRs: []string{"10.0.0.0/8", "::/0"},
 	}
 	r := nethttp.NewRouter()
 	log, _ := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
@@ -680,6 +680,25 @@ func TestManagementServer_AllowlistCIDRs(t *testing.T) {
 		}
 	})
 
+	t.Run("allowed ipv6", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		req.RemoteAddr = "[::1]:1234"
+		rec := httptest.NewRecorder()
+		mgmtServer.router.ServeHTTP(rec, req)
+		if rec.Code == http.StatusForbidden {
+			t.Fatalf("unexpected 403 for IPv6 client")
+		}
+	})
+
+	t.Run("allowed ipv6 fallback without port", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+		req.RemoteAddr = "[::1]"
+		rec := httptest.NewRecorder()
+		mgmtServer.router.ServeHTTP(rec, req)
+		if rec.Code == http.StatusForbidden {
+			t.Fatalf("unexpected 403 for IPv6 client without port")
+		}
+	})
 	t.Run("denied ip", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 		req.RemoteAddr = "8.8.8.8:1234"

@@ -280,7 +280,7 @@ func formatSortedKeys(settings map[string]interface{}) string {
 
 func containsString(values []string, candidate string) bool {
 	for _, value := range values {
-		if value == candidate {
+		if strings.EqualFold(value, candidate) {
 			return true
 		}
 	}

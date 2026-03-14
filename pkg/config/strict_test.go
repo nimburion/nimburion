@@ -77,6 +77,28 @@ func TestViperLoader_LoadRejectsSchemaArtifactFile(t *testing.T) {
 	}
 }
 
+func TestViperLoader_LoadRejectsSchemaWithAllOf(t *testing.T) {
+	clearAppEnv()
+	defer clearAppEnv()
+
+	configFile := createTempJSONFile(t, map[string]interface{}{
+		"allOf": []interface{}{
+			map[string]interface{}{"type": "object"},
+		},
+		"title": "My Schema",
+		"type":  "object",
+	})
+	defer os.Remove(configFile)
+
+	_, err := NewViperLoader(configFile, "APP").Load()
+	if err == nil {
+		t.Fatal("expected schema artifact validation error for allOf document")
+	}
+	if !strings.Contains(err.Error(), "does not look like a runtime config document") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestConfigProvider_LoadWithSecretsRejectsUnknownSecretKey(t *testing.T) {
 	clearAppEnv()
 	defer clearAppEnv()

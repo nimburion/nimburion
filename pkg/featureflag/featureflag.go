@@ -230,6 +230,36 @@ func (r *Registry) RegisterInt(def IntDefinition) error {
 	return nil
 }
 
+// MustRegisterBool registers one boolean flag definition and panics on registration errors.
+//
+// This method is intended only for bootstrap/startup wiring where registration
+// failures indicate a programmer error and the process should fail fast.
+func (r *Registry) MustRegisterBool(def BoolDefinition) {
+	if err := r.RegisterBool(def); err != nil {
+		panic(fmt.Sprintf("nimburion/featureflag: RegisterBool(%q): %v", def.Key, err))
+	}
+}
+
+// MustRegisterString registers one string flag definition and panics on registration errors.
+//
+// This method is intended only for bootstrap/startup wiring where registration
+// failures indicate a programmer error and the process should fail fast.
+func (r *Registry) MustRegisterString(def StringDefinition) {
+	if err := r.RegisterString(def); err != nil {
+		panic(fmt.Sprintf("nimburion/featureflag: RegisterString(%q): %v", def.Key, err))
+	}
+}
+
+// MustRegisterInt registers one integer flag definition and panics on registration errors.
+//
+// This method is intended only for bootstrap/startup wiring where registration
+// failures indicate a programmer error and the process should fail fast.
+func (r *Registry) MustRegisterInt(def IntDefinition) {
+	if err := r.RegisterInt(def); err != nil {
+		panic(fmt.Sprintf("nimburion/featureflag: RegisterInt(%q): %v", def.Key, err))
+	}
+}
+
 func (r *Registry) validateRegistration(key string, kind Kind) error {
 	if key == "" {
 		return fmt.Errorf("feature flag key is required")
