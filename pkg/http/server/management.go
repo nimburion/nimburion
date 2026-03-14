@@ -62,10 +62,13 @@ func NewManagementServer(
 		metricsRegistry = metrics.NewRegistry()
 	}
 
+	managementLoggingCfg := logging.DefaultConfig()
+	managementLoggingCfg.Enabled = false
+
 	// Apply standard middleware stack (lighter than public API)
 	r.Use(
 		requestid.RequestID(),
-		logging.WithConfig(log, logging.DefaultConfig()),
+		logging.WithConfig(log, managementLoggingCfg),
 		recovery.Recovery(log),
 	)
 	if cfg.AuthEnabled && validator == nil {

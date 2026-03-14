@@ -29,6 +29,25 @@ func (v *testJWTValidator) Validate(ctx context.Context, token string) (*auth.Cl
 	return v.validateFunc(ctx, token)
 }
 
+type managementCaptureLogger struct {
+	infos []string
+	warns []string
+}
+
+func (l *managementCaptureLogger) Debug(string, ...any) {}
+
+func (l *managementCaptureLogger) Info(msg string, _ ...any) {
+	l.infos = append(l.infos, msg)
+}
+
+func (l *managementCaptureLogger) Warn(msg string, _ ...any) {
+	l.warns = append(l.warns, msg)
+}
+
+func (l *managementCaptureLogger) Error(string, ...any)                      {}
+func (l *managementCaptureLogger) With(...any) logger.Logger                 { return l }
+func (l *managementCaptureLogger) WithContext(context.Context) logger.Logger { return l }
+
 func TestNewManagementServer(t *testing.T) {
 	// Given: Management server configuration
 	cfg := serverconfig.ManagementConfig{
@@ -101,6 +120,31 @@ func TestNewManagementServer_DefaultsNilRegistries(t *testing.T) {
 	}
 	if mgmtServer.metricsRegistry == nil {
 		t.Fatal("expected default metrics registry")
+	}
+}
+
+func TestNewManagementServer_DisablesRequestLoggingByDefault(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:         9090,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	r := nethttp.NewRouter()
+	log := &managementCaptureLogger{}
+	mgmtServer, err := NewManagementServer(cfg, r, log, health.NewRegistry(), metrics.NewRegistry(), nil)
+	if err != nil {
+		t.Fatalf("expected no error creating management server, got %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	mgmtServer.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if len(log.infos) != 0 {
+		t.Fatalf("expected no management access logs by default, got %v", log.infos)
 	}
 }
 
