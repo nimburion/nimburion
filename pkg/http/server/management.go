@@ -17,6 +17,8 @@ import (
 	"github.com/nimburion/nimburion/pkg/http/middleware/logging"
 	"github.com/nimburion/nimburion/pkg/http/middleware/recovery"
 	"github.com/nimburion/nimburion/pkg/http/middleware/requestid"
+	"github.com/nimburion/nimburion/pkg/http/openapi"
+	openapiconfig "github.com/nimburion/nimburion/pkg/http/openapi/config"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -49,6 +51,32 @@ type ManagementServer struct {
 // Requirements: 2.3, 2.4, 2.5, 30.1, 30.2, 30.3, 13.1, 13.7
 func NewManagementServer(
 	cfg serverconfig.ManagementConfig,
+	r router.Router,
+	log logger.Logger,
+	healthRegistry *health.Registry,
+	metricsRegistry *metrics.Registry,
+	validator auth.JWTValidator,
+) (*ManagementServer, error) {
+	return newManagementServer(cfg, openapiconfig.SwaggerConfig{}, r, log, healthRegistry, metricsRegistry, validator)
+}
+
+// NewManagementServerWithSwagger creates a new management server and mounts the Swagger UI
+// on the management router when swagger is enabled.
+func NewManagementServerWithSwagger(
+	cfg serverconfig.ManagementConfig,
+	swaggerCfg openapiconfig.SwaggerConfig,
+	r router.Router,
+	log logger.Logger,
+	healthRegistry *health.Registry,
+	metricsRegistry *metrics.Registry,
+	validator auth.JWTValidator,
+) (*ManagementServer, error) {
+	return newManagementServer(cfg, swaggerCfg, r, log, healthRegistry, metricsRegistry, validator)
+}
+
+func newManagementServer(
+	cfg serverconfig.ManagementConfig,
+	swaggerCfg openapiconfig.SwaggerConfig,
 	r router.Router,
 	log logger.Logger,
 	healthRegistry *health.Registry,
@@ -110,14 +138,14 @@ func NewManagementServer(
 	}
 
 	// Register management endpoints
-	mgmtServer.registerEndpoints(r, cfg.AuthEnabled, allowlistCIDRs, validator)
+	mgmtServer.registerEndpoints(r, swaggerCfg, cfg.AuthEnabled, allowlistCIDRs, validator)
 
 	return mgmtServer, nil
 }
 
 // registerEndpoints registers the standard management endpoints.
 // Requirements: 30.1, 30.2, 30.3, 13.1, 13.7
-func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, allowlistCIDRs []*net.IPNet, validator auth.JWTValidator) {
+func (s *ManagementServer) registerEndpoints(r router.Router, swaggerCfg openapiconfig.SwaggerConfig, authEnabled bool, allowlistCIDRs []*net.IPNet, validator auth.JWTValidator) {
 	// Health endpoint - liveness check (always returns 200)
 	// Requirements: 30.1, 30.3
 	r.GET("/health", s.handleHealth)
@@ -134,6 +162,12 @@ func (s *ManagementServer) registerEndpoints(r router.Router, authEnabled bool, 
 
 	// Swagger endpoint - secured when management auth is enabled.
 	swaggerMiddleware := append(managementIPAllowlist(allowlistCIDRs), managementSecurityMiddleware(authEnabled, validator, "management:swagger")...)
+	if swaggerCfg.Enabled {
+		swaggerHandler := openapi.NewSwaggerHandler(true, swaggerCfg.SpecPath)
+		r.GET("/swagger", swaggerHandler.ServeSwaggerUI, swaggerMiddleware...)
+		r.GET("/swagger/", swaggerHandler.ServeSwaggerUI, swaggerMiddleware...)
+		return
+	}
 	r.GET("/swagger", s.handleSwagger, swaggerMiddleware...)
 	r.GET("/swagger/", s.handleSwagger, swaggerMiddleware...)
 }

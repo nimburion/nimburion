@@ -12,6 +12,7 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/auth"
 	"github.com/nimburion/nimburion/pkg/health"
+	openapiconfig "github.com/nimburion/nimburion/pkg/http/openapi/config"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	serverconfig "github.com/nimburion/nimburion/pkg/http/server/config"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
@@ -145,6 +146,45 @@ func TestNewManagementServer_DisablesRequestLoggingByDefault(t *testing.T) {
 	}
 	if len(log.infos) != 0 {
 		t.Fatalf("expected no management access logs by default, got %v", log.infos)
+	}
+}
+
+func TestNewManagementServerWithSwagger_ServesSwaggerUI(t *testing.T) {
+	cfg := serverconfig.ManagementConfig{
+		Port:         9090,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	r := nethttp.NewRouter()
+	log := &managementCaptureLogger{}
+	mgmtServer, err := NewManagementServerWithSwagger(
+		cfg,
+		openapiconfig.SwaggerConfig{
+			Enabled:  true,
+			SpecPath: "/api/openapi/openapi.yaml",
+		},
+		r,
+		log,
+		health.NewRegistry(),
+		metrics.NewRegistry(),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("expected no error creating management server, got %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+	rec := httptest.NewRecorder()
+	mgmtServer.router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("expected text/html content type, got %q", got)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "swagger-ui") {
+		t.Fatalf("expected swagger ui html, got %s", body)
 	}
 }
 

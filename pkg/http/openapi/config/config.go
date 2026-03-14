@@ -9,8 +9,9 @@ import (
 
 // SwaggerConfig configures OpenAPI/Swagger serving behavior.
 type SwaggerConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	SpecPath string `mapstructure:"spec_path"`
+	Enabled                bool   `mapstructure:"enabled"`
+	SpecPath               string `mapstructure:"spec_path"`
+	ProvisionGeneratedSpec bool   `mapstructure:"provision_generated_spec"`
 }
 
 // Extension contributes the swagger config section as HTTP-family-owned config surface.
@@ -25,6 +26,7 @@ func (Extension) DisabledCoreConfigSections() []string { return []string{"swagge
 func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("swagger.enabled", false)
 	v.SetDefault("swagger.spec_path", "/api/openapi/openapi.yaml")
+	v.SetDefault("swagger.provision_generated_spec", false)
 }
 
 // BindEnv binds OpenAPI configuration keys to environment variables.
@@ -32,6 +34,7 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 	return bindEnvPairs(v, prefix,
 		"swagger.enabled", "SWAGGER_ENABLED",
 		"swagger.spec_path", "SWAGGER_SPEC_PATH",
+		"swagger.provision_generated_spec", "SWAGGER_PROVISION_GENERATED_SPEC",
 	)
 }
 

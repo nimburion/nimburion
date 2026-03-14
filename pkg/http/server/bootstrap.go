@@ -14,6 +14,7 @@ import (
 	"github.com/nimburion/nimburion/pkg/config"
 	coreapp "github.com/nimburion/nimburion/pkg/core/app"
 	"github.com/nimburion/nimburion/pkg/health"
+	"github.com/nimburion/nimburion/pkg/http/openapi"
 	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
@@ -33,6 +34,7 @@ type RunHTTPServersOptions struct {
 
 	PublicRouter     router.Router
 	ManagementRouter router.Router
+	RegisterRoutes   func(router.Router, *config.Config)
 
 	Logger logger.Logger
 
@@ -52,6 +54,7 @@ func NewDefaultRunHTTPServersOptions() *RunHTTPServersOptions {
 		Config:                 nil,
 		PublicRouter:           nil,
 		ManagementRouter:       nil,
+		RegisterRoutes:         nil,
 		Logger:                 nil,
 		HealthRegistry:         nil,
 		MetricsRegistry:        nil,
@@ -126,9 +129,13 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	}
 	versionInfo := version.Current(resolveServiceName(opts))
 	registerVersionEndpoint(opts.ManagementRouter, versionInfo)
+	if err := provisionGeneratedOpenAPISpec(opts, versionInfo); err != nil {
+		return nil, fmt.Errorf("provision generated openapi spec: %w", err)
+	}
 
-	managementServer, err := NewManagementServer(
+	managementServer, err := NewManagementServerWithSwagger(
 		opts.Config.Management,
+		opts.Config.Swagger,
 		opts.ManagementRouter,
 		opts.Logger,
 		healthRegistry,
@@ -140,6 +147,37 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	}
 	servers.Management = managementServer
 	return servers, nil
+}
+
+func provisionGeneratedOpenAPISpec(opts *RunHTTPServersOptions, versionInfo version.Info) error {
+	if opts == nil || opts.Config == nil || opts.ManagementRouter == nil {
+		return nil
+	}
+	if !opts.Config.Swagger.Enabled || !opts.Config.Swagger.ProvisionGeneratedSpec {
+		return nil
+	}
+	if opts.RegisterRoutes == nil {
+		return errors.New("register routes callback is required when swagger.provision_generated_spec is enabled")
+	}
+
+	routes := openapi.CollectRoutes(func(r router.Router) {
+		opts.RegisterRoutes(r, opts.Config)
+	})
+	spec := openapi.BuildSpec(resolveServiceName(opts), versionInfo.Version, routes)
+
+	tempFile, err := os.CreateTemp("", "nimburion-openapi-*.yaml")
+	if err != nil {
+		return fmt.Errorf("create temp openapi spec file: %w", err)
+	}
+	if closeErr := tempFile.Close(); closeErr != nil {
+		return fmt.Errorf("close temp openapi spec file: %w", closeErr)
+	}
+	if err := openapi.WriteSpec(tempFile.Name(), spec); err != nil {
+		return fmt.Errorf("write temp openapi spec file: %w", err)
+	}
+
+	openapi.NewHandler(tempFile.Name()).RegisterRoutes(opts.ManagementRouter)
+	return nil
 }
 
 // RunHTTPServers starts public server and (optionally) management server.

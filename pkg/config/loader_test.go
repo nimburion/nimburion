@@ -1862,7 +1862,8 @@ func configsEqual(a, b *Config) bool {
 
 	// Compare Swagger config
 	if a.Swagger.Enabled != b.Swagger.Enabled ||
-		a.Swagger.SpecPath != b.Swagger.SpecPath {
+		a.Swagger.SpecPath != b.Swagger.SpecPath ||
+		a.Swagger.ProvisionGeneratedSpec != b.Swagger.ProvisionGeneratedSpec {
 		return false
 	}
 
@@ -2034,6 +2035,9 @@ func TestConfigurationDefaults_AllSections(t *testing.T) {
 		if cfg.Swagger.SpecPath != defaults.Swagger.SpecPath {
 			t.Errorf("Swagger.SpecPath: expected %s, got %s", defaults.Swagger.SpecPath, cfg.Swagger.SpecPath)
 		}
+		if cfg.Swagger.ProvisionGeneratedSpec != defaults.Swagger.ProvisionGeneratedSpec {
+			t.Errorf("Swagger.ProvisionGeneratedSpec: expected %v, got %v", defaults.Swagger.ProvisionGeneratedSpec, cfg.Swagger.ProvisionGeneratedSpec)
+		}
 	})
 }
 
@@ -2096,6 +2100,7 @@ func TestConfigurationDefaults_SpecificValues(t *testing.T) {
 		// Swagger defaults
 		{"Swagger.Enabled", cfg.Swagger.Enabled, false},
 		{"Swagger.SpecPath", cfg.Swagger.SpecPath, "/api/openapi/openapi.yaml"},
+		{"Swagger.ProvisionGeneratedSpec", cfg.Swagger.ProvisionGeneratedSpec, false},
 	}
 
 	for _, tt := range tests {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/nimburion/nimburion/pkg/config"
 	"github.com/nimburion/nimburion/pkg/health"
+	"github.com/nimburion/nimburion/pkg/http/router"
 	"github.com/nimburion/nimburion/pkg/http/router/nethttp"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/observability/metrics"
@@ -43,6 +44,70 @@ func TestBuildHTTPServers_ManagementEnabled(t *testing.T) {
 	}
 	if servers.Management == nil {
 		t.Fatalf("expected management server")
+	}
+}
+
+func TestBuildHTTPServers_ProvisionsGeneratedOpenAPISpec(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Management.Enabled = true
+	cfg.Swagger.Enabled = true
+	cfg.Swagger.ProvisionGeneratedSpec = true
+
+	log, err := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	if err != nil {
+		t.Fatalf("create logger: %v", err)
+	}
+
+	publicRouter := nethttp.NewRouter()
+	managementRouter := nethttp.NewRouter()
+	_, err = BuildHTTPServers(&RunHTTPServersOptions{
+		Config:           cfg,
+		PublicRouter:     publicRouter,
+		ManagementRouter: managementRouter,
+		RegisterRoutes: func(r router.Router, _ *config.Config) {
+			r.GET("/orders/:id", func(_ router.Context) error { return nil })
+		},
+		Logger:          log,
+		HealthRegistry:  health.NewRegistry(),
+		MetricsRegistry: metrics.NewRegistry(),
+	})
+	if err != nil {
+		t.Fatalf("build servers: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/openapi/openapi.yaml", nil)
+	rec := httptest.NewRecorder()
+	managementRouter.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "/orders/{id}") {
+		t.Fatalf("expected generated route in spec, got %s", body)
+	}
+}
+
+func TestBuildHTTPServers_ProvisionGeneratedOpenAPISpecRequiresRegisterRoutes(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Management.Enabled = true
+	cfg.Swagger.Enabled = true
+	cfg.Swagger.ProvisionGeneratedSpec = true
+
+	log, err := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	if err != nil {
+		t.Fatalf("create logger: %v", err)
+	}
+
+	servers, err := BuildHTTPServers(&RunHTTPServersOptions{
+		Config:           cfg,
+		PublicRouter:     nethttp.NewRouter(),
+		ManagementRouter: nethttp.NewRouter(),
+		Logger:           log,
+	})
+	if err == nil || err.Error() != "provision generated openapi spec: register routes callback is required when swagger.provision_generated_spec is enabled" {
+		t.Fatalf("expected explicit register routes error, got %v", err)
+	}
+	if servers != nil {
+		t.Fatalf("expected nil servers when generated spec provisioning cannot be configured")
 	}
 }
 
