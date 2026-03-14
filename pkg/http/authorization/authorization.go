@@ -117,7 +117,7 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 				}
 				ok, err := policy.EvaluateClaimRule(c.Request().Context(), subjectFromClaimsWithMappings(claims, mappings), httpValueResolver{ctx: c}, rule)
 				if err != nil {
-					if requestLogger, ok := c.Get("logger").(logger.Logger); ok && requestLogger != nil {
+					if requestLogger, loggerOK := c.Get("logger").(logger.Logger); loggerOK && requestLogger != nil {
 						requestLogger.WithContext(c.Request().Context()).Warn("claim evaluation failed", "error", err)
 					}
 					return c.JSON(http.StatusForbidden, map[string]interface{}{"error": "claim evaluation failed"})

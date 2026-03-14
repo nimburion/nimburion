@@ -165,6 +165,7 @@ func (c *fakeContext) JSON(code int, v interface{}) error {
 	c.resp.WriteHeader(code)
 	return json.NewEncoder(c.resp).Encode(v)
 }
+
 func (c *fakeContext) String(code int, s string) error {
 	c.resp.WriteHeader(code)
 	_, err := c.resp.Write([]byte(s))
