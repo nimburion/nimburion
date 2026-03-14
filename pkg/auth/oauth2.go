@@ -193,26 +193,23 @@ func isPrivateHost(host string) bool {
 	if ip == nil {
 		return false
 	}
+	return isDisallowedIP(ip)
+}
 
-	privateCIDRs := []string{
-		"127.0.0.0/8",
-		"169.254.0.0/16",
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"::1/128",
-		"::/128",
-		"0.0.0.0/32",
-	}
-	for _, cidr := range privateCIDRs {
-		_, block, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		if block.Contains(ip) {
-			return true
-		}
-	}
+func isDisallowedIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified()
+}
 
-	return false
+func normalizeHostname(host string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+}
+
+func isLocalHostname(host string) bool {
+	normalized := normalizeHostname(host)
+	return normalized == "localhost" || strings.HasSuffix(normalized, ".localhost")
 }

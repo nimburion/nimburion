@@ -5,8 +5,10 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -22,6 +24,11 @@ type JWKSClient struct {
 	httpClient        *http.Client
 	logger            logger.Logger
 	allowPrivateHosts bool
+	resolver          hostResolver
+}
+
+type hostResolver interface {
+	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
 }
 
 // JWKSClientOption configures optional JWKSClient behavior.
@@ -66,11 +73,10 @@ func NewJWKSClient(jwksURL string, cacheTTL time.Duration, logger logger.Logger,
 			keys: make(map[string]interface{}),
 			ttl:  cacheTTL,
 		},
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-		logger: logger,
+		logger:   logger,
+		resolver: net.DefaultResolver,
 	}
+	client.httpClient = newJWKSHTTPClient(client)
 	for _, opt := range opts {
 		if opt != nil {
 			opt(client)
@@ -156,6 +162,90 @@ func (c *JWKSClient) refreshJWKS(ctx context.Context) error {
 	c.logger.Info("JWKS cache updated", "key_count", len(keys))
 
 	return nil
+}
+
+func newJWKSHTTPClient(client *JWKSClient) *http.Client {
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || baseTransport == nil {
+		baseTransport = &http.Transport{}
+	}
+	transport := baseTransport.Clone()
+	dialer := &net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if client.allowPrivateHosts {
+			return dialer.DialContext(ctx, network, address)
+		}
+
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		allowedAddrs, err := client.resolveAllowedIPs(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+
+		var dialErrs []error
+		for _, addr := range allowedAddrs {
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(addr.IP.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			dialErrs = append(dialErrs, err)
+		}
+		return nil, errors.Join(dialErrs...)
+	}
+
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
+}
+
+func (c *JWKSClient) resolveAllowedIPs(ctx context.Context, host string) ([]net.IPAddr, error) {
+	normalizedHost := normalizeHostname(host)
+	if isLocalHostname(normalizedHost) {
+		return nil, fmt.Errorf("url host %q is not allowed: private or loopback addresses are forbidden", normalizedHost)
+	}
+	if ip := net.ParseIP(normalizedHost); ip != nil {
+		if isDisallowedIP(ip) {
+			return nil, fmt.Errorf("url host %q is not allowed: private or loopback addresses are forbidden", normalizedHost)
+		}
+		return []net.IPAddr{{IP: ip}}, nil
+	}
+
+	lookupCtx, cancel := withLookupTimeout(ctx)
+	defer cancel()
+
+	addrs, err := c.resolver.LookupIPAddr(lookupCtx, normalizedHost)
+	if err != nil {
+		return nil, fmt.Errorf("resolve jwks host %q: %w", normalizedHost, err)
+	}
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("resolve jwks host %q: no addresses found", normalizedHost)
+	}
+
+	allowedAddrs := make([]net.IPAddr, 0, len(addrs))
+	for _, addr := range addrs {
+		if isDisallowedIP(addr.IP) {
+			return nil, fmt.Errorf("url host %q is not allowed: private or loopback addresses are forbidden", normalizedHost)
+		}
+		allowedAddrs = append(allowedAddrs, addr)
+	}
+
+	return allowedAddrs, nil
+}
+
+func withLookupTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), 5*time.Second)
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, 5*time.Second)
 }
 
 // parseJWK converts a JWK to a public key.
