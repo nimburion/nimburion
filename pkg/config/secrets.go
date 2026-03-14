@@ -35,6 +35,9 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 
 	// Read main config file if provided
 	if l.configFile != "" {
+		if err := validateRuntimeConfigFile(l.configFile); err != nil {
+			return nil, nil, fmt.Errorf("failed to validate config file %s: %w", l.configFile, err)
+		}
 		v.SetConfigFile(l.configFile)
 		if err := v.ReadInConfig(); err != nil {
 			return nil, nil, fmt.Errorf("failed to read config file %s: %w", l.configFile, err)
@@ -48,10 +51,16 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 	}
 	var secrets *Config
 	if secretsFile != "" {
+		if err := validateRuntimeConfigFile(secretsFile); err != nil {
+			return nil, nil, fmt.Errorf("failed to validate secrets file %s: %w", secretsFile, err)
+		}
 		secretsViper := viper.New()
 		secretsViper.SetConfigFile(secretsFile)
 		if err := secretsViper.ReadInConfig(); err != nil {
 			return nil, nil, fmt.Errorf("failed to read secrets file %s: %w", secretsFile, err)
+		}
+		if err := validateRuntimeSettings(secretsViper.AllSettings()); err != nil {
+			return nil, nil, fmt.Errorf("invalid secrets input: %w", err)
 		}
 		var secretsCfg Config
 		if err := secretsViper.Unmarshal(&secretsCfg); err != nil {
@@ -72,6 +81,9 @@ func (l *ViperLoader) LoadWithSecrets() (*Config, *Config, error) {
 
 	// Unmarshal final config
 	var cfg Config
+	if err := validateRuntimeSettings(v.AllSettings()); err != nil {
+		return nil, nil, fmt.Errorf("invalid config input: %w", err)
+	}
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}

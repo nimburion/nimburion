@@ -278,6 +278,9 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 				WithValidationRequirements(req).
 				WithFlags(cmd.Flags())
 			if _, err := provider.LoadWithSecrets(cfg, opts.ConfigExtensions...); err != nil {
+				if cliErr := formatConfigValidationInputError(err, cfgPath); cliErr != nil {
+					return cliErr
+				}
 				return fmt.Errorf("load config: %w", err)
 			}
 			applyResolvedAppName(cfg, opts.Name, appNameOverride)
@@ -399,6 +402,22 @@ func ensureDefaultPolicy(cmd *cobra.Command) {
 	if len(GetCommandPolicies(cmd)) == 0 {
 		SetCommandPolicies(cmd, map[string]CommandPolicy{defaultPolicyContext: PolicyAlways})
 	}
+}
+
+func formatConfigValidationInputError(err error, configPath string) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	if !strings.Contains(message, "does not look like a runtime config document") {
+		return nil
+	}
+
+	if strings.TrimSpace(configPath) == "" {
+		return fmt.Errorf("configuration input does not look like a runtime config document: %w", err)
+	}
+
+	return fmt.Errorf("configuration file %q looks like a schema or descriptor artifact, not a runtime config file: %w", configPath, err)
 }
 
 func collectFeatureCLIContributions(features []corefeature.Feature) ([]any, []*cobra.Command) {
