@@ -68,6 +68,9 @@ func (l *ViperLoader) Load() (*Config, error) {
 
 	// Read config file if provided
 	if l.configFile != "" {
+		if err := validateRuntimeConfigFile(l.configFile); err != nil {
+			return nil, fmt.Errorf("failed to validate config file %s: %w", l.configFile, err)
+		}
 		v.SetConfigFile(l.configFile)
 		if err := v.ReadInConfig(); err != nil {
 			// Only return error if file was explicitly specified but couldn't be read
@@ -85,6 +88,9 @@ func (l *ViperLoader) Load() (*Config, error) {
 
 	// Unmarshal into a new config struct
 	var cfg Config
+	if err := validateRuntimeSettings(v.AllSettings()); err != nil {
+		return nil, fmt.Errorf("invalid config input: %w", err)
+	}
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}

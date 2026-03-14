@@ -330,6 +330,7 @@ func NewPublicAPIServerWithConfig(
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,
+		RequireTLS:   cfg.RequireTLS,
 	}
 
 	// Create base server

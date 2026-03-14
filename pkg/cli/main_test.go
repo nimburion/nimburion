@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -475,6 +477,38 @@ func TestDescribeCommand_EmitsDescriptorJSON(t *testing.T) {
 	}
 }
 
+func TestConfigValidate_RejectsSchemaArtifactWithHelpfulMessage(t *testing.T) {
+	configFile := createTempJSONFileForCLI(t, map[string]interface{}{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"type":                 "object",
+		"properties":           map[string]interface{}{},
+		"additionalProperties": false,
+	})
+	defer os.Remove(configFile)
+
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		ConfigPath:  configFile,
+	})
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"config", "validate"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected config validate to fail for schema artifact")
+	}
+	if !strings.Contains(err.Error(), "looks like a schema or descriptor artifact") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), configFile) {
+		t.Fatalf("expected error to mention config path, got: %v", err)
+	}
+}
+
 func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
 	cmd := NewAppCommand(AppCommandOptions{
 		Name:        "testapp",
@@ -493,6 +527,24 @@ func TestNewAppCommand_OmitsFrameworkOptionalCommandsByDefault(t *testing.T) {
 	if openAPICmd, _, err := cmd.Find([]string{"openapi"}); err == nil && openAPICmd != nil && openAPICmd.Name() == "openapi" {
 		t.Fatalf("expected openapi command to be omitted by default for app command")
 	}
+}
+
+func createTempJSONFileForCLI(t *testing.T, config map[string]interface{}) string {
+	t.Helper()
+	file, err := os.CreateTemp("", "cli-config-*.json")
+	if err != nil {
+		t.Fatalf("create temp json file: %v", err)
+	}
+	defer file.Close()
+
+	payload, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal config json: %v", err)
+	}
+	if _, err := fmt.Fprintln(file, string(payload)); err != nil {
+		t.Fatalf("write config json: %v", err)
+	}
+	return file.Name()
 }
 
 func TestNewAppCommand_AddsOpenAPIFromFeatureContribution(t *testing.T) {

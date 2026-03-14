@@ -17,19 +17,22 @@ type HTTPConfig struct {
 	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
 	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
 	MaxRequestSize int64         `mapstructure:"max_request_size"`
+	RequireTLS     bool          `mapstructure:"require_tls"`
 }
 
 // ManagementConfig configures the management server.
 type ManagementConfig struct {
-	Enabled      bool          `mapstructure:"enabled"`
-	Port         int           `mapstructure:"port"`
-	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout time.Duration `mapstructure:"write_timeout"`
-	AuthEnabled  bool          `mapstructure:"auth_enabled"`
-	MTLSEnabled  bool          `mapstructure:"mtls_enabled"`
-	TLSCertFile  string        `mapstructure:"tls_cert_file"`
-	TLSKeyFile   string        `mapstructure:"tls_key_file"`
-	TLSCAFile    string        `mapstructure:"tls_ca_file"`
+	Enabled        bool          `mapstructure:"enabled"`
+	Port           int           `mapstructure:"port"`
+	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
+	AuthEnabled    bool          `mapstructure:"auth_enabled"`
+	AllowlistCIDRs []string      `mapstructure:"allowlist_cidrs"`
+	MTLSEnabled    bool          `mapstructure:"mtls_enabled"`
+	RequireTLS     bool          `mapstructure:"require_tls"`
+	TLSCertFile    string        `mapstructure:"tls_cert_file"`
+	TLSKeyFile     string        `mapstructure:"tls_key_file"`
+	TLSCAFile      string        `mapstructure:"tls_ca_file"`
 }
 
 // Extension contributes the http and management config sections as HTTP-server-owned config surface.
@@ -54,6 +57,9 @@ func (Extension) ApplyDefaults(v *viper.Viper) {
 	v.SetDefault("management.write_timeout", 10*time.Second)
 	v.SetDefault("management.auth_enabled", false)
 	v.SetDefault("management.mtls_enabled", false)
+	v.SetDefault("management.allowlist_cidrs", []string{})
+	v.SetDefault("management.require_tls", false)
+	v.SetDefault("http.require_tls", false)
 }
 
 // BindEnv binds HTTP server configuration keys to environment variables.
@@ -64,12 +70,15 @@ func (Extension) BindEnv(v *viper.Viper, prefix string) error {
 		"http.write_timeout", "HTTP_WRITE_TIMEOUT",
 		"http.idle_timeout", "HTTP_IDLE_TIMEOUT",
 		"http.max_request_size", "HTTP_MAX_REQUEST_SIZE",
+		"http.require_tls", "HTTP_REQUIRE_TLS",
 		"management.enabled", "MGMT_ENABLED",
 		"management.port", "MGMT_PORT",
 		"management.read_timeout", "MGMT_READ_TIMEOUT",
 		"management.write_timeout", "MGMT_WRITE_TIMEOUT",
 		"management.auth_enabled", "MGMT_AUTH_ENABLED",
+		"management.allowlist_cidrs", "MGMT_ALLOWLIST_CIDRS",
 		"management.mtls_enabled", "MGMT_MTLS_ENABLED",
+		"management.require_tls", "MGMT_REQUIRE_TLS",
 		"management.tls_cert_file", "MGMT_TLS_CERT_FILE",
 		"management.tls_key_file", "MGMT_TLS_KEY_FILE",
 		"management.tls_ca_file", "MGMT_TLS_CA_FILE",

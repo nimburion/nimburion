@@ -11,6 +11,7 @@ import (
 	authconfig "github.com/nimburion/nimburion/pkg/auth/config"
 	"github.com/nimburion/nimburion/pkg/http/authentication"
 	"github.com/nimburion/nimburion/pkg/http/router"
+	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/policy"
 )
 
@@ -116,7 +117,10 @@ func ClaimsGuardWithMappings(mappings map[string][]string, rules ...ClaimRule) r
 				}
 				ok, err := policy.EvaluateClaimRule(c.Request().Context(), subjectFromClaimsWithMappings(claims, mappings), httpValueResolver{ctx: c}, rule)
 				if err != nil {
-					return c.JSON(http.StatusForbidden, map[string]interface{}{"error": err.Error()})
+					if requestLogger, loggerOK := c.Get("logger").(logger.Logger); loggerOK && requestLogger != nil {
+						requestLogger.WithContext(c.Request().Context()).Warn("claim evaluation failed", "error", err)
+					}
+					return c.JSON(http.StatusForbidden, map[string]interface{}{"error": "claim evaluation failed"})
 				}
 				if ok || rule.Optional {
 					continue

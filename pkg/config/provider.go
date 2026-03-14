@@ -96,6 +96,9 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 	}
 
 	if p.loader.configFile != "" {
+		if err := validateRuntimeConfigFile(p.loader.configFile, extensions...); err != nil {
+			return nil, fmt.Errorf("failed to validate config file %s: %w", p.loader.configFile, err)
+		}
 		p.v.SetConfigFile(p.loader.configFile)
 		if err := p.v.ReadInConfig(); err != nil {
 			return nil, fmt.Errorf("failed to read config file %s: %w", p.loader.configFile, err)
@@ -109,6 +112,9 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 			return nil, err
 		}
 		if secretsFile != "" {
+			if err := validateRuntimeConfigFile(secretsFile); err != nil {
+				return nil, fmt.Errorf("failed to validate secrets file %s: %w", secretsFile, err)
+			}
 			secretsViper := viper.New()
 			secretsViper.SetConfigFile(secretsFile)
 			if err := secretsViper.ReadInConfig(); err != nil {
@@ -142,6 +148,9 @@ func (p *ConfigProvider) load(core *Config, withSecrets bool, extensions ...inte
 
 	if core == nil {
 		core = &Config{}
+	}
+	if err := validateRuntimeSettings(p.v.AllSettings(), extensions...); err != nil {
+		return nil, fmt.Errorf("invalid config input: %w", err)
 	}
 	if err := p.v.Unmarshal(core); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal core config: %w", err)

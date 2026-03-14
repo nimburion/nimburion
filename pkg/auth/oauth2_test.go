@@ -152,3 +152,22 @@ func TestExchangeAuthorizationCode_ReturnsErrorOnNon2xx(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestValidateHTTPURL_PrivateHostsRejected(t *testing.T) {
+	tests := []string{
+		"http://127.0.0.1:8080/jwks",
+		"http://169.254.169.254/latest/meta-data/",
+		"http://10.0.0.1/jwks",
+	}
+	for _, raw := range tests {
+		if err := validateHTTPURL(raw); err == nil {
+			t.Fatalf("expected private host %q to be rejected", raw)
+		}
+	}
+}
+
+func TestValidateHTTPURL_PublicHostAllowed(t *testing.T) {
+	if err := validateHTTPURL("https://accounts.google.com/.well-known/openid-configuration"); err != nil {
+		t.Fatalf("expected public host to be allowed, got %v", err)
+	}
+}
