@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
@@ -26,11 +27,11 @@ func NewMetrics(registry *frameworkmetrics.Registry) (*Metrics, error) {
 	if err := registry.Register(opsTotal); err != nil {
 		var alreadyRegistered prometheus.AlreadyRegisteredError
 		if !errors.As(err, &alreadyRegistered) {
-			return nil, wrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: %w", err))
+			return nil, coreerrors.WrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: %w", err))
 		}
 		existing, ok := alreadyRegistered.ExistingCollector.(*prometheus.CounterVec)
 		if !ok {
-			return nil, wrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: existing collector has type %T", alreadyRegistered.ExistingCollector))
+			return nil, coreerrors.WrapConstructorError("NewMetrics", fmt.Errorf("register pubsub redis store metrics: existing collector has type %T", alreadyRegistered.ExistingCollector))
 		}
 		opsTotal = existing
 	}

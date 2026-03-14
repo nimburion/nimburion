@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
@@ -124,7 +125,7 @@ func NewRedisBus(cfg RedisBusConfig) (*RedisBus, error) {
 	}
 	metrics, err := NewMetrics(cfg.MetricsRegistry)
 	if err != nil {
-		return nil, wrapConstructorError("NewRedisBus", err)
+		return nil, coreerrors.WrapConstructorError("NewRedisBus", err)
 	}
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
@@ -132,7 +133,7 @@ func NewRedisBus(cfg RedisBusConfig) (*RedisBus, error) {
 		OperationTimeout: cfg.OperationTimeout,
 	}, noopLogger{})
 	if err != nil {
-		return nil, wrapConstructorError("NewRedisBus", err)
+		return nil, coreerrors.WrapConstructorError("NewRedisBus", err)
 	}
 
 	return &RedisBus{

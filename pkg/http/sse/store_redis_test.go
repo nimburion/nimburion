@@ -4,13 +4,15 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 func TestNewRedisStore_ValidationAndConnectivity(t *testing.T) {
 	if _, err := NewRedisStore(RedisStoreConfig{}); err == nil {
 		t.Fatal("expected error for empty redis url")
 	} else {
-		var constructorErr *ConstructorError
+		var constructorErr *coreerrors.ConstructorError
 		if !errors.As(err, &constructorErr) {
 			t.Fatalf("expected ConstructorError, got %T", err)
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 	"github.com/nimburion/nimburion/pkg/session"
@@ -38,7 +39,7 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 	}
 	metrics, err := NewMetrics(cfg.MetricsRegistry)
 	if err != nil {
-		return nil, wrapConstructorError("NewAdapter", err)
+		return nil, coreerrors.WrapConstructorError("NewAdapter", err)
 	}
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
@@ -46,7 +47,7 @@ func NewAdapter(cfg Config, log logger.Logger) (*Adapter, error) {
 		OperationTimeout: cfg.OperationTimeout,
 	}, log)
 	if err != nil {
-		return nil, wrapConstructorError("NewAdapter", err)
+		return nil, coreerrors.WrapConstructorError("NewAdapter", err)
 	}
 	return &Adapter{client: client, metrics: metrics, timeout: timeout}, nil
 }

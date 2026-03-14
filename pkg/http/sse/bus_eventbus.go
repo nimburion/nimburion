@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/eventbus"
 )
 
@@ -28,7 +29,7 @@ type EventBusAdapter struct {
 // NewEventBusAdapter wraps a framework eventbus into SSE distributed bus.
 func NewEventBusAdapter(bus eventbus.EventBus, cfg EventBusConfig) (*EventBusAdapter, error) {
 	if bus == nil {
-		return nil, wrapConstructorError("NewEventBusAdapter", fmt.Errorf("eventbus adapter is required"))
+		return nil, coreerrors.WrapConstructorError("NewEventBusAdapter", fmt.Errorf("eventbus adapter is required"))
 	}
 	prefix := strings.TrimSpace(cfg.TopicPrefix)
 	if prefix == "" {

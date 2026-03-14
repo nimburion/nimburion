@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 func TestInMemoryBus_PublishAndUnsubscribe(t *testing.T) {
@@ -44,7 +46,7 @@ func TestNewRedisBus_ValidationAndConnectivity(t *testing.T) {
 	if _, err := NewRedisBus(RedisBusConfig{}); err == nil {
 		t.Fatal("expected error for empty redis url")
 	} else {
-		var constructorErr *ConstructorError
+		var constructorErr *coreerrors.ConstructorError
 		if !errors.As(err, &constructorErr) {
 			t.Fatalf("expected ConstructorError, got %T", err)
 		}

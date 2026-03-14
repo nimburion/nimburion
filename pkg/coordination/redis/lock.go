@@ -96,15 +96,15 @@ type RedisLockProvider struct {
 // NewRedisLockProvider creates a Redis-based lock provider.
 func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*RedisLockProvider, error) {
 	if log == nil {
-		return nil, wrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "logger is required"))
+		return nil, coreerrors.WrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "logger is required"))
 	}
 	if strings.TrimSpace(cfg.URL) == "" {
-		return nil, wrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "redis url is required"))
+		return nil, coreerrors.WrapConstructorError("NewRedisLockProvider", coordinationError(coordination.ErrInvalidArgument, "redis url is required"))
 	}
 	cfg.normalize()
 	metrics, err := NewMetrics(cfg.MetricsRegistry)
 	if err != nil {
-		return nil, wrapConstructorError("NewRedisLockProvider", err)
+		return nil, coreerrors.WrapConstructorError("NewRedisLockProvider", err)
 	}
 
 	client, err := rediskit.NewClient(rediskit.Config{
@@ -113,9 +113,9 @@ func NewRedisLockProvider(cfg RedisLockProviderConfig, log logger.Logger) (*Redi
 	}, log)
 	if err != nil {
 		if strings.Contains(err.Error(), "parse redis URL") {
-			return nil, wrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err))
+			return nil, coreerrors.WrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrValidation, "parse redis url failed"), err))
 		}
-		return nil, wrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err))
+		return nil, coreerrors.WrapConstructorError("NewRedisLockProvider", errors.Join(coordinationError(coordination.ErrRetryable, "ping redis failed"), err))
 	}
 
 	return &RedisLockProvider{

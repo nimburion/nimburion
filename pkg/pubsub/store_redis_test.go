@@ -3,6 +3,8 @@ package pubsub
 import (
 	"errors"
 	"testing"
+
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 )
 
 func TestNewRedisStore_RequiresURL(t *testing.T) {
@@ -10,7 +12,7 @@ func TestNewRedisStore_RequiresURL(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when redis URL is missing")
 	}
-	var constructorErr *ConstructorError
+	var constructorErr *coreerrors.ConstructorError
 	if !errors.As(err, &constructorErr) {
 		t.Fatalf("expected ConstructorError, got %T", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/internal/rediskit"
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
@@ -44,7 +45,7 @@ func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
 	}
 	metrics, err := NewMetrics(cfg.MetricsRegistry)
 	if err != nil {
-		return nil, wrapConstructorError("NewRedisStore", err)
+		return nil, coreerrors.WrapConstructorError("NewRedisStore", err)
 	}
 	client, err := rediskit.NewClient(rediskit.Config{
 		URL:              cfg.URL,
@@ -53,7 +54,7 @@ func NewRedisStore(cfg RedisStoreConfig) (*RedisStore, error) {
 	}, noopLogger{})
 	if err != nil {
 		metrics.record("store", "get_since", err)
-		return nil, wrapConstructorError("NewRedisStore", err)
+		return nil, coreerrors.WrapConstructorError("NewRedisStore", err)
 	}
 
 	return &RedisStore{

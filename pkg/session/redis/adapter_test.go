@@ -9,6 +9,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	coreerrors "github.com/nimburion/nimburion/pkg/core/errors"
 	"github.com/nimburion/nimburion/pkg/observability/logger"
 	"github.com/nimburion/nimburion/pkg/session"
 )
@@ -49,7 +50,7 @@ func TestNewAdapter_EmptyURL(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for empty URL, got nil")
 	}
-	var constructorErr *ConstructorError
+	var constructorErr *coreerrors.ConstructorError
 	if !errors.As(err, &constructorErr) {
 		t.Fatalf("expected ConstructorError, got %T", err)
 	}
