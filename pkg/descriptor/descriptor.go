@@ -560,7 +560,6 @@ func Generate(root *cobra.Command, opts Options) (Descriptor, error) {
 	return out, nil
 }
 
-// Marshal renders a descriptor in one supported format.
 func profileInput(opts Options) ProfileInput {
 	if len(opts.Profiles) == 0 {
 		return ProfileInput{}
@@ -572,6 +571,7 @@ func profileInput(opts Options) ProfileInput {
 	return ProfileInput{Supported: true, Flag: flag}
 }
 
+// Marshal renders a descriptor in one supported format.
 func Marshal(desc Descriptor, format string) ([]byte, error) {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "", "json":
