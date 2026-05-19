@@ -311,6 +311,7 @@ Fields:
 - `render`: required, object
 - `validate`: required, object
 - `inputs`: required, object
+- `profile_input`: optional, object
 - `profiles`: optional, object
 - `sensitivity_model`: optional, object
 
@@ -393,6 +394,26 @@ Interpretation:
 - `nimbctl` can understand the service sensitivity policy at a metadata level
 - field-level secret values remain owned by the service CLI and runtime
 - provenance, if exposed, must be sanitized
+
+#### `config.profile_input`
+
+Optional.
+
+Purpose:
+
+- declare how `nimbctl` should pass a selected environment profile to service-owned config commands
+- make profile selection explicit for `init`, `config render`, and `config validate` flows
+
+Fields:
+
+- `supported`: required, boolean when present
+- `flag`: required when supported, string
+
+Interpretation:
+
+- when `supported` is true, `nimbctl` may pass the selected environment profile using the declared CLI flag
+- the selected profile comes from `config.profiles.environments` or a user override such as `nimbctl init --profile`
+- `config.render.profiles` remains a separate concept for render-shape presets such as `minimal` or `full`
 
 #### `config.profiles`
 
@@ -789,6 +810,10 @@ Recommended fields:
         }
       ]
     },
+    "profile_input": {
+      "supported": true,
+      "flag": "--profile"
+    },
     "sensitivity_model": {
       "classification_enum": ["public", "sensitive", "secret"],
       "redaction_enum": ["none", "mask", "full"],
@@ -943,6 +968,10 @@ Recommended fields:
           "provider": "aws-secrets-manager"
         }
       ]
+    },
+    "profile_input": {
+      "supported": true,
+      "flag": "--profile"
     },
     "sensitivity_model": {
       "classification_enum": ["public", "sensitive", "secret"],

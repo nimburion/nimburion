@@ -267,6 +267,7 @@ type ConfigContract struct {
 	Render           RenderContract   `json:"render" yaml:"render"`
 	Validate         ValidateContract `json:"validate" yaml:"validate"`
 	Inputs           ConfigInputs     `json:"inputs" yaml:"inputs"`
+	ProfileInput     ProfileInput     `json:"profile_input,omitempty" yaml:"profile_input,omitempty"`
 	Profiles         ConfigProfiles   `json:"profiles" yaml:"profiles"`
 	SensitivityModel SensitivityModel `json:"sensitivity_model" yaml:"sensitivity_model"`
 }
@@ -290,6 +291,12 @@ type ValidateContract struct {
 type ConfigInputs struct {
 	Regular   []InputSpec `json:"regular" yaml:"regular"`
 	Sensitive []InputSpec `json:"sensitive" yaml:"sensitive"`
+}
+
+// ProfileInput describes how a selected environment profile reaches service-owned config commands.
+type ProfileInput struct {
+	Supported bool   `json:"supported" yaml:"supported"`
+	Flag      string `json:"flag,omitempty" yaml:"flag,omitempty"`
 }
 
 // InputSpec describes one configuration input mechanism.
@@ -438,13 +445,16 @@ type Options struct {
 
 	EnvPrefix string
 
-	Dependencies []Dependency
-	Management   *Management
-	Transports   []Transport
-	Deployment   *Deployment
-	Migrations   *Migrations
-	Features     []Feature
-	Artifacts    Artifacts
+	Dependencies   []Dependency
+	Management     *Management
+	Transports     []Transport
+	Deployment     *Deployment
+	Migrations     *Migrations
+	Features       []Feature
+	Artifacts      Artifacts
+	Profiles       []Profile
+	RenderProfiles []string
+	ProfileFlag    string
 }
 
 // Generate builds a v1 descriptor from the application command tree and explicit metadata.
@@ -505,6 +515,7 @@ func Generate(root *cobra.Command, opts Options) (Descriptor, error) {
 				Supported: commandExists(commands, []string{"config", "show"}),
 				Path:      commandPath(commands, []string{"config", "show"}),
 				Formats:   []string{"yaml"},
+				Profiles:  append([]string(nil), opts.RenderProfiles...),
 				Outputs: []OutputSpec{
 					{Name: "config", Kind: "config", Format: "yaml", Required: true},
 				},
@@ -522,6 +533,8 @@ func Generate(root *cobra.Command, opts Options) (Descriptor, error) {
 					{Kind: InputKindSecretsFile, Flag: "--secret-file", Format: "yaml"},
 				},
 			},
+			ProfileInput: profileInput(opts),
+			Profiles:     ConfigProfiles{Environments: append([]Profile(nil), opts.Profiles...)},
 			SensitivityModel: SensitivityModel{
 				ClassificationEnum: []string{
 					string(audit.ClassificationPublic),
@@ -548,6 +561,17 @@ func Generate(root *cobra.Command, opts Options) (Descriptor, error) {
 }
 
 // Marshal renders a descriptor in one supported format.
+func profileInput(opts Options) ProfileInput {
+	if len(opts.Profiles) == 0 {
+		return ProfileInput{}
+	}
+	flag := strings.TrimSpace(opts.ProfileFlag)
+	if flag == "" {
+		flag = "--profile"
+	}
+	return ProfileInput{Supported: true, Flag: flag}
+}
+
 func Marshal(desc Descriptor, format string) ([]byte, error) {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "", "json":

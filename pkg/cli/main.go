@@ -94,14 +94,19 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 
 	var cfgPath string
 	var secretFilePath string
+	var profile string
 	var appNameOverride string
 	var debug bool
 	rootCmd.PersistentFlags().StringVarP(&cfgPath, "config-file", "c", opts.ConfigPath, "config file path")
 	rootCmd.PersistentFlags().StringVar(&secretFilePath, "secret-file", "", "path to secrets file (sets APP_SECRETS_FILE)")
+	rootCmd.PersistentFlags().StringVar(&profile, "profile", "", "application environment profile override")
 	rootCmd.PersistentFlags().StringVar(&appNameOverride, "app-name", "", "application name override")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", opts.Debug, "enable framework debug surfaces such as introspection")
 
 	loadConfig := func(cmd *cobra.Command) (*config.Config, logger.Logger, error) {
+		if err := applyProfileFlag(opts.EnvPrefix, profile); err != nil {
+			return nil, nil, err
+		}
 		if opts.ConfigPathResolved != nil {
 			opts.ConfigPathResolved(cfgPath)
 		}
@@ -236,6 +241,9 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 				descOpts.Application.Name = opts.Name
 			}
 			descOpts.EnvPrefix = opts.EnvPrefix
+			if descOpts.ProfileFlag == "" && rootCmd.PersistentFlags().Lookup("profile") != nil {
+				descOpts.ProfileFlag = "--profile"
+			}
 			desc, err := descriptor.Generate(rootCmd, descOpts)
 			if err != nil {
 				return err
@@ -266,6 +274,9 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 		Short: "Validate configuration",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := applySecretFileFlag(opts.EnvPrefix, secretFilePath); err != nil {
+				return err
+			}
+			if err := applyProfileFlag(opts.EnvPrefix, profile); err != nil {
 				return err
 			}
 			if opts.ConfigPathResolved != nil {
@@ -304,6 +315,9 @@ func NewAppCommand(opts AppCommandOptions) *cobra.Command {
 		Short: "Show current configuration",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := applySecretFileFlag(opts.EnvPrefix, secretFilePath); err != nil {
+				return err
+			}
+			if err := applyProfileFlag(opts.EnvPrefix, profile); err != nil {
 				return err
 			}
 			if opts.ConfigPathResolved != nil {
@@ -758,6 +772,13 @@ func deriveValidationRequirements(cmd *cobra.Command) config.ValidationRequireme
 		return config.ValidationRequirements{RequireJobsEventBus: true}
 	}
 	return config.ValidationRequirements{}
+}
+
+func applyProfileFlag(envPrefix, profile string) error {
+	if strings.TrimSpace(profile) == "" {
+		return nil
+	}
+	return os.Setenv(resolveEnvPrefix(envPrefix)+"_APP_ENVIRONMENT", strings.TrimSpace(profile))
 }
 
 func applySecretFileFlag(envPrefix, secretFilePath string) error {

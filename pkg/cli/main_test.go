@@ -447,6 +447,7 @@ func TestDescribeCommand_EmitsDescriptorJSON(t *testing.T) {
 				Kind:        descriptor.ApplicationKindService,
 				TenancyMode: descriptor.TenancyModeSingleTenant,
 			},
+			Profiles: []descriptor.Profile{{Name: "dev"}, {Name: "prod", Default: true}},
 			Transports: []descriptor.Transport{
 				{Family: descriptor.TransportFamilyHTTP},
 			},
@@ -474,6 +475,37 @@ func TestDescribeCommand_EmitsDescriptorJSON(t *testing.T) {
 	}
 	if payload.Runtime.DefaultCommand != "run" {
 		t.Fatalf("expected run as default command, got %q", payload.Runtime.DefaultCommand)
+	}
+	if !payload.Config.ProfileInput.Supported || payload.Config.ProfileInput.Flag != "--profile" {
+		t.Fatalf("expected profile input in descriptor, got %#v", payload.Config.ProfileInput)
+	}
+	if len(payload.Config.Profiles.Environments) != 2 {
+		t.Fatalf("expected environment profiles in descriptor, got %#v", payload.Config.Profiles)
+	}
+}
+
+func TestConfigShow_UsesProfileOverride(t *testing.T) {
+	clearCLITestEnv()
+	defer clearCLITestEnv()
+
+	cmd := NewAppCommand(AppCommandOptions{
+		Name:        "testapp",
+		Description: "test app",
+		Descriptor: descriptor.Options{
+			Profiles: []descriptor.Profile{{Name: "dev"}, {Name: "stage"}},
+		},
+	})
+
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"config", "show", "--profile", "stage"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute config show: %v", err)
+	}
+	if got := os.Getenv("APP_APP_ENVIRONMENT"); got != "stage" {
+		t.Fatalf("expected APP_APP_ENVIRONMENT=stage after --profile, got %q", got)
 	}
 }
 
@@ -856,5 +888,15 @@ func TestShouldRedactSetting(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("shouldRedactSetting(%v) = %v, want %v", tt.mask, result, tt.expected)
 		}
+	}
+}
+
+func clearCLITestEnv() {
+	for _, key := range []string{
+		"APP_APP_ENVIRONMENT",
+		"APP_ENVIRONMENT",
+		"APP_SECRETS_FILE",
+	} {
+		_ = os.Unsetenv(key)
 	}
 }

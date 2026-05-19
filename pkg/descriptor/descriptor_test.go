@@ -18,8 +18,10 @@ func TestGenerateHTTPOnlyDescriptor(t *testing.T) {
 	root.AddCommand(configCmd)
 
 	desc, err := Generate(root, Options{
-		Application: Application{Name: "http-app", Kind: ApplicationKindService},
-		EnvPrefix:   "APP",
+		Application:    Application{Name: "http-app", Kind: ApplicationKindService},
+		EnvPrefix:      "APP",
+		Profiles:       []Profile{{Name: "dev"}, {Name: "prod", Default: true}},
+		RenderProfiles: []string{"minimal", "full"},
 		Management: &Management{
 			Supported: true,
 			Transport: "http",
@@ -38,6 +40,12 @@ func TestGenerateHTTPOnlyDescriptor(t *testing.T) {
 	}
 	if !desc.Config.Render.Supported || !desc.Config.Validate.Supported {
 		t.Fatal("expected config render and validate support")
+	}
+	if !desc.Config.ProfileInput.Supported || desc.Config.ProfileInput.Flag != "--profile" {
+		t.Fatalf("expected profile input contract, got %#v", desc.Config.ProfileInput)
+	}
+	if len(desc.Config.Profiles.Environments) != 2 || len(desc.Config.Render.Profiles) != 2 {
+		t.Fatalf("expected profile metadata in descriptor, got config=%#v", desc.Config)
 	}
 }
 
