@@ -315,6 +315,7 @@ func readSessionID(req *http.Request, cookieName string) string {
 }
 
 func writeSessionCookie(w http.ResponseWriter, cfg Config, sessionID string) {
+	// #nosec G124 -- Secure, HttpOnly, and SameSite are explicit config fields; Secure may be false for local HTTP development/tests.
 	http.SetCookie(w, &http.Cookie{
 		Name:     cfg.CookieName,
 		Value:    sessionID,
@@ -329,6 +330,7 @@ func writeSessionCookie(w http.ResponseWriter, cfg Config, sessionID string) {
 }
 
 func clearSessionCookie(w http.ResponseWriter, cfg Config) {
+	// #nosec G124 -- Clearing must mirror the configured cookie attributes, including optional Secure=false for local HTTP development/tests.
 	http.SetCookie(w, &http.Cookie{
 		Name:     cfg.CookieName,
 		Value:    "",

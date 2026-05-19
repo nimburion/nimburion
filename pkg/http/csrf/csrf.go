@@ -138,6 +138,7 @@ func isExempt(req *http.Request, cfg Config) bool {
 }
 
 func writeCSRFCookie(w http.ResponseWriter, cfg Config, token string) {
+	// #nosec G124 -- CSRF cookie is intentionally readable by JavaScript; Secure and SameSite remain explicit config fields.
 	http.SetCookie(w, &http.Cookie{
 		Name:     cfg.CookieName,
 		Value:    token,
