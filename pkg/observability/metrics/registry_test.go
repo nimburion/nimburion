@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -62,6 +63,9 @@ func TestRegistry_Handler(t *testing.T) {
 // Requirements: 13.1, 13.2, 13.3, 13.4
 func TestRegistry_HTTPMetricsExposed(t *testing.T) {
 	registry := NewRegistry()
+	registry.IncrementInFlight()
+	registry.RecordHTTPMetrics(http.MethodGet, "/metrics", http.StatusOK, 10*time.Millisecond)
+	registry.DecrementInFlight()
 	handler := registry.Handler()
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -283,13 +287,13 @@ func TestRegistry_HTTPMetricsUpdated(t *testing.T) {
 	registry := NewRegistry()
 
 	// Record some HTTP metrics
-	RecordHTTPMetrics("GET", "/api/users", 200, 100_000_000)  // 100ms
-	RecordHTTPMetrics("POST", "/api/users", 201, 150_000_000) // 150ms
-	RecordHTTPMetrics("GET", "/api/users", 404, 50_000_000)   // 50ms
+	registry.RecordHTTPMetrics("GET", "/api/users", 200, 100_000_000)  // 100ms
+	registry.RecordHTTPMetrics("POST", "/api/users", 201, 150_000_000) // 150ms
+	registry.RecordHTTPMetrics("GET", "/api/users", 404, 50_000_000)   // 50ms
 
-	IncrementInFlight()
-	IncrementInFlight()
-	DecrementInFlight()
+	registry.IncrementInFlight()
+	registry.IncrementInFlight()
+	registry.DecrementInFlight()
 
 	// Get metrics output
 	handler := registry.Handler()

@@ -15,7 +15,10 @@ import (
 //
 // Requirements: 13.1, 13.5, 13.6, 13.7
 type Registry struct {
-	registry *prometheus.Registry
+	registry             *prometheus.Registry
+	httpRequestDuration  *prometheus.HistogramVec
+	httpRequestsTotal    *prometheus.CounterVec
+	httpRequestsInFlight prometheus.Gauge
 }
 
 // NewRegistry creates a new metrics registry with default collectors.
@@ -26,8 +29,10 @@ type Registry struct {
 // Requirements: 13.1, 13.5, 13.6
 func NewRegistry() *Registry {
 	reg := prometheus.NewRegistry()
+	httpRequestDuration := newHTTPRequestDurationCollector()
+	httpRequestsTotal := newHTTPRequestsTotalCollector()
+	httpRequestsInFlight := newHTTPRequestsInFlightCollector()
 
-	// Register HTTP metrics
 	reg.MustRegister(httpRequestDuration)
 	reg.MustRegister(httpRequestsTotal)
 	reg.MustRegister(httpRequestsInFlight)
@@ -38,7 +43,10 @@ func NewRegistry() *Registry {
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	return &Registry{
-		registry: reg,
+		registry:             reg,
+		httpRequestDuration:  httpRequestDuration,
+		httpRequestsTotal:    httpRequestsTotal,
+		httpRequestsInFlight: httpRequestsInFlight,
 	}
 }
 

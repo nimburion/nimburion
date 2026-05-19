@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/nimburion/nimburion/pkg/http/router"
-	"github.com/nimburion/nimburion/pkg/observability/metrics"
+	frameworkmetrics "github.com/nimburion/nimburion/pkg/observability/metrics"
 )
 
 // Metrics creates middleware that records Prometheus metrics for HTTP requests.
@@ -16,26 +16,27 @@ import (
 //
 // Requirements: 13.2, 13.3, 13.4
 func Metrics() router.MiddlewareFunc {
+	return MetricsWithRegistry(frameworkmetrics.DefaultRegistry())
+}
+
+// MetricsWithRegistry creates middleware that records Prometheus metrics for HTTP requests
+// on the provided registry. When registry is nil, the default registry is used.
+func MetricsWithRegistry(registry *frameworkmetrics.Registry) router.MiddlewareFunc {
+	if registry == nil {
+		registry = frameworkmetrics.DefaultRegistry()
+	}
+
 	return func(next router.HandlerFunc) router.HandlerFunc {
 		return func(c router.Context) error {
-			// Increment in-flight requests gauge
-			metrics.IncrementInFlight()
-			defer metrics.DecrementInFlight()
+			registry.IncrementInFlight()
+			defer registry.DecrementInFlight()
 
-			// Record start time
 			start := time.Now()
-
-			// Call next handler
 			err := next(c)
-
-			// Calculate duration
 			duration := time.Since(start)
-
-			// Get response status
 			status := c.Response().Status()
 
-			// Record metrics
-			metrics.RecordHTTPMetrics(
+			registry.RecordHTTPMetrics(
 				c.Request().Method,
 				c.Request().URL.Path,
 				status,

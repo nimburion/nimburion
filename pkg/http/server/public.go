@@ -324,7 +324,7 @@ func newPublicAPIServerWithDependencies(
 		{name: "i18n", fn: i18nmiddleware.Middleware(i18nMiddlewareCfg)},
 		{name: "logging", fn: logging.WithConfig(effectiveLogger, loggingCfg)},
 		{name: "recovery", fn: recovery.Recovery(effectiveLogger)},
-		{name: "metrics", fn: metrics.Metrics()},
+		{name: "metrics", fn: metrics.MetricsWithRegistry(metricsRegistry)},
 	}
 	if obsCfg.TracingEnabled && obsCfg.RequestTracing.Enabled {
 		namedMiddlewares = append(namedMiddlewares, middlewareEntry{name: "tracing", fn: tracing.Tracing(tracingCfg)})

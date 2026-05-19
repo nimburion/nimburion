@@ -55,7 +55,7 @@ func TestRecordHTTPMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Record the metrics
-			RecordHTTPMetrics(tt.method, tt.path, tt.status, tt.duration)
+			registry.RecordHTTPMetrics(tt.method, tt.path, tt.status, tt.duration)
 
 			// Get metrics output
 			handler := registry.Handler()
@@ -97,9 +97,9 @@ func TestIncrementDecrementInFlight(t *testing.T) {
 	}
 
 	// Increment in-flight
-	IncrementInFlight()
-	IncrementInFlight()
-	IncrementInFlight()
+	registry.IncrementInFlight()
+	registry.IncrementInFlight()
+	registry.IncrementInFlight()
 
 	// Check value increased
 	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -112,8 +112,8 @@ func TestIncrementDecrementInFlight(t *testing.T) {
 	}
 
 	// Decrement in-flight
-	DecrementInFlight()
-	DecrementInFlight()
+	registry.DecrementInFlight()
+	registry.DecrementInFlight()
 
 	// Check value decreased
 	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -132,10 +132,10 @@ func TestHTTPMetricsLabels(t *testing.T) {
 	registry := NewRegistry()
 
 	// Record metrics with different label combinations
-	RecordHTTPMetrics("GET", "/api/users", 200, 100*time.Millisecond)
-	RecordHTTPMetrics("GET", "/api/users", 404, 50*time.Millisecond)
-	RecordHTTPMetrics("POST", "/api/users", 201, 150*time.Millisecond)
-	RecordHTTPMetrics("DELETE", "/api/users/123", 204, 75*time.Millisecond)
+	registry.RecordHTTPMetrics("GET", "/api/users", 200, 100*time.Millisecond)
+	registry.RecordHTTPMetrics("GET", "/api/users", 404, 50*time.Millisecond)
+	registry.RecordHTTPMetrics("POST", "/api/users", 201, 150*time.Millisecond)
+	registry.RecordHTTPMetrics("DELETE", "/api/users/123", 204, 75*time.Millisecond)
 
 	// Get metrics output
 	handler := registry.Handler()
@@ -176,7 +176,7 @@ func TestHTTPMetricsDurationHistogram(t *testing.T) {
 	}
 
 	for i, duration := range durations {
-		RecordHTTPMetrics("GET", "/api/test", 200, duration)
+		registry.RecordHTTPMetrics("GET", "/api/test", 200, duration)
 		_ = i // avoid unused variable
 	}
 
@@ -219,7 +219,7 @@ func TestHTTPMetricsCounterIncrement(t *testing.T) {
 	status := 200
 
 	for i := 0; i < 5; i++ {
-		RecordHTTPMetrics(method, path, status, 100*time.Millisecond)
+		registry.RecordHTTPMetrics(method, path, status, 100*time.Millisecond)
 	}
 
 	// Get metrics output
@@ -252,7 +252,7 @@ func TestHTTPMetricsStatusCodes(t *testing.T) {
 	statusCodes := []int{200, 201, 204, 400, 401, 403, 404, 500, 502, 503}
 
 	for _, status := range statusCodes {
-		RecordHTTPMetrics("GET", "/api/test", status, 100*time.Millisecond)
+		registry.RecordHTTPMetrics("GET", "/api/test", status, 100*time.Millisecond)
 	}
 
 	// Get metrics output
@@ -286,9 +286,9 @@ func TestHTTPMetricsConcurrency(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(_ int) {
 			for j := 0; j < requestsPerGoroutine; j++ {
-				IncrementInFlight()
-				RecordHTTPMetrics("GET", "/api/concurrent", 200, 10*time.Millisecond)
-				DecrementInFlight()
+				registry.IncrementInFlight()
+				registry.RecordHTTPMetrics("GET", "/api/concurrent", 200, 10*time.Millisecond)
+				registry.DecrementInFlight()
 			}
 			done <- true
 		}(i)
