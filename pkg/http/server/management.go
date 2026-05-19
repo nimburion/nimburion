@@ -166,6 +166,9 @@ func (s *ManagementServer) registerEndpoints(r router.Router, swaggerCfg openapi
 		swaggerHandler := openapi.NewSwaggerHandler(true, swaggerCfg.SpecPath)
 		r.GET("/swagger", swaggerHandler.ServeSwaggerUI, swaggerMiddleware...)
 		r.GET("/swagger/", swaggerHandler.ServeSwaggerUI, swaggerMiddleware...)
+		if s != nil && s.logger != nil {
+			s.logger.Info("registered swagger ui on management server", "path", "/swagger", "spec_path", swaggerCfg.SpecPath)
+		}
 		return
 	}
 	r.GET("/swagger", s.handleSwagger, swaggerMiddleware...)

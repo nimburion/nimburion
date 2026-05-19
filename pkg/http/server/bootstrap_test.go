@@ -67,6 +67,9 @@ func TestBuildHTTPServers_ProvisionsGeneratedOpenAPISpec(t *testing.T) {
 		RegisterRoutes: func(r router.Router, _ *config.Config) {
 			r.GET("/orders/:id", func(_ router.Context) error { return nil })
 		},
+		DescribeRoutes: func(r router.Router, _ *config.Config) {
+			r.GET("/orders/:id", func(_ router.Context) error { return nil })
+		},
 		Logger:          log,
 		HealthRegistry:  health.NewRegistry(),
 		MetricsRegistry: metrics.NewRegistry(),
@@ -84,9 +87,16 @@ func TestBuildHTTPServers_ProvisionsGeneratedOpenAPISpec(t *testing.T) {
 	if body := rec.Body.String(); !strings.Contains(body, "/orders/{id}") {
 		t.Fatalf("expected generated route in spec, got %s", body)
 	}
+
+	req = httptest.NewRequest(http.MethodGet, "/orders/123", nil)
+	rec = httptest.NewRecorder()
+	publicRouter.ServeHTTP(rec, req)
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("expected application route to be registered on public router")
+	}
 }
 
-func TestBuildHTTPServers_ProvisionGeneratedOpenAPISpecRequiresRegisterRoutes(t *testing.T) {
+func TestBuildHTTPServers_ProvisionGeneratedOpenAPISpecWithoutRegisterRoutesSkipsProvisioning(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Management.Enabled = true
 	cfg.Swagger.Enabled = true
@@ -97,17 +107,57 @@ func TestBuildHTTPServers_ProvisionGeneratedOpenAPISpecRequiresRegisterRoutes(t 
 		t.Fatalf("create logger: %v", err)
 	}
 
+	managementRouter := nethttp.NewRouter()
 	servers, err := BuildHTTPServers(&RunHTTPServersOptions{
 		Config:           cfg,
 		PublicRouter:     nethttp.NewRouter(),
-		ManagementRouter: nethttp.NewRouter(),
+		ManagementRouter: managementRouter,
 		Logger:           log,
 	})
-	if err == nil || err.Error() != "provision generated openapi spec: register routes callback is required when swagger.provision_generated_spec is enabled" {
-		t.Fatalf("expected explicit register routes error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
-	if servers != nil {
-		t.Fatalf("expected nil servers when generated spec provisioning cannot be configured")
+	if servers == nil || servers.Management == nil {
+		t.Fatalf("expected management server")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/openapi/openapi.yaml", nil)
+	rec := httptest.NewRecorder()
+	managementRouter.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected generated spec route to be absent without describe routes callback, got %d", rec.Code)
+	}
+}
+
+func TestBuildHTTPServers_RegisterRoutesPopulatesPublicRouter(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Management.Enabled = false
+
+	log, err := logger.NewZapLogger(logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat})
+	if err != nil {
+		t.Fatalf("create logger: %v", err)
+	}
+
+	publicRouter := nethttp.NewRouter()
+	_, err = BuildHTTPServers(&RunHTTPServersOptions{
+		Config:       cfg,
+		PublicRouter: publicRouter,
+		RegisterRoutes: func(r router.Router, _ *config.Config) {
+			r.GET("/ping", func(c router.Context) error {
+				return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+			})
+		},
+		Logger: log,
+	})
+	if err != nil {
+		t.Fatalf("build servers: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	rec := httptest.NewRecorder()
+	publicRouter.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected registered route to return 200, got %d", rec.Code)
 	}
 }
 

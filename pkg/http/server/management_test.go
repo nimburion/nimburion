@@ -186,6 +186,19 @@ func TestNewManagementServerWithSwagger_ServesSwaggerUI(t *testing.T) {
 	if body := rec.Body.String(); !strings.Contains(body, "swagger-ui") {
 		t.Fatalf("expected swagger ui html, got %s", body)
 	}
+	if len(log.infos) == 0 {
+		t.Fatal("expected swagger registration log")
+	}
+	found := false
+	for _, msg := range log.infos {
+		if msg == "registered swagger ui on management server" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected swagger registration log message, got %v", log.infos)
+	}
 }
 
 // TestManagementServer_HealthEndpoint tests the /health endpoint

@@ -35,6 +35,7 @@ type RunHTTPServersOptions struct {
 	PublicRouter     router.Router
 	ManagementRouter router.Router
 	RegisterRoutes   func(router.Router, *config.Config)
+	DescribeRoutes   func(router.Router, *config.Config)
 
 	Logger logger.Logger
 
@@ -55,6 +56,7 @@ func NewDefaultRunHTTPServersOptions() *RunHTTPServersOptions {
 		PublicRouter:           nil,
 		ManagementRouter:       nil,
 		RegisterRoutes:         nil,
+		DescribeRoutes:         nil,
 		Logger:                 nil,
 		HealthRegistry:         nil,
 		MetricsRegistry:        nil,
@@ -118,6 +120,9 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	if publicServer.startErr != nil {
 		return nil, fmt.Errorf("create public server: %w", publicServer.startErr)
 	}
+	if opts.RegisterRoutes != nil {
+		opts.RegisterRoutes(opts.PublicRouter, opts.Config)
+	}
 
 	servers := &HTTPServers{Public: publicServer}
 	if !opts.Config.Management.Enabled {
@@ -129,9 +134,7 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	}
 	versionInfo := version.Current(resolveServiceName(opts))
 	registerVersionEndpoint(opts.ManagementRouter, versionInfo)
-	if err := provisionGeneratedOpenAPISpec(opts, versionInfo); err != nil {
-		return nil, fmt.Errorf("provision generated openapi spec: %w", err)
-	}
+	provisionGeneratedOpenAPISpec(opts, versionInfo)
 
 	managementServer, err := NewManagementServerWithSwagger(
 		opts.Config.Management,
@@ -149,35 +152,52 @@ func BuildHTTPServers(opts *RunHTTPServersOptions) (*HTTPServers, error) {
 	return servers, nil
 }
 
-func provisionGeneratedOpenAPISpec(opts *RunHTTPServersOptions, versionInfo version.Info) error {
+func provisionGeneratedOpenAPISpec(opts *RunHTTPServersOptions, versionInfo version.Info) {
 	if opts == nil || opts.Config == nil || opts.ManagementRouter == nil {
-		return nil
+		return
 	}
 	if !opts.Config.Swagger.Enabled || !opts.Config.Swagger.ProvisionGeneratedSpec {
-		return nil
+		return
 	}
-	if opts.RegisterRoutes == nil {
-		return errors.New("register routes callback is required when swagger.provision_generated_spec is enabled")
+	if opts.DescribeRoutes == nil {
+		if opts.Logger != nil {
+			opts.Logger.Warn("swagger.provision_generated_spec enabled but describe routes callback is missing; skipping generated spec provisioning")
+		}
+		return
 	}
 
 	routes := openapi.CollectRoutes(func(r router.Router) {
-		opts.RegisterRoutes(r, opts.Config)
+		opts.DescribeRoutes(r, opts.Config)
 	})
+	if opts.Logger != nil {
+		for _, route := range routes {
+			opts.Logger.Debug("collected openapi route", "method", route.Method, "path", route.Path)
+		}
+		opts.Logger.Debug("collected openapi routes", "count", len(routes))
+	}
 	spec := openapi.BuildSpec(resolveServiceName(opts), versionInfo.Version, routes)
 
 	tempFile, err := os.CreateTemp("", "nimburion-openapi-*.yaml")
 	if err != nil {
-		return fmt.Errorf("create temp openapi spec file: %w", err)
+		if opts.Logger != nil {
+			opts.Logger.Error("failed to create temp openapi spec file", "error", err)
+		}
+		return
 	}
 	if closeErr := tempFile.Close(); closeErr != nil {
-		return fmt.Errorf("close temp openapi spec file: %w", closeErr)
+		if opts.Logger != nil {
+			opts.Logger.Error("failed to close temp openapi spec file", "error", closeErr)
+		}
+		return
 	}
 	if err := openapi.WriteSpec(tempFile.Name(), spec); err != nil {
-		return fmt.Errorf("write temp openapi spec file: %w", err)
+		if opts.Logger != nil {
+			opts.Logger.Error("failed to write generated openapi spec", "error", err)
+		}
+		return
 	}
 
 	openapi.NewHandler(tempFile.Name()).RegisterRoutes(opts.ManagementRouter)
-	return nil
 }
 
 // RunHTTPServers starts public server and (optionally) management server.
