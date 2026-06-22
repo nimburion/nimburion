@@ -244,7 +244,10 @@ func New(opts Options) (*App, error) {
 		shutdownTimeout = defaultShutdownTimeout
 	}
 
-	featureContributions := collectFeatureContributions(opts.Features)
+	featureContributions, err := collectFeatureContributions(opts.Features)
+	if err != nil {
+		return nil, fmt.Errorf("collect feature contributions: %w", err)
+	}
 
 	return &App{
 		runtime: &Runtime{
@@ -570,14 +573,16 @@ type collectedFeatureContributions struct {
 	introspectionHooks   []feature.Hook
 }
 
-func collectFeatureContributions(features []feature.Feature) collectedFeatureContributions {
+func collectFeatureContributions(features []feature.Feature) (collectedFeatureContributions, error) {
 	var collected collectedFeatureContributions
 
-	for _, currentFeature := range features {
-		if currentFeature == nil {
-			continue
-		}
-		contributions := currentFeature.Contributions()
+	ordered, err := orderFeatures(features)
+	if err != nil {
+		return collected, err
+	}
+
+	for _, currentFeature := range ordered {
+		contributions := effectiveContributions(currentFeature)
 		collected.observabilityHooks = append(collected.observabilityHooks, contributions.ObservabilityHooks...)
 		collected.startupHooks = append(collected.startupHooks, contributions.StartupHooks...)
 		collected.healthHooks = append(collected.healthHooks, contributions.HealthContributors...)
@@ -588,7 +593,71 @@ func collectFeatureContributions(features []feature.Feature) collectedFeatureCon
 		collected.introspectionHooks = append(collected.introspectionHooks, contributions.IntrospectionContributors...)
 	}
 
-	return collected
+	return collected, nil
+}
+
+// effectiveContributions merges the broad Contributions() value with any
+// focused optional provider interfaces a feature implements.
+//
+// Merge semantics: Contributions() wins per category. An optional provider
+// interface is consulted ONLY when Contributions() left that category empty,
+// so the two mechanisms behave as a clean fallback and a feature can never
+// double-count a contribution by exposing it through both paths.
+func effectiveContributions(currentFeature feature.Feature) feature.Contributions {
+	contributions := currentFeature.Contributions()
+
+	if len(contributions.ConfigExtensions) == 0 {
+		if provider, ok := currentFeature.(feature.ConfigExtensionProvider); ok {
+			contributions.ConfigExtensions = provider.ConfigExtensions()
+		}
+	}
+	if len(contributions.CommandRegistrations) == 0 {
+		if provider, ok := currentFeature.(feature.CommandProvider); ok {
+			contributions.CommandRegistrations = provider.CommandRegistrations()
+		}
+	}
+	if len(contributions.ObservabilityHooks) == 0 {
+		if provider, ok := currentFeature.(feature.ObservabilityHookProvider); ok {
+			contributions.ObservabilityHooks = provider.ObservabilityHooks()
+		}
+	}
+	if len(contributions.StartupHooks) == 0 {
+		if provider, ok := currentFeature.(feature.StartupHookProvider); ok {
+			contributions.StartupHooks = provider.StartupHooks()
+		}
+	}
+	if len(contributions.HealthContributors) == 0 {
+		if provider, ok := currentFeature.(feature.HealthContributorProvider); ok {
+			contributions.HealthContributors = provider.HealthContributors()
+		}
+	}
+	if len(contributions.InstrumentationHooks) == 0 {
+		if provider, ok := currentFeature.(feature.InstrumentationHookProvider); ok {
+			contributions.InstrumentationHooks = provider.InstrumentationHooks()
+		}
+	}
+	if len(contributions.ServiceConstructors) == 0 {
+		if provider, ok := currentFeature.(feature.ServiceConstructorProvider); ok {
+			contributions.ServiceConstructors = provider.ServiceConstructors()
+		}
+	}
+	if len(contributions.RuntimeRunners) == 0 {
+		if provider, ok := currentFeature.(feature.RunnerProvider); ok {
+			contributions.RuntimeRunners = provider.RuntimeRunners()
+		}
+	}
+	if len(contributions.ShutdownHooks) == 0 {
+		if provider, ok := currentFeature.(feature.ShutdownHookProvider); ok {
+			contributions.ShutdownHooks = provider.ShutdownHooks()
+		}
+	}
+	if len(contributions.IntrospectionContributors) == 0 {
+		if provider, ok := currentFeature.(feature.IntrospectionProvider); ok {
+			contributions.IntrospectionContributors = provider.IntrospectionContributors()
+		}
+	}
+
+	return contributions
 }
 
 func adaptFeatureHooks(hooks []feature.Hook) []Hook {

@@ -97,3 +97,72 @@ type Feature interface {
 	Name() string
 	Contributions() Contributions
 }
+
+// The interfaces below are optional, focused alternatives to the broad
+// Contributions struct. A Feature MAY implement any subset of them to expose
+// only the categories it actually contributes, instead of constructing a full
+// Contributions value.
+//
+// Merge semantics (see app.collectFeatureContributions): for each category the
+// value returned by Contributions() wins when it is non-empty. The matching
+// optional interface is consulted ONLY when Contributions() leaves that
+// category empty (the zero value). This makes the two mechanisms a clean
+// fallback rather than additive, so a feature can never double-count the same
+// contribution by exposing it through both paths.
+
+// ConfigExtensionProvider optionally contributes config extensions.
+type ConfigExtensionProvider interface {
+	ConfigExtensions() []ConfigExtension
+}
+
+// CommandProvider optionally contributes CLI command registrations.
+type CommandProvider interface {
+	CommandRegistrations() []CommandContribution
+}
+
+// ObservabilityHookProvider optionally contributes observability hooks.
+type ObservabilityHookProvider interface {
+	ObservabilityHooks() []Hook
+}
+
+// StartupHookProvider optionally contributes startup hooks.
+type StartupHookProvider interface {
+	StartupHooks() []Hook
+}
+
+// HealthContributorProvider optionally contributes health contributors.
+type HealthContributorProvider interface {
+	HealthContributors() []Hook
+}
+
+// InstrumentationHookProvider optionally contributes instrumentation hooks.
+type InstrumentationHookProvider interface {
+	InstrumentationHooks() []Hook
+}
+
+// ServiceConstructorProvider optionally contributes service constructors.
+type ServiceConstructorProvider interface {
+	ServiceConstructors() []Hook
+}
+
+// RunnerProvider optionally contributes runtime runners.
+type RunnerProvider interface {
+	RuntimeRunners() []Runner
+}
+
+// ShutdownHookProvider optionally contributes shutdown hooks.
+type ShutdownHookProvider interface {
+	ShutdownHooks() []Hook
+}
+
+// IntrospectionProvider optionally contributes introspection contributors.
+type IntrospectionProvider interface {
+	IntrospectionContributors() []Hook
+}
+
+// DependencyDeclaring optionally declares the names of other features that must
+// be collected (and therefore initialized) before this one. Features that do
+// not implement it keep their original registration order.
+type DependencyDeclaring interface {
+	DependsOn() []string
+}
