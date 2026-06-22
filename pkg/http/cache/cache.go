@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -214,7 +215,7 @@ func (m *middleware) handle(next router.HandlerFunc) router.HandlerFunc {
 		}
 
 		now := time.Now()
-		entry, cached, entryState := m.load(cacheKey, now)
+		entry, cached, entryState := m.load(c.Request().Context(), cacheKey, now)
 		if cached {
 			switch entryState {
 			case "fresh":
@@ -248,13 +249,13 @@ func (m *middleware) handle(next router.HandlerFunc) router.HandlerFunc {
 	}
 }
 
-func (m *middleware) load(key string, now time.Time) (*cacheEntry, bool, string) {
+func (m *middleware) load(ctx context.Context, key string, now time.Time) (*cacheEntry, bool, string) {
 	lookupStart := time.Now()
 	defer func() {
 		observeCacheLatency("lookup", time.Since(lookupStart))
 	}()
 
-	raw, err := m.cfg.Store.Get(key)
+	raw, err := m.cfg.Store.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, rolecache.ErrCacheMiss) {
 			return nil, false, ""
@@ -324,7 +325,7 @@ func (m *middleware) computeAndStore(c router.Context, next router.HandlerFunc, 
 	if ttl <= 0 {
 		ttl = m.cfg.TTL
 	}
-	if err := m.cfg.Store.Set(key, encoded, ttl); err != nil {
+	if err := m.cfg.Store.Set(c.Request().Context(), key, encoded, ttl); err != nil {
 		incCacheResult("error")
 		return nil, nil
 	}

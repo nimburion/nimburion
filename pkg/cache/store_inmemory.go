@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -24,7 +25,10 @@ func NewInMemoryStore() *InMemoryStore {
 }
 
 // Get loads a key from memory.
-func (s *InMemoryStore) Get(key string) ([]byte, error) {
+func (s *InMemoryStore) Get(ctx context.Context, key string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	item, ok := s.items[key]
 	s.mu.RUnlock()
@@ -41,7 +45,10 @@ func (s *InMemoryStore) Get(key string) ([]byte, error) {
 }
 
 // Set stores a key with TTL.
-func (s *InMemoryStore) Set(key string, value []byte, ttl time.Duration) error {
+func (s *InMemoryStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if ttl <= 0 {
 		ttl = time.Second
 	}
@@ -55,7 +62,10 @@ func (s *InMemoryStore) Set(key string, value []byte, ttl time.Duration) error {
 }
 
 // Delete removes a key.
-func (s *InMemoryStore) Delete(key string) error {
+func (s *InMemoryStore) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.items, key)

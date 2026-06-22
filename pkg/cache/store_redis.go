@@ -70,8 +70,8 @@ func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 }
 
 // Get loads an entry from Redis.
-func (s *RedisStore) Get(key string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), s.opTimeout)
+func (s *RedisStore) Get(ctx context.Context, key string) ([]byte, error) {
+	ctx, cancel := s.opContext(ctx)
 	defer cancel()
 	raw, err := s.client.Get(ctx, s.key(key)).Result()
 	if err != nil {
@@ -84,17 +84,33 @@ func (s *RedisStore) Get(key string) ([]byte, error) {
 }
 
 // Set stores an entry with TTL.
-func (s *RedisStore) Set(key string, value []byte, ttl time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), s.opTimeout)
+func (s *RedisStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	ctx, cancel := s.opContext(ctx)
 	defer cancel()
 	return s.client.Set(ctx, s.key(key), value, ttl).Err()
 }
 
 // Delete removes an entry.
-func (s *RedisStore) Delete(key string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), s.opTimeout)
+func (s *RedisStore) Delete(ctx context.Context, key string) error {
+	ctx, cancel := s.opContext(ctx)
 	defer cancel()
 	return s.client.Del(ctx, s.key(key)).Err()
+}
+
+// opContext derives an operation context that honors the caller's deadline
+// while applying the store's operation timeout when none is already set.
+func (s *RedisStore) opContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if s.opTimeout <= 0 {
+		return ctx, func() {}
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return ctx, func() {}
+	}
+	// #nosec G118 -- the cancel function is returned to the caller, which defers it immediately.
+	return context.WithTimeout(ctx, s.opTimeout)
 }
 
 // Close closes Redis client.

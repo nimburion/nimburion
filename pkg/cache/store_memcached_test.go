@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 func TestMemcachedAdapterClient_OpContextNoTimeout(t *testing.T) {
 	client := &memcachedAdapterClient{}
 
-	ctx, cancel := client.opContext()
+	ctx, cancel := client.opContext(context.Background())
 	defer cancel()
 
 	if _, ok := ctx.Deadline(); ok {
@@ -22,7 +23,7 @@ func TestMemcachedAdapterClient_OpContextNoTimeout(t *testing.T) {
 func TestMemcachedAdapterClient_OpContextWithTimeout(t *testing.T) {
 	client := &memcachedAdapterClient{timeout: 200 * time.Millisecond}
 
-	ctx, cancel := client.opContext()
+	ctx, cancel := client.opContext(context.Background())
 	defer cancel()
 
 	deadline, ok := ctx.Deadline()

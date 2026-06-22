@@ -52,7 +52,7 @@ func TestRedisStore_KeyAndMappings(t *testing.T) {
 	if key := store.key("abc"); key != "http-cache:abc" {
 		t.Fatalf("unexpected key: %s", key)
 	}
-	if _, err := store.Get("abc"); !errors.Is(err, ErrCacheMiss) {
+	if _, err := store.Get(context.Background(), "abc"); !errors.Is(err, ErrCacheMiss) {
 		t.Fatalf("expected ErrCacheMiss from get mapping, got %v", err)
 	}
 }
